@@ -270,7 +270,7 @@ def reportar_pago(sv, pedido_id, metodo, referencia):
     metodo, referencia = _txt(metodo, "metodo"), _txt(referencia, "referencia")
     p = _transicion(sv, pedido_id, {"confirmado"}, "pago_reportado", {"metodo": metodo, "referencia": referencia})
     _aviso(sv, p, pedido_id, f"Verificar Yappy/transferencia ref {_una_linea(referencia)} ({_una_linea(metodo)}) y marcar pagado: pedido #{pedido_id}, total {dinero(p['total_c'])}.")
-    return {"ok": True, "estado": "pago_reportado", "nota": "El equipo verificará el pago; aún no está verificado."}
+    return {"ok": True, "estado": "pago_reportado", "nota": "Pago pendiente de verificación por el restaurante. No lo des por pagado ni prometas tiempo de preparación o entrega hasta que el equipo lo verifique."}
 
 
 def cancelar_pedido(sv, pedido_id):

@@ -24,6 +24,12 @@ def avisos_nuevos(sv, desde_id):
     return nuevos, max([desde_id] + [a["id"] for a in nuevos])
 
 
+def avisos_pendientes(sv):
+    """Avisos de pedidos que esperan acción del restaurante (confirmado o pago_reportado), del más nuevo al más viejo."""
+    espera = {p["id"] for p in sv.listar("pedido") if p["estado"] in {"confirmado", "pago_reportado"}}
+    return [a for a in reversed(sv.listar("aviso")) if a.get("pedido_id") in espera]
+
+
 def elegir_carpeta(argv, exe_dir):
     """Carpeta del servicio: argumento, o la del .exe si tiene servicio.yaml, o None (preguntar)."""
     if argv:
@@ -113,6 +119,8 @@ def main(argv):
             root.lift()
         root.after(SONDEO_MS, refrescar)
 
+    for a in avisos_pendientes(sv):
+        avisos.insert("end", a["texto"])
     refrescar(sonar=False)  # al arrancar no suena por lo viejo
     root.mainloop()
     sv.cerrar()

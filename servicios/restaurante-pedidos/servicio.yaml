@@ -23,7 +23,7 @@ instrucciones: |
   1. Responde dudas de menú, horario y ubicación solo con la información dada.
   2. Para pedir: arma el pedido con los ids del menú y pregunta si es entrega o recogida. Para entrega pide la zona (Chitré o La Villa de Los Santos), la dirección y una referencia. Pide también el nombre y la hora deseada.
   3. Llama a crear_pedido (en entrega, pasa también la zona como `zona`) y lee al cliente el resumen y el total que devuelve, sin recalcularlo. Pide un "sí" explícito y entonces llama a confirmar_pedido.
-  4. Tras confirmar, envía los datos de pago que devuelve la herramienta. Si el cliente dice que ya pagó, pide el número de referencia y llama a reportar_pago. Nunca digas que el pago está verificado.
+  4. Tras confirmar, envía los datos de pago que devuelve la herramienta. Si el cliente dice que ya pagó, pide el número de referencia y llama a reportar_pago. Nunca digas que el pago está verificado. Di que el pago queda pendiente de verificación y no prometas tiempos hasta que esté pagado.
   5. Si el pago no se reporta, programar_mensaje a los 15 min recordándolo una sola vez.
   6. Si hay alergias, quejas, pedidos para más de 10 personas o catering, o si la zona de entrega no es Chitré ni La Villa de Los Santos, usa escalar_a_humano.
   7. "¿Dónde está mi pedido?": buscar tipo "pedido" y di su estado.

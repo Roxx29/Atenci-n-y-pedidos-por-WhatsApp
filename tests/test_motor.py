@@ -411,6 +411,22 @@ class Panel(unittest.TestCase):
         self.assertEqual(panel.elegir_carpeta([], a.dir), a.dir)
         self.assertEqual(panel.elegir_carpeta(["x"], a.dir), Path("x"))
 
+    def test_avisos_pendientes_hasta_pagado(self):
+        a, b = self.dos_servicios()
+        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"]
+        self.assertEqual(panel.avisos_pendientes(b), [])  # por_confirmar: sin aviso
+        herramientas.confirmar_pedido(a, pid)
+        self.assertEqual([x["pedido_id"] for x in panel.avisos_pendientes(b)], [pid])
+        herramientas.marcar_pedido(a, pid, "pagado")
+        self.assertEqual(panel.avisos_pendientes(b), [])
+
+    def test_reportar_pago_nota_pendiente_de_verificacion(self):
+        a, _ = self.dos_servicios()
+        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"]
+        herramientas.confirmar_pedido(a, pid)
+        r = herramientas.reportar_pago(a, pid, "yappy", "884512")
+        self.assertIn("pendiente de verificación", r["nota"])
+
 
 if __name__ == "__main__":
     unittest.main()

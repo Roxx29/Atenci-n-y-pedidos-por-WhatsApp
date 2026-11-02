@@ -5,6 +5,7 @@
   python -m motor servir <carpeta> [puerto] webhook de WhatsApp + envío de recordatorios
   python -m motor pedidos <carpeta>        lista los pedidos
   python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado
+  python -m motor panel [carpeta]          panel gráfico del restaurante (tkinter)
   python -m motor recordatorios <carpeta>  envía una vez los mensajes programados vencidos
 """
 import sys
@@ -18,6 +19,9 @@ from .nucleo import Servicio
 
 
 def main(argv):
+    if argv[:1] == ["panel"]:
+        from .panel import main as panel  # import diferido: no carga tkinter en los demás comandos
+        return panel(argv[1:])
     if len(argv) < 2:
         raise SystemExit(__doc__)
     cmd, carpeta = argv[0], argv[1]

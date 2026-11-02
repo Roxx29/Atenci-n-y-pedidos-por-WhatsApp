@@ -60,3 +60,10 @@ python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 - Los recordatorios con más de 6 h de retraso (tras una caída) se marcan como `vencido` y no se envían.
 - Solo lee mensajes de texto. Audios e imágenes se reconocen pero no se procesan.
 - No hay panel web: los datos se consultan en SQLite o se piden al bot.
+
+## Compilar el panel (.exe, solo con PyInstaller de build)
+```powershell
+$env:PIP_CACHE_DIR="F:\cache\pip"; python -m venv F:\build\venv-panel
+F:\build\venv-panel\Scripts\pip install -r requirements-build.txt
+F:\build\venv-panel\Scripts\pyinstaller --onefile --windowed --name PanelPedidos --paths . --collect-data tzdata --exclude-module anthropic --distpath F:\build\dist --workpath F:\build\work --specpath F:\build\spec motor\panel.py
+```

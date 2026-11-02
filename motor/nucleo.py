@@ -42,7 +42,10 @@ class Servicio:
         self.cfg = yaml.safe_load((self.dir / "servicio.yaml").read_text(encoding="utf-8"))
         self.tz = ZoneInfo(self.cfg.get("zona_horaria", "America/Panama"))
         self.tools = herramientas.esquemas(self.cfg.get("herramientas", []))
-        self.db = sqlite3.connect(str(db or self.dir / "datos.sqlite"), check_same_thread=False)
+        ruta = str(db or self.dir / "datos.sqlite")
+        self.db = sqlite3.connect(ruta, timeout=10, check_same_thread=False)  # timeout: espera al otro proceso (bot/panel)
+        if ruta != ":memory:":
+            self.db.execute("PRAGMA journal_mode=WAL")  # las lecturas del panel no bloquean al bot
         self.db.executescript(
             "CREATE TABLE IF NOT EXISTS registros(id INTEGER PRIMARY KEY, tipo TEXT, datos TEXT, creado TEXT);"
             "CREATE TABLE IF NOT EXISTS conversaciones(id TEXT PRIMARY KEY, mensajes TEXT, actualizado REAL);"
@@ -77,12 +80,22 @@ class Servicio:
     def listar(self, tipo):
         return [{"id": i, **json.loads(d)} for i, d in self._q("SELECT id, datos FROM registros WHERE tipo=? ORDER BY id", (tipo,))]
 
-    def actualizar(self, id, cambios, tipo=None):
-        with self._db_lock, self.db:  # leer+escribir bajo el mismo bloqueo: sin pérdida de cambios concurrentes
+    def actualizar(self, id, cambios, tipo=None, desde=None):
+        """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos."""
+        with self._db_lock, self.db:
+            self.db.execute("BEGIN IMMEDIATE")  # bloqueo de escritura entre procesos antes de leer
             fila = self.db.execute("SELECT tipo, datos FROM registros WHERE id=?", (id,)).fetchall()
             if not fila or (tipo and fila[0][0] != tipo):
                 raise ValueError(f"No existe el registro {id}" + (f" de tipo {tipo}" if tipo else ""))
-            self.db.execute("UPDATE registros SET datos=? WHERE id=?", (json.dumps({**json.loads(fila[0][1]), **cambios}, ensure_ascii=False), id))
+            actual = json.loads(fila[0][1])
+            if desde is not None and actual.get("estado") not in desde:
+                raise ValueError(f"El pedido está '{actual.get('estado')}'; esta acción solo aplica a pedidos en: {', '.join(sorted(desde))}.")
+            nuevo = {**actual, **cambios}
+            self.db.execute("UPDATE registros SET datos=? WHERE id=?", (json.dumps(nuevo, ensure_ascii=False), id))
+            return {"id": id, **nuevo}
+
+    def cerrar(self):
+        self.db.close()
 
     def primera_vez(self, msg_id):
         """True si el id de mensaje no se había procesado (WhatsApp reenvía webhooks)."""

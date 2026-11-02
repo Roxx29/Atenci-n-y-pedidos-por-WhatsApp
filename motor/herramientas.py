@@ -147,16 +147,8 @@ def texto_menu(menu):
 
 
 def _transicion(sv, pedido_id, desde, hacia, extra=None):
-    """Lee-comprueba-escribe el estado de un pedido bajo un lock: dos llamadas a la vez no se pisan."""
-    with sv.citas_lock:
-        fila = sv._q("SELECT tipo, datos FROM registros WHERE id=?", (pedido_id,))
-        if not fila or fila[0][0] != "pedido":
-            raise ValueError(f"No existe el pedido {pedido_id}")
-        p = json.loads(fila[0][1])
-        if p["estado"] not in desde:
-            raise ValueError(f"El pedido está '{p['estado']}'; esta acción solo aplica a pedidos en: {', '.join(sorted(desde))}.")
-        sv.actualizar(pedido_id, {"estado": hacia, **(extra or {})}, tipo="pedido")
-        return {**p, "estado": hacia, **(extra or {})}
+    """Cambio de estado atómico (también entre procesos): ver Servicio.actualizar."""
+    return sv.actualizar(pedido_id, {"estado": hacia, **(extra or {})}, tipo="pedido", desde=desde)
 
 
 def _hora_pedido(sv, hora_deseada):

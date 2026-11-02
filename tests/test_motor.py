@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-from motor import herramientas, whatsapp
+from motor import herramientas, panel, whatsapp
 from motor.nucleo import Servicio
 
 DEMO = Path(__file__).resolve().parent.parent / "servicios" / "_plantilla"
@@ -292,6 +292,45 @@ class Pedidos(unittest.TestCase):
             with self.assertRaises(ValueError, msg=menu):
                 self.sv(menu)
         self.assertIn("AGOTADO", self.sv().system)
+
+class Panel(unittest.TestCase):
+    def dos_servicios(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        (Path(tmp.name) / "servicio.yaml").write_text(SERVICIO_PEDIDOS, encoding="utf-8")
+        (Path(tmp.name) / "menu.yaml").write_text(MENU, encoding="utf-8")
+        a, b = Servicio(tmp.name), Servicio(tmp.name)  # dos "procesos" sobre el mismo datos.sqlite
+        self.addCleanup(b.cerrar)
+        self.addCleanup(a.cerrar)
+        for s in (a, b):
+            s.ahora = lambda s=s: dt.datetime(2026, 11, 2, 12, 0, tzinfo=s.tz)
+        return a, b
+
+    def test_cancelar_y_marcar_pagado_concurrentes(self):
+        a, b = self.dos_servicios()
+        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Luis"}, "A")["pedido_id"]
+        herramientas.confirmar_pedido(a, pid)
+        herramientas.cancelar_pedido(a, pid)
+        with self.assertRaisesRegex(ValueError, "cancelado"):
+            herramientas.marcar_pedido(b, pid, "pagado")
+        self.assertEqual(b.listar("pedido")[0]["estado"], "cancelado")
+
+    def test_activos_y_avisos_nuevos(self):
+        a, b = self.dos_servicios()
+        ids = [herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"] for _ in range(3)]
+        for i in ids[:2]:
+            herramientas.confirmar_pedido(a, i)
+        herramientas.cancelar_pedido(a, ids[0])
+        herramientas.marcar_pedido(a, ids[1], "pagado")
+        for e in ("en_preparacion", "listo", "entregado"):
+            herramientas.marcar_pedido(a, ids[1], e)
+        self.assertEqual([p["id"] for p in panel.activos(b)], [ids[2]])
+        nuevos, ultimo = panel.avisos_nuevos(b, 0)
+        self.assertEqual(len(nuevos), 2)
+        self.assertEqual(panel.avisos_nuevos(b, ultimo), ([], ultimo))
+        self.assertIsNone(panel.elegir_carpeta([], Path(a.dir) / "nada"))
+        self.assertEqual(panel.elegir_carpeta([], a.dir), a.dir)
+        self.assertEqual(panel.elegir_carpeta(["x"], a.dir), Path("x"))
 
 
 if __name__ == "__main__":

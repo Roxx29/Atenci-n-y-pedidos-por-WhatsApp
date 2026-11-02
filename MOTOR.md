@@ -26,6 +26,7 @@ WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
 | `programar_mensaje` | Seguimientos, cobros y recordatorios futuros |
 | `registrar`, `actualizar_registro`, `buscar` | Cualquier dato: leads, cobros, pedidos, siniestros, encuestas… |
 | `escalar_a_humano` | Pasa la conversación al equipo |
+| `crear_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
 
 Con estas 8 herramientas se cubren la mayoría de los servicios del informe: citas, leads, cobranza, seguimiento, encuestas, reservas y recepción de reclamos.
 
@@ -38,6 +39,7 @@ python -m motor validar servicios/clinica-citas
 export ANTHROPIC_API_KEY=...                   # para lo que sigue
 python -m motor chat servicios/clinica-citas   # tú haces de cliente
 python -m motor probar servicios/clinica-citas # corre prueba.yaml
+python -m motor pedidos servicios/restaurante-pedidos [marcar <id> pagado|en_preparacion|listo|entregado]
 python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 ```
 

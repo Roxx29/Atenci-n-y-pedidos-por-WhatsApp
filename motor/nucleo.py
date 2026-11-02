@@ -52,13 +52,14 @@ class Servicio:
         self.citas_lock = threading.Lock()
         self._locks = defaultdict(threading.Lock)  # un turno a la vez por cliente
         self._cliente = cliente
+        self.menu = herramientas.cargar_menu(self.dir, self.cfg["menu"]) if self.cfg.get("menu") else {}
         kb = self.dir / self.cfg.get("conocimiento", "conocimiento.md")
         self.system = PROMPT.format(
             negocio=self.cfg.get("negocio", self.cfg.get("nombre", "el negocio")),
             objetivo=self.cfg.get("objetivo", ""),
             horario=json.dumps(self.cfg.get("horario", "no aplica"), ensure_ascii=False),
             instrucciones=self.cfg.get("instrucciones", ""),
-            conocimiento=kb.read_text(encoding="utf-8") if kb.exists() else "",
+            conocimiento=(kb.read_text(encoding="utf-8") if kb.exists() else "") + (f"\n\nMenú (id | nombre | precio | categoría):\n{herramientas.texto_menu(self.menu)}" if self.menu else ""),
         )
 
     # --- almacenamiento ---
@@ -109,19 +110,23 @@ class Servicio:
             self._q("INSERT OR REPLACE INTO conversaciones VALUES (?,?,?)", (cid, json.dumps(msgs, ensure_ascii=False), time.time()))
             return respuesta
 
+    def _llamar_modelo(self, msgs):
+        """Única llamada al proveedor del modelo: punto de cambio si se usa otro."""
+        return self.cliente.beta.messages.create(
+            model=self.cfg.get("modelo", "claude-opus-5-5"),
+            max_tokens=16000,
+            system=self.system,
+            tools=self.tools,
+            messages=msgs,
+            output_config={"effort": self.cfg.get("esfuerzo", "low")},
+            cache_control={"type": "ephemeral"},
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+        )
+
     def _bucle(self, msgs, cid):
         for _ in range(MAX_VUELTAS):
-            r = self.cliente.beta.messages.create(
-                model=self.cfg.get("modelo", "claude-opus-5-5"),
-                max_tokens=16000,
-                system=self.system,
-                tools=self.tools,
-                messages=msgs,
-                output_config={"effort": self.cfg.get("esfuerzo", "low")},
-                cache_control={"type": "ephemeral"},
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
-            )
+            r = self._llamar_modelo(msgs)
             msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in r.content]})
             if r.stop_reason == "pause_turn":
                 continue

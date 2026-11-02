@@ -3,6 +3,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace as NS
@@ -157,6 +158,140 @@ class Aislamiento(unittest.TestCase):
         herramientas.programar_mensaje(sv, "507", f"{sv.ahora() - dt.timedelta(hours=7):%Y-%m-%d %H:%M}", "tarde")
         whatsapp.enviar_pendientes(sv)
         self.assertEqual(sv.listar("mensaje_programado")[0]["estado"], "vencido")
+
+
+SERVICIO_PEDIDOS = """nombre: Fonda
+negocio: Fonda
+horario: {dias: [lun, mar, mie, jue, vie, sab, dom], desde: "11:00", hasta: "21:00"}
+menu: menu.yaml
+pedidos: {impuesto_pct: 7, pedido_minimo: 8.00, cierre_cocina_min: 30, envio: {costo: 2.50}}
+pago: {yappy: "@fonda", link: null}
+herramientas: [crear_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, buscar, actualizar_registro, registrar]
+"""
+MENU = """- {id: sancocho, nombre: Sancocho, precio: 5.00, disponible: true}
+- {id: chicha, nombre: Chicha, precio: 1.75}
+- {id: tres-leches, nombre: Tres leches, precio: 3.50, disponible: false}
+"""
+
+
+class Pedidos(unittest.TestCase):
+    def sv(self, menu=MENU):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        (Path(tmp.name) / "servicio.yaml").write_text(SERVICIO_PEDIDOS, encoding="utf-8")
+        (Path(tmp.name) / "menu.yaml").write_text(menu, encoding="utf-8")
+        sv = Servicio(tmp.name, db=":memory:", cliente=ClienteFalso([]))
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
+        return sv
+
+    def crear(self, sv, cliente="A", items=None, **kw):
+        datos = {"items": items if items is not None else [{"id": "sancocho", "cantidad": 2}, {"id": "chicha", "cantidad": 2}], "modalidad": "entrega", "nombre": "Luis", "direccion": "Calle 53", **kw}
+        return herramientas.ejecutar(sv, "crear_pedido", datos, cliente)
+
+    def test_total_con_impuesto_y_envio(self):
+        sv = self.sv()
+        r = self.crear(sv)
+        self.assertEqual(r["total_c"], 1695)  # 1350 + ITBMS 95 (94.5 redondea hacia arriba) + envío 250
+        self.assertEqual(r["total"], "B/. 16.95")
+        [p] = sv.listar("pedido")
+        self.assertEqual((p["subtotal_c"], p["itbms_c"], p["envio_c"], p["estado"], p["telefono"]), (1350, 95, 250, "por_confirmar", "A"))
+        self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1445)  # sin envío
+
+    def test_rechazos_al_crear(self):
+        sv = self.sv()
+        for kw, msg in (({"items": [{"id": "pizza", "cantidad": 1}]}, "No existe"), ({"items": [{"id": "tres-leches", "cantidad": 3}]}, "no está disponible"),
+                        ({"items": [{"id": "chicha", "cantidad": 2}]}, "mínimo"), ({"items": []}, "ítems"), ({"items": [{"id": "sancocho", "cantidad": 0}]}, "Cantidad"),
+                        ({"items": [{"id": "sancocho", "cantidad": 2}], "direccion": ""}, "dirección"), ({"modalidad": "volando"}, "Modalidad"),
+                        ({"hora_deseada": "2026-11-02 11:00"}, "ya pasó"), ({"hora_deseada": "2026-11-02 20:45"}, "cerrado")):
+            with self.assertRaisesRegex(ValueError, msg):
+                self.crear(sv, **kw)
+        self.assertTrue(self.crear(sv, hora_deseada="2026-11-02 20:30")["ok"])  # 20:30 es el último minuto
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 20, 45, tzinfo=sv.tz)
+        with self.assertRaisesRegex(ValueError, "cerrado"):
+            self.crear(sv)
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
+        self.assertTrue(self.crear(sv, hora_deseada="lo antes posible")["ok"])  # texto libre: se usa la hora actual
+
+    def test_cliente_b_no_ve_ni_toca_pedido_de_a(self):
+        sv = self.sv()
+        pid = self.crear(sv)["pedido_id"]
+        e = lambda n, x, c: herramientas.ejecutar(sv, n, x, c)
+        self.assertEqual(e("buscar", {"tipo": "pedido"}, "B"), [])
+        self.assertEqual(len(e("buscar", {"tipo": "pedido"}, "A")), 1)
+        for n in ("confirmar_pedido", "cancelar_pedido"):
+            with self.assertRaisesRegex(ValueError, "este cliente"):
+                e(n, {"pedido_id": pid}, "B")
+        with self.assertRaisesRegex(ValueError, "este cliente"):
+            e("reportar_pago", {"pedido_id": pid, "metodo": "yappy", "referencia": "1"}, "B")
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "por_confirmar")
+
+    def test_el_modelo_no_puede_marcar_pagado(self):
+        sv = self.sv()
+        pid = self.crear(sv)["pedido_id"]
+        e = lambda n, x: herramientas.ejecutar(sv, n, x, "A")
+        with self.assertRaisesRegex(ValueError, "Los pedidos no se cambian"):
+            e("actualizar_registro", {"id": pid, "cambios": {"estado": "pagado"}})
+        with self.assertRaisesRegex(ValueError, "específica"):
+            e("registrar", {"tipo": "pedido", "datos": {"estado": "pagado", "total_c": 1}})
+        with self.assertRaisesRegex(ValueError, "confirmado"):
+            e("reportar_pago", {"pedido_id": pid, "metodo": "yappy", "referencia": "9"})  # aún por_confirmar
+        r = e("confirmar_pedido", {"pedido_id": pid})
+        self.assertEqual(r["pago"], {"yappy": "@fonda"})  # sin el link null
+        self.assertEqual(len(sv.listar("aviso")), 1)
+        with self.assertRaisesRegex(ValueError, "por_confirmar"):
+            e("confirmar_pedido", {"pedido_id": pid})
+        e("reportar_pago", {"pedido_id": pid, "metodo": "yappy", "referencia": "884512"})
+        p = sv.listar("pedido")[0]
+        self.assertEqual((p["estado"], p["referencia"]), ("pago_reportado", "884512"))
+        with self.assertRaises(ValueError):
+            e("cancelar_pedido", {"pedido_id": pid})
+        aviso = sv.listar("aviso")[1]
+        with self.assertRaises(ValueError):
+            e("actualizar_registro", {"id": aviso["id"], "cambios": {"texto": "x"}})
+
+    def test_marcar_listo_programa_mensaje_y_cancelado_no_se_marca(self):
+        sv = self.sv()
+        pid = self.crear(sv)["pedido_id"]
+        with self.assertRaisesRegex(ValueError, "inválido"):
+            herramientas.marcar_pedido(sv, pid, "por_confirmar")
+        for est in ("pagado", "en_preparacion", "listo"):  # por_confirmar: nada de esto aplica
+            with self.assertRaises(ValueError):
+                herramientas.marcar_pedido(sv, pid, est)
+        herramientas.ejecutar(sv, "confirmar_pedido", {"pedido_id": pid}, "A")
+        with self.assertRaises(ValueError):  # sin pagar no se prepara
+            herramientas.marcar_pedido(sv, pid, "en_preparacion")
+        herramientas.marcar_pedido(sv, pid, "pagado")
+        herramientas.marcar_pedido(sv, pid, "en_preparacion")
+        herramientas.marcar_pedido(sv, pid, "listo")
+        [m] = sv.listar("mensaje_programado")
+        self.assertEqual((m["telefono"], m["estado"]), ("A", "pendiente"))
+        self.assertIn(f"#{pid}", m["texto"])
+        pid2 = self.crear(sv)["pedido_id"]
+        herramientas.ejecutar(sv, "cancelar_pedido", {"pedido_id": pid2}, "A")
+        with self.assertRaisesRegex(ValueError, "cancelado"):
+            herramientas.marcar_pedido(sv, pid2, "pagado")
+
+    def test_zonas_e_impuesto_cero(self):
+        sv = self.sv()
+        sv.cfg["pedidos"] = {"envio": {"zonas": {"Chitré": 1.50, "Los Santos": 3.00}}}  # sin impuesto ni mínimo
+        r = self.crear(sv, zona="chitre")  # sin mayúsculas ni tildes
+        self.assertEqual((r["total_c"], sv.listar("pedido")[0]["itbms_c"]), (1350 + 150, 0))
+        self.assertNotIn("ITBMS", r["resumen"])
+        self.assertEqual(self.crear(sv, zona="LOS SANTOS")["total_c"], 1650)
+        for zona in ("", "Panamá"):
+            with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+                self.crear(sv, zona=zona)
+        self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1350)  # recogida no pide zona
+        sv.cfg["pedidos"] = {"envio": {"costo": 2.5, "zonas": ["Obarrio"]}}
+        self.assertEqual(self.crear(sv, zona="obarrio")["total_c"], 1600)
+        with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+            self.crear(sv, zona="Costa del Este")
+
+    def test_menu_invalido_falla(self):
+        for menu in ("- {id: a, nombre: A, precio: 1}\n- {id: a, nombre: B, precio: 2}", "- {id: a, nombre: A, precio: 0}", "- {id: a, nombre: A, precio: 1.005}", "- {id: a, nombre: A}"):
+            with self.assertRaises(ValueError, msg=menu):
+                self.sv(menu)
+        self.assertIn("AGOTADO", self.sv().system)
 
 
 if __name__ == "__main__":

@@ -12,10 +12,11 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [x] 2026-11-02 — Definir el proyecto: restaurante; v1 = responder preguntas, tomar pedidos, pasar a humano, cobrar (capitan)
 - [x] 2026-11-02 — Diseñar `restaurante-pedidos` sobre el motor: diseno/restaurante-pedidos.md (agenteservicios)
 - [x] 2026-11-02 — Dónde va el motor: se copia a este repo; Investigacion-de-servicios no se toca (capitan)
-- [ ] 2026-11-02 — Copiar motor + implementar §2 de diseno/restaurante-pedidos.md + chat de prueba local (agentedeprogramacion)
+- [x] 2026-11-02 — Copiar motor + implementar §2 de diseno/restaurante-pedidos.md + chat de prueba local (agentedeprogramacion)
 - [x] 2026-11-02 — Dudas §4 respondidas (usuario): demo como si fuera real (para vender a restaurantes); menú y precios de ejemplo; dirección en Chitré, Herrera; horario típico de Chitré; entregas solo Chitré y Los Santos; ITBMS opcional por restaurante; envío fijo o por zona (configurable); pedido mínimo configurable; pago antes de preparar; el personal verifica el Yappy tras una notificación; pedidos en un panel ejecutable de escritorio; modelo gratuito para la demo y Haiku cuando haya cliente
 - [x] 2026-11-02 — Investigar modelo gratuito con herramientas para la demo, repartidor propio vs PedidosYa y horario típico en Chitré: Ollama (qwen3:8b), repartidor propio + recoger en local; ver investigacion/2026-11-02-demo-restaurante.md (agenteinvestigacion)
-- [ ] 2026-11-02 — Panel de escritorio (.exe) para pedidos y verificación de Yappy (agentedeprogramacion)
+- [x] 2026-11-02 — Panel de escritorio (.exe) para pedidos y verificación de Yappy: F:uild\dist\PanelPedidos.exe (agentedeprogramacion)
+- [ ] 2026-11-02 — Panel: la caja de avisos solo muestra los llegados tras abrir; mostrar los pendientes al arrancar. Firmar el .exe (antivirus) (agentedeprogramacion)
 - [ ] 2026-11-02 — Elegir y conectar WhatsApp (aún no hay cuenta; Meta Cloud API es lo que soporta el motor) (usuario)
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)

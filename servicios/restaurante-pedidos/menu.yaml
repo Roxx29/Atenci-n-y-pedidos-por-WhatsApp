@@ -1,0 +1,10 @@
+- {id: tasajo-con-arroz, nombre: "Tasajo con arroz, ensalada y patacones", precio: 7.00, categoria: platos, disponible: true}
+- {id: sancocho, nombre: "Sancocho de gallina", precio: 5.00, categoria: platos, disponible: true}
+- {id: arroz-con-guandu, nombre: "Arroz con guandú y cerdo", precio: 5.50, categoria: platos, disponible: true}
+- {id: tortilla-con-queso, nombre: "Tortilla de maíz con queso (2 u.)", precio: 2.50, categoria: entradas, disponible: true}
+- {id: bollo, nombre: "Bollo de maíz envuelto en hoja", precio: 1.50, categoria: entradas, disponible: true}
+- {id: empanadas, nombre: "Empanadas de carne o pollo (3 u.)", precio: 3.00, categoria: entradas, disponible: true, opciones: [carne, pollo]}
+- {id: chicheme, nombre: "Chicheme (bebida de maíz con leche)", precio: 1.75, categoria: bebidas, disponible: true}
+- {id: chicha-de-saril, nombre: "Chicha de saril", precio: 1.50, categoria: bebidas, disponible: true}
+- {id: soda, nombre: "Soda en lata", precio: 1.25, categoria: bebidas, disponible: true}
+- {id: tres-leches, nombre: "Tres leches", precio: 3.50, categoria: postres, disponible: false}

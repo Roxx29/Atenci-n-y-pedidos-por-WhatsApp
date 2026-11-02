@@ -1,0 +1,6 @@
+casos:
+  - nombre: "<caso feliz>"
+    mensajes: ["<mensaje 1 del cliente>", "<mensaje 2>"]
+  - nombre: "<caso difícil: pide humano, pregunta algo que no sabemos, etc.>"
+    telefono: "50760000002"
+    mensajes: ["<...>"]

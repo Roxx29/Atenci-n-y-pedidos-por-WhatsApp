@@ -6,6 +6,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Reservas de mesa con capacidad por turno (fuera de v1) (agenteservicios)
 - 2026-11-02 — Factura electrónica DGI por pedido (fuera de v1) (agenteservicios)
 - 2026-11-02 — Link de pago (Tilopay/PagueloFacil, requiere cuenta de comercio) (agenteservicios)
+- 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 
 ## Próximo por hacer
 - [x] 2026-11-02 — Definir el proyecto: restaurante; v1 = responder preguntas, tomar pedidos, pasar a humano, cobrar (capitan)
@@ -17,4 +18,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Panel de escritorio (.exe) para pedidos y verificación de Yappy (agentedeprogramacion)
 - [ ] 2026-11-02 — Elegir y conectar WhatsApp (aún no hay cuenta; Meta Cloud API es lo que soporta el motor) (usuario)
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
-- [ ] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
+- [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)

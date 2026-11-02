@@ -6,6 +6,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Reservas de mesa con capacidad por turno (fuera de v1) (agenteservicios)
 - 2026-11-02 — Factura electrónica DGI por pedido (fuera de v1) (agenteservicios)
 - 2026-11-02 — Link de pago (Tilopay/PagueloFacil, requiere cuenta de comercio) (agenteservicios)
+- 2026-11-02 — qwen3:8b repite al cliente la nota interna de reportar_pago ("No lo des por confirmado ni prometas…"): separar en la respuesta un texto para el cliente y una instrucción para el bot (agentedeprogramacion)
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 
 ## Próximo por hacer

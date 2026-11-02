@@ -457,12 +457,12 @@ class Bucle(Base):
                 self.assertEqual(sv.responder("A", "hola"), "ok")
 
     def test_flujo_completo_por_el_bucle(self):
-        r = [herramienta("crear_pedido", {"items": [SANC, {"id": "chicha", "cantidad": 2}], "modalidad": "recogida", "nombre": "L"}, "t1"),
-             herramienta("confirmar_pedido", {"pedido_id": 1}, "t2"),
-             herramienta("reportar_pago", {"pedido_id": 1, "metodo": "yappy", "referencia": "77"}, "t3"), texto("listo")]
-        sv = self.sv(respuestas=r)
+        # crear y confirmar ya no pueden ir en el mismo turno: el "sí" llega en un mensaje nuevo
+        sv = self.sv(respuestas=[herramienta("crear_pedido", {"items": [SANC, {"id": "chicha", "cantidad": 2}], "modalidad": "recogida", "nombre": "L"}), texto("¿confirma?"),
+                                 herramienta("confirmar_pedido", {"pedido_id": 1}), herramienta("reportar_pago", {"pedido_id": 1, "metodo": "yappy", "referencia": "77"}, "t2"), texto("listo")])
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sv.responder("A", "pedido"), "listo")
+            sv.responder("A", "pedido")
+            self.assertEqual(sv.responder("A", "sí, pagué con ref 77"), "listo")
         self.assertEqual(sv.listar("pedido")[0]["estado"], "pago_reportado")
 
 

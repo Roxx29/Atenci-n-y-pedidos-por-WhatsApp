@@ -4,10 +4,16 @@ import hashlib
 import hmac
 import json
 import tempfile
+import contextlib
+import io
 import unittest
+from unittest import mock
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+import yaml
+
+from motor.__main__ import main
 from motor import herramientas, panel, whatsapp
 from motor.nucleo import Servicio
 
@@ -177,6 +183,74 @@ MENU = """- {id: sancocho, nombre: Sancocho, precio: 5.00, disponible: true}
 - {id: chicha, nombre: Chicha, precio: 1.75}
 - {id: tres-leches, nombre: Tres leches, precio: 3.50, disponible: false}
 """
+
+
+class Salvaguardas(unittest.TestCase):
+    def sv(self, respuestas):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        (Path(tmp.name) / "servicio.yaml").write_text(SERVICIO_PEDIDOS, encoding="utf-8")
+        (Path(tmp.name) / "menu.yaml").write_text(MENU, encoding="utf-8")
+        sv = Servicio(tmp.name, db=":memory:", cliente=ClienteFalso(respuestas))
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
+        return sv
+
+    NUEVO = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "L"}
+
+    def error_de(self, sv, vuelta):
+        return sv.cliente.llamadas[vuelta][-1]["content"][0]
+
+    def test_no_confirma_en_el_mismo_turno_de_crear(self):
+        sv = self.sv([herramienta("crear_pedido", self.NUEVO), herramienta("confirmar_pedido", {"pedido_id": 1}, "t2"), texto("¿confirma?")])
+        sv.responder("A", "quiero 2 sancochos")
+        self.assertIn("espera su 'sí'", self.error_de(sv, 2)["content"])
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "por_confirmar")
+
+    def test_confirma_en_turno_posterior(self):
+        sv = self.sv([herramienta("crear_pedido", self.NUEVO), texto("¿confirma?"), herramienta("confirmar_pedido", {"pedido_id": 1}), texto("hecho")])
+        sv.responder("A", "quiero 2 sancochos")
+        with contextlib.redirect_stdout(io.StringIO()):
+            sv.responder("A", "sí")
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "confirmado")
+
+    def test_referencia_de_pago_debe_venir_del_cliente(self):
+        sv = self.sv([herramienta("reportar_pago", {"pedido_id": 1, "metodo": "yappy", "referencia": "@elchitreano"}), texto("¿ref?")])
+        herramientas.ejecutar(sv, "crear_pedido", {**self.NUEVO}, "A")
+        herramientas.confirmar_pedido(sv, 1)
+        sv.responder("A", "ya pagué por yappy")
+        self.assertIn("no lo inventes", self.error_de(sv, 1)["content"])
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "confirmado")
+
+    def test_referencia_presente_en_el_mensaje_se_acepta_sin_espacios_ni_mayusculas(self):
+        sv = self.sv([herramienta("reportar_pago", {"pedido_id": 1, "metodo": "yappy", "referencia": "ab 123"}), texto("ok")])
+        herramientas.ejecutar(sv, "crear_pedido", {**self.NUEVO}, "A")
+        herramientas.confirmar_pedido(sv, 1)
+        with contextlib.redirect_stdout(io.StringIO()):
+            sv.responder("A", "pagué, ref AB123")
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "pago_reportado")
+
+    def test_quita_prefijo_repetido_y_tolera_thinking(self):
+        resp = NS(stop_reason="end_turn", content=[Bloque(type="thinking", thinking="mmm", signature="x"),
+                                                    Bloque(type="text", text="[2026-11-02 17:55 · cliente 50760000002] Hola, ¿qué desea?")])
+        sv = self.sv([resp])
+        self.assertEqual(sv.responder("50760000002", "hola"), "Hola, ¿qué desea?")
+
+    def test_thinking_no_se_reenvia_en_servidor_compatible(self):
+        resp = NS(stop_reason="tool_use", content=[Bloque(type="thinking", thinking="mmm", signature="x"), Bloque(type="tool_use", id="t1", name="buscar", input={"tipo": "pedido"})])
+        sv = self.sv([resp, texto("ok")])
+        with mock.patch.dict("os.environ", {"ANTHROPIC_BASE_URL": "http://localhost:11434"}):
+            self.assertEqual(sv.responder("A", "hola"), "ok")
+        self.assertEqual([b["type"] for b in sv.cliente.llamadas[1][1]["content"]], ["tool_use"])
+
+    def test_probar_cierra_la_base(self):
+        carpeta = Path(__file__).resolve().parent.parent / "servicios" / "restaurante-pedidos"
+        casos = len(yaml.safe_load((carpeta / "prueba.yaml").read_text(encoding="utf-8"))["casos"])
+        mensajes = sum(len(c["mensajes"]) for c in yaml.safe_load((carpeta / "prueba.yaml").read_text(encoding="utf-8"))["casos"])
+        cerrado = []
+        original = Servicio.cerrar
+        with mock.patch.object(Servicio, "cerrar", lambda self: (cerrado.append(1), original(self))), contextlib.redirect_stdout(io.StringIO()):
+            main(["probar", str(carpeta)], cliente=ClienteFalso([texto("ok")] * mensajes))
+        self.assertEqual(cerrado, [1])
 
 
 class Pedidos(unittest.TestCase):

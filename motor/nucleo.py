@@ -2,6 +2,7 @@
 import datetime as dt
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -15,6 +16,7 @@ from . import herramientas
 
 VENTANA_S = 24 * 3600  # conversación nueva tras 24 h sin mensajes (= ventana de servicio de WhatsApp)
 MAX_VUELTAS = 10
+PREFIJO = re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · cliente [^\]]*\]\s*")  # eco del prefijo que el código antepone al mensaje
 
 PROMPT = """Eres el asistente de {negocio}. Atiendes a sus clientes por WhatsApp en nombre del negocio.
 Objetivo del servicio: {objetivo}
@@ -120,7 +122,7 @@ class Servicio:
         with self._locks[cid]:
             msgs = self._historial(cid)
             msgs.append({"role": "user", "content": f"[{self.ahora():%Y-%m-%d %H:%M} · cliente {cid}] {texto}"})
-            respuesta = self._bucle(msgs, cid)
+            respuesta = self._bucle(msgs, cid, texto)
             self._q("INSERT OR REPLACE INTO conversaciones VALUES (?,?,?)", (cid, json.dumps(msgs, ensure_ascii=False), time.time()))
             return respuesta
 
@@ -142,10 +144,13 @@ class Servicio:
             fallbacks="default",
         )
 
-    def _bucle(self, msgs, cid):
+    def _bucle(self, msgs, cid, texto_cliente=""):
+        turno = {"texto": texto_cliente, "creados": set()}  # contexto de ESTE mensaje del cliente (sin estado compartido)
+        compatible = "anthropic.com" not in os.environ.get("ANTHROPIC_BASE_URL", "anthropic.com")
         for _ in range(MAX_VUELTAS):
             r = self._llamar_modelo(msgs)
-            msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in r.content]})
+            # servidores compatibles (qwen3 en Ollama): el razonamiento no se reenvía en el historial
+            msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in r.content if not (compatible and b.type in ("thinking", "redacted_thinking"))]})
             if r.stop_reason == "pause_turn":
                 continue
             if r.stop_reason != "tool_use":
@@ -153,13 +158,13 @@ class Servicio:
                 if r.stop_reason == "refusal" or not texto or any(b.type == "tool_use" for b in r.content):
                     msgs.pop()  # un turno vacío o con tool_use sin resultado haría fallar la API en todos los mensajes siguientes
                     return "Disculpe, no puedo ayudarle con eso por aquí. Si desea, le paso con una persona del equipo."
-                return texto
+                return PREFIJO.sub("", texto)
             resultados = []
             for b in r.content:
                 if b.type != "tool_use":
                     continue
                 try:
-                    res = {"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(herramientas.ejecutar(self, b.name, b.input, cid), ensure_ascii=False)}
+                    res = {"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(herramientas.ejecutar(self, b.name, b.input, cid, turno), ensure_ascii=False)}
                 except (ValueError, TypeError, AttributeError, KeyError) as e:  # entrada mal formada del modelo
                     res = {"type": "tool_result", "tool_use_id": b.id, "content": f"Error: {e}", "is_error": True}
                 resultados.append(res)

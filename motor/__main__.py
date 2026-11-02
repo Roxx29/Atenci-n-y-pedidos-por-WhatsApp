@@ -18,7 +18,7 @@ from . import herramientas, whatsapp
 from .nucleo import Servicio
 
 
-def main(argv):
+def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
     if argv[:1] == ["panel"]:
         from .panel import main as panel  # import diferido: no carga tkinter en los demás comandos
         return panel(argv[1:])
@@ -35,14 +35,17 @@ def main(argv):
             print("bot>", sv.responder("50760000000", t))
     elif cmd == "probar":
         with tempfile.TemporaryDirectory() as tmp:
-            sv = Servicio(carpeta, db=Path(tmp) / "prueba.sqlite")
-            prueba = yaml.safe_load((Path(carpeta) / "prueba.yaml").read_text(encoding="utf-8"))
-            for caso in prueba["casos"]:
-                print(f"\n=== {caso['nombre']} ===")
-                for t in caso["mensajes"]:
-                    print(f"cliente> {t}\nbot> {sv.responder(caso.get('telefono', '50760000001'), t)}")
-            for tipo in ("cita", "pedido", "aviso", "mensaje_programado", "escalado"):
-                print(f"\n[{tipo}] {sv.listar(tipo)}")
+            sv = Servicio(carpeta, db=Path(tmp) / "prueba.sqlite", cliente=cliente)
+            try:
+                prueba = yaml.safe_load((Path(carpeta) / "prueba.yaml").read_text(encoding="utf-8"))
+                for caso in prueba["casos"]:
+                    print(f"\n=== {caso['nombre']} ===")
+                    for t in caso["mensajes"]:
+                        print(f"cliente> {t}\nbot> {sv.responder(caso.get('telefono', '50760000001'), t)}")
+                for tipo in ("cita", "pedido", "aviso", "mensaje_programado", "escalado"):
+                    print(f"\n[{tipo}] {sv.listar(tipo)}")
+            finally:
+                sv.cerrar()  # Windows no borra el directorio con la base abierta
     elif cmd == "pedidos":
         sv = Servicio(carpeta)
         if argv[2:3] == ["marcar"]:

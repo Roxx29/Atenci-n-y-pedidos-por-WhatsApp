@@ -327,8 +327,9 @@ CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", No
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 
-def ejecutar(sv, nombre, entrada, cliente):
-    """Ejecuta una herramienta para el cliente que escribe: nunca lee ni cambia datos de otro cliente."""
+def ejecutar(sv, nombre, entrada, cliente, turno=None):
+    """Ejecuta una herramienta para el cliente que escribe: nunca lee ni cambia datos de otro cliente.
+    `turno`: {"texto": mensaje del cliente, "creados": set de ids} del bucle; None = llamada directa, sin salvaguardas de turno."""
     if nombre not in sv.cfg.get("herramientas", []):
         raise ValueError(f"Herramienta no permitida: {nombre}")
     entrada = dict(entrada)
@@ -343,4 +344,12 @@ def ejecutar(sv, nombre, entrada, cliente):
             raise ValueError("Los pedidos no se cambian con esta herramienta; usa las herramientas de pedido.")
         if INMUTABLES & set(entrada.get("cambios", {})):
             raise ValueError("No se puede cambiar teléfono, fecha_hora ni cita_id; para mover una cita, cancélala y agenda otra.")
-    return CATALOGO[nombre][0](sv, **entrada)
+    if turno is not None:
+        if nombre == "confirmar_pedido" and entrada.get("pedido_id") in turno["creados"]:
+            raise ValueError("Primero lee el resumen al cliente y espera su 'sí' en un mensaje nuevo.")
+        if nombre == "reportar_pago" and "".join(str(entrada.get("referencia", "")).split()).lower() not in "".join(turno["texto"].split()).lower():
+            raise ValueError("Pide al cliente el número de referencia del pago; no lo inventes.")
+    res = CATALOGO[nombre][0](sv, **entrada)
+    if turno is not None and nombre == "crear_pedido":
+        turno["creados"].add(res["pedido_id"])
+    return res

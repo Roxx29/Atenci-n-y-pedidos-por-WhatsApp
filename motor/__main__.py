@@ -45,13 +45,15 @@ def main(argv):
                 print(f"\n[{tipo}] {sv.listar(tipo)}")
     elif cmd == "pedidos":
         sv = Servicio(carpeta)
-        if argv[2:3] == ["marcar"] and len(argv) == 5:
+        if argv[2:3] == ["marcar"]:
+            if len(argv) != 5:
+                raise SystemExit("Uso: python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado")
             try:
                 herramientas.marcar_pedido(sv, int(argv[3]), argv[4])
             except ValueError as e:
                 raise SystemExit(f"Error: {e}")
         for p in sv.listar("pedido"):
-            print(f"#{p['id']} {p['estado']} · {p['nombre']} · {p['modalidad']} · {herramientas.dinero(p['total_c'])}")
+            print(f"#{p['id']} {p['estado']} · {p['nombre']} · {p['modalidad']} · {herramientas.dinero(p['total_c'])}" + (f" · pago {p.get('metodo', '')} ref {p['referencia']}" if p["estado"] == "pago_reportado" else ""))
     elif cmd == "servir":
         whatsapp.servir(Servicio(carpeta), int(argv[2]) if len(argv) > 2 else 8080)
     elif cmd == "recordatorios":

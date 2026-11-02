@@ -52,9 +52,9 @@ def main(argv):
         messagebox.showerror("Panel de pedidos", f"No se pudo abrir el servicio: {e}")
         return
 
-    cols = ("id", "estado", "cliente", "modalidad", "total", "lineas")
+    cols = ("id", "estado", "cliente", "modalidad", "total", "pago", "lineas")
     tabla = ttk.Treeview(root, columns=cols, show="headings", selectmode="browse", height=14)
-    for c, w in zip(cols, (50, 110, 130, 90, 80, 380)):
+    for c, w in zip(cols, (50, 110, 130, 90, 80, 150, 380)):
         tabla.heading(c, text=c.capitalize())
         tabla.column(c, width=w)
     tabla.tag_configure("pago_reportado", background="#fff3a0")
@@ -95,8 +95,9 @@ def main(argv):
             tabla.delete(*tabla.get_children())
             for p in peds:
                 tags = (p["estado"],) + (("nuevo",) if p["id"] in pedidos_nuevos else ())
+                pago = f"{p.get('metodo', '')} {p['referencia']}".strip() if p.get("referencia") else ""
                 lineas = ", ".join(f"{l['cantidad']} x {l['nombre']}" for l in p["lineas"])
-                tabla.insert("", "end", iid=str(p["id"]), tags=tags, values=(p["id"], p["estado"], p["nombre"], p["modalidad"], herramientas.dinero(p["total_c"]), lineas))
+                tabla.insert("", "end", iid=str(p["id"]), tags=tags, values=(p["id"], p["estado"], p["nombre"], p["modalidad"], herramientas.dinero(p["total_c"]), pago, lineas))
             if sel and tabla.exists(sel[0]):
                 tabla.selection_set(sel[0])
             estado["vistos"] |= ids

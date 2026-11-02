@@ -5,15 +5,14 @@ modelo: claude-opus-5-5
 esfuerzo: low
 zona_horaria: America/Panama
 horario:
-  dias: [lun, mar, mie, jue, vie, sab, dom]
-  desde: "07:00"
-  hasta: "21:00"
+  dias: [mar, mie, jue, vie, sab, dom]   # cerrado los lunes
+  turnos: [["11:00", "15:00"], ["18:00", "22:00"]]   # almuerzo y cena
 menu: menu.yaml
 pedidos:
   impuesto_pct: 7          # poner 0 si el restaurante no cobra ITBMS aparte
   pedido_minimo: 0
   cierre_cocina_min: 30
-  envio: {zonas: {"Chitré": 1.50, "Los Santos": 3.00}}
+  envio: {zonas: {"Chitré": 2.00, "La Villa de Los Santos": 3.00}}
 pago:
   yappy: "@elchitreano"
   transferencia: "Banco General · Ahorros 03-00-00-000000-0 · Fonda El Chitreano S.A."
@@ -22,10 +21,10 @@ herramientas: [crear_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, b
 conocimiento: conocimiento.md
 instrucciones: |
   1. Responde dudas de menú, horario y ubicación solo con la información dada.
-  2. Para pedir: arma el pedido con los ids del menú y pregunta si es entrega o recogida. Para entrega pide la zona (Chitré o Los Santos), la dirección y una referencia. Pide también el nombre y la hora deseada.
+  2. Para pedir: arma el pedido con los ids del menú y pregunta si es entrega o recogida. Para entrega pide la zona (Chitré o La Villa de Los Santos), la dirección y una referencia. Pide también el nombre y la hora deseada.
   3. Llama a crear_pedido (en entrega, pasa también la zona como `zona`) y lee al cliente el resumen y el total que devuelve, sin recalcularlo. Pide un "sí" explícito y entonces llama a confirmar_pedido.
   4. Tras confirmar, envía los datos de pago que devuelve la herramienta. Si el cliente dice que ya pagó, pide el número de referencia y llama a reportar_pago. Nunca digas que el pago está verificado.
   5. Si el pago no se reporta, programar_mensaje a los 15 min recordándolo una sola vez.
-  6. Si hay alergias, quejas, pedidos para más de 10 personas o catering, o si la zona de entrega no es Chitré ni Los Santos, usa escalar_a_humano.
+  6. Si hay alergias, quejas, pedidos para más de 10 personas o catering, o si la zona de entrega no es Chitré ni La Villa de Los Santos, usa escalar_a_humano.
   7. "¿Dónde está mi pedido?": buscar tipo "pedido" y di su estado.
   8. El pago va siempre antes de preparar el pedido.

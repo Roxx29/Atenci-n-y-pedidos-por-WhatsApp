@@ -25,6 +25,11 @@ class ClienteFalso:
     def __init__(self, respuestas):
         self.respuestas, self.llamadas = list(respuestas), []
         self.beta = NS(messages=NS(create=self._create))
+        self.messages = NS(create=self._create_simple)
+
+    def _create_simple(self, **kw):
+        self.simple = kw
+        return self._create(**kw)
 
     def _create(self, **kw):
         self.llamadas.append(json.loads(json.dumps(kw["messages"])))
@@ -283,7 +288,7 @@ class Pedidos(unittest.TestCase):
                 self.crear(sv, zona=zona)
         self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1350)  # recogida no pide zona
         sv.cfg["pedidos"] = {"envio": {"costo": 2.5, "zonas": ["Obarrio"]}}
-        self.assertEqual(self.crear(sv, zona="obarrio")["total_c"], 1600)
+        self.assertEqual(self.crear(sv, "B", zona="obarrio")["total_c"], 1600)  # otro cliente: tope de 3 sin confirmar por cliente
         with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
             self.crear(sv, zona="Costa del Este")
 

@@ -1,6 +1,7 @@
 """Núcleo: carga un servicio (servicios/<slug>/servicio.yaml) y responde mensajes con Claude + herramientas."""
 import datetime as dt
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -125,8 +126,12 @@ class Servicio:
 
     def _llamar_modelo(self, msgs):
         """Única llamada al proveedor del modelo: punto de cambio si se usa otro."""
+        modelo = os.environ.get("LLM_MODEL") or self.cfg.get("modelo", "claude-opus-5-5")
+        base = os.environ.get("ANTHROPIC_BASE_URL", "")
+        if base and "anthropic.com" not in base:  # servidor compatible (p. ej. Ollama): solo lo básico, sin betas ni tool_choice
+            return self.cliente.messages.create(model=modelo, max_tokens=16000, system=self.system, tools=self.tools, messages=msgs)
         return self.cliente.beta.messages.create(
-            model=self.cfg.get("modelo", "claude-opus-5-5"),
+            model=modelo,
             max_tokens=16000,
             system=self.system,
             tools=self.tools,
@@ -155,7 +160,7 @@ class Servicio:
                     continue
                 try:
                     res = {"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(herramientas.ejecutar(self, b.name, b.input, cid), ensure_ascii=False)}
-                except (ValueError, TypeError) as e:
+                except (ValueError, TypeError, AttributeError, KeyError) as e:  # entrada mal formada del modelo
                     res = {"type": "tool_result", "tool_use_id": b.id, "content": f"Error: {e}", "is_error": True}
                 resultados.append(res)
             msgs.append({"role": "user", "content": resultados})

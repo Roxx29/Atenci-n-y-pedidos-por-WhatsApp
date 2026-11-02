@@ -129,16 +129,19 @@ def cargar_menu(carpeta, archivo):
     items = yaml.safe_load((carpeta / archivo).read_text(encoding="utf-8"))
     if not isinstance(items, list):
         raise ValueError(f"{archivo} debe ser una lista de ítems")
+    if not items:
+        raise ValueError(f"{archivo} está vacío")
     menu = {}
     for it in items:
         if not isinstance(it, dict) or not all(it.get(k) not in (None, "") for k in ("id", "nombre", "precio")):
             raise ValueError(f"Ítem de menú sin id, nombre o precio: {it}")
-        if it["id"] in menu:
-            raise ValueError(f"Id de menú repetido: {it['id']}")
+        iid = str(it["id"])  # el modelo manda texto; un id numérico del yaml (id: 1) debe coincidir
+        if iid in menu:
+            raise ValueError(f"Id de menú repetido: {iid}")
         pc = _c(it["precio"])
         if pc <= 0:
-            raise ValueError(f"El precio de '{it['id']}' debe ser mayor que 0")
-        menu[it["id"]] = {**it, "precio_c": pc}
+            raise ValueError(f"El precio de '{iid}' debe ser mayor que 0")
+        menu[iid] = {**it, "id": iid, "precio_c": pc}
     return menu
 
 
@@ -152,15 +155,42 @@ def _transicion(sv, pedido_id, desde, hacia, extra=None):
 
 
 def _hora_pedido(sv, hora_deseada):
-    """Hora del pedido: la deseada si viene como AAAA-MM-DD HH:MM; texto libre ('lo antes posible') se ignora."""
+    """(hora, texto a guardar): la deseada en formato canónico si viene como AAAA-MM-DD HH:MM; texto libre ('lo antes posible') se guarda tal cual y se usa la hora actual."""
     ahora = sv.ahora()
     try:
         t = _hora(hora_deseada, sv.tz)
     except ValueError:
-        return ahora
+        return ahora, hora_deseada
     if t < ahora:
         raise ValueError("La hora deseada ya pasó.")
-    return t
+    return t, f"{t:%Y-%m-%d %H:%M}"
+
+
+def _turnos(sv, dia, cierre_min=0):
+    """Turnos [(abre, último minuto para pedir)] del día: `turnos: [[desde, hasta], ...]` o el desde/hasta simple; [] si no es día de atención."""
+    h = sv.cfg.get("horario") or {}
+    if DIAS[dia.weekday()] not in h.get("dias", DIAS[:5]):
+        return []
+    pares = h.get("turnos") or [[h.get("desde", "08:00"), h.get("hasta", "17:00")]]
+    return [(_hora(f"{dia:%Y-%m-%d} {a}", sv.tz), _hora(f"{dia:%Y-%m-%d} {b}", sv.tz) - dt.timedelta(minutes=cierre_min)) for a, b in pares]
+
+
+MAX_TEXTO, MAX_CANTIDAD, MAX_LINEAS, MAX_SIN_CONFIRMAR = 200, 50, 30, 3  # topes anti-abuso
+
+
+def _txt(v, campo):
+    """Texto opcional del modelo: None es vacío; solo str y con tope de largo."""
+    if v is None:
+        return ""
+    if not isinstance(v, str):
+        raise ValueError(f"'{campo}' debe ser texto.")
+    if len(v) > MAX_TEXTO:
+        raise ValueError(f"'{campo}' es demasiado largo (máximo {MAX_TEXTO} caracteres).")
+    return v
+
+
+def _una_linea(s):
+    return s.replace("\r", " ").replace("\n", " ")
 
 
 def _sin_tildes(s):
@@ -180,38 +210,44 @@ def _envio(cfg, zona):
 
 
 def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_deseada="", zona=""):
-    if not items:
-        raise ValueError("El pedido no tiene ítems.")
+    if not isinstance(items, list) or not items:
+        raise ValueError("El pedido no tiene ítems (debe ser una lista de ítems).")
+    if len(items) > MAX_LINEAS:
+        raise ValueError(f"Máximo {MAX_LINEAS} líneas por pedido.")
+    nombre, direccion, hora_deseada, zona = _txt(nombre, "nombre"), _txt(direccion, "direccion"), _txt(hora_deseada, "hora_deseada"), _txt(zona, "zona")
     if modalidad not in ("entrega", "recogida"):
         raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'.")
     if modalidad == "entrega" and not direccion.strip():
         raise ValueError("Para entrega se necesita la dirección.")
     lineas, subtotal = [], 0
     for it in items:
+        if not isinstance(it, dict):
+            raise ValueError("Cada ítem debe ser un objeto con id y cantidad.")
         cant = it.get("cantidad")
-        if not isinstance(cant, int) or isinstance(cant, bool) or cant < 1:
-            raise ValueError(f"Cantidad inválida para '{it.get('id')}': debe ser un entero de 1 o más.")
-        m = sv.menu.get(it.get("id"))
+        if not isinstance(cant, int) or isinstance(cant, bool) or not 1 <= cant <= MAX_CANTIDAD:
+            raise ValueError(f"Cantidad inválida para '{it.get('id')}': debe ser un entero de 1 a {MAX_CANTIDAD}.")
+        m = sv.menu.get(it.get("id")) if isinstance(it.get("id"), str) else None
         if not m:
             raise ValueError(f"No existe '{it.get('id')}' en el menú.")
         if not m.get("disponible", True):
             raise ValueError(f"'{m['nombre']}' no está disponible hoy.")
         imp = m["precio_c"] * cant
         subtotal += imp
-        lineas.append({"id": m["id"], "nombre": m["nombre"], "cantidad": cant, "nota": it.get("nota", ""), "precio_c": m["precio_c"], "importe_c": imp})
+        lineas.append({"id": m["id"], "nombre": m["nombre"], "cantidad": cant, "nota": _txt(it.get("nota"), "nota"), "precio_c": m["precio_c"], "importe_c": imp})
     cfg = sv.cfg.get("pedidos") or {}
-    t = _hora_pedido(sv, hora_deseada)
-    h = sv.cfg.get("horario") or {}
-    abre = _hora(f"{t:%Y-%m-%d} {h.get('desde', '08:00')}", sv.tz)
-    cierra = _hora(f"{t:%Y-%m-%d} {h.get('hasta', '17:00')}", sv.tz) - dt.timedelta(minutes=cfg.get("cierre_cocina_min", 0))
-    if DIAS[t.weekday()] not in h.get("dias", DIAS[:5]) or not abre <= t <= cierra:
-        raise ValueError(f"Local cerrado a esa hora (la cocina recibe pedidos de {abre:%H:%M} a {cierra:%H:%M} en días de atención).")
+    t, hora_deseada = _hora_pedido(sv, hora_deseada)
+    turnos = _turnos(sv, t.date(), cfg.get("cierre_cocina_min", 0))
+    if not any(abre <= t <= cierra for abre, cierra in turnos):
+        rango = " y ".join(f"{a:%H:%M} a {c:%H:%M}" for a, c in turnos) or "ninguna"
+        raise ValueError(f"Local cerrado a esa hora (la cocina recibe pedidos de {rango} en días de atención).")
     minimo = _c(cfg.get("pedido_minimo") or 0)
     if subtotal < minimo:
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
     total = subtotal + itbms + envio
+    if sum(1 for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] == "por_confirmar") >= MAX_SIN_CONFIRMAR:
+        raise ValueError("Tiene pedidos sin confirmar; confirme o cancele antes.")
     pid = sv.insertar("pedido", {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona,
                                  "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": total, "estado": "por_confirmar"})
     resumen = "\n".join([f"{l['cantidad']} x {l['nombre']}: {dinero(l['importe_c'])}" + (f" ({l['nota']})" if l["nota"] else "") for l in lineas]
@@ -226,13 +262,14 @@ def _aviso(sv, p, pedido_id, texto):
 
 def confirmar_pedido(sv, pedido_id):
     p = _transicion(sv, pedido_id, {"por_confirmar"}, "confirmado")
-    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} confirmado de {p['nombre']} ({p['modalidad']}), total {dinero(p['total_c'])}.")
+    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} confirmado de {_una_linea(p['nombre'])} ({p['modalidad']}), total {dinero(p['total_c'])}.")
     return {"ok": True, "estado": "confirmado", "total": dinero(p["total_c"]), "pago": {k: v for k, v in (sv.cfg.get("pago") or {}).items() if v is not None}}
 
 
 def reportar_pago(sv, pedido_id, metodo, referencia):
+    metodo, referencia = _txt(metodo, "metodo"), _txt(referencia, "referencia")
     p = _transicion(sv, pedido_id, {"confirmado"}, "pago_reportado", {"metodo": metodo, "referencia": referencia})
-    _aviso(sv, p, pedido_id, f"Verificar Yappy/transferencia ref {referencia} ({metodo}) y marcar pagado: pedido #{pedido_id}, total {dinero(p['total_c'])}.")
+    _aviso(sv, p, pedido_id, f"Verificar Yappy/transferencia ref {_una_linea(referencia)} ({_una_linea(metodo)}) y marcar pagado: pedido #{pedido_id}, total {dinero(p['total_c'])}.")
     return {"ok": True, "estado": "pago_reportado", "nota": "El equipo verificará el pago; aún no está verificado."}
 
 
@@ -285,6 +322,8 @@ def esquemas(nombres):
 
 
 CON_TELEFONO = {"agendar_cita", "programar_mensaje", "escalar_a_humano", "registrar", "buscar", "crear_pedido"}
+CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
+          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 
@@ -295,9 +334,10 @@ def ejecutar(sv, nombre, entrada, cliente):
     entrada = dict(entrada)
     if nombre in CON_TELEFONO:
         entrada["telefono"] = cliente
-    if nombre in ("cancelar_cita", "actualizar_registro", "confirmar_pedido", "reportar_pago", "cancelar_pedido"):
-        fila = sv._q("SELECT tipo, datos FROM registros WHERE id=?", (entrada.get("cita_id", entrada.get("pedido_id", entrada.get("id"))),))
-        if not fila or json.loads(fila[0][1]).get("telefono") != cliente or (nombre.endswith("_pedido") or nombre == "reportar_pago") and fila[0][0] != "pedido":
+    if nombre in CON_ID:
+        clave, tipo = CON_ID[nombre]
+        fila = sv._q("SELECT tipo, datos FROM registros WHERE id=?", (entrada.get(clave),))
+        if not fila or json.loads(fila[0][1]).get("telefono") != cliente or tipo and fila[0][0] != tipo:
             raise ValueError("No existe ese registro para este cliente.")
         if nombre == "actualizar_registro" and fila[0][0] in ("pedido", "aviso"):
             raise ValueError("Los pedidos no se cambian con esta herramienta; usa las herramientas de pedido.")

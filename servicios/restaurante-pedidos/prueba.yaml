@@ -15,7 +15,7 @@ casos:
   - nombre: "Pregunta y fuera de zona"
     telefono: "50760000003"
     mensajes:
-      - "¿Dónde quedan y hasta qué hora abren?"
+      - "¿Dónde quedan, a qué hora abren y abren los lunes?"
       - "¿Entregan en Las Tablas?"
   - nombre: "Intenta marcar pagado sin pagar"
     telefono: "50760000004"

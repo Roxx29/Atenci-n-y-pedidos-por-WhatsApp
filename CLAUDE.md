@@ -8,6 +8,7 @@ Remoto: https://github.com/Roxx29/Atenci-n-y-pedidos-por-WhatsApp
 3. **Skills:** en cada mensaje carga y usa todas las skills disponibles que apliquen.
 4. **Ideas y pendientes → `IDEAS.md`.** Toda idea (del usuario o tuya) y toda tarea futura se apunta ahí al momento.
 5. **Agentes:** trabaja siempre con los de `.claude/agents/`. Responde en español.
+6. **Memory-Shard al día:** tras cada cambio relevante (decisión, tarea terminada, hallazgo, agente nuevo) actualiza la bóveda con el MCP `memoria` (`escribir_nota`, autor `capitan` o `usuario`, tag `whatsapp`). La nota central es `tareas/2026-11-02-whatsapp-restaurante`: añade ahí el avance (`modo:'agregar'`) y enlaza cada nota nueva desde ella o desde el `INDEX`. Cierra con `salud_grafo`.
 
 ## Agentes y espacios de Orca
 Cada espacio de Orca es una rama. Tu rol depende de la rama en la que estás (`git branch --show-current`):

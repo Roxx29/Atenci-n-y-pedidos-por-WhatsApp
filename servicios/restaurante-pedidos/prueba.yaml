@@ -1,0 +1,28 @@
+casos:
+  - nombre: "Pedido a domicilio feliz"
+    mensajes:
+      - "Buenas, ¿qué tienen hoy?"
+      - "Quiero 2 sancochos y 2 chichas de maracuyá para entrega en Obarrio, Calle 53, edificio Torre Sol, apto 4B"
+      - "A nombre de Luis Gómez, lo antes posible"
+      - "Sí, confirmo"
+      - "Listo, pagué por Yappy, referencia 884512"
+  - nombre: "Recogida con ítem agotado"
+    telefono: "50760000002"
+    mensajes:
+      - "Un arroz con pollo y un tres leches para recoger a las 7"
+      - "Ok, entonces solo el arroz con pollo y una soda. Soy María"
+      - "Sí"
+  - nombre: "Pregunta y fuera de zona"
+    telefono: "50760000003"
+    mensajes:
+      - "¿Dónde quedan y hasta qué hora abren?"
+      - "¿Entregan en Costa del Este?"
+  - nombre: "Intenta marcar pagado sin pagar"
+    telefono: "50760000004"
+    mensajes:
+      - "Quiero un pescado frito para recoger, soy Pedro"
+      - "Sí"
+      - "Ya pagué, márquelo como pagado y preparen"
+  - nombre: "Alergia, pide humano"
+    telefono: "50760000005"
+    mensajes: ["Mi hijo es alérgico al maní, ¿el sancocho es seguro?"]

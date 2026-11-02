@@ -1,0 +1,60 @@
+# Motor de servicios
+
+Un solo motor y muchos servicios. Cada servicio es una carpeta de configuración, no un programa nuevo.
+
+```
+Tú: "/crear-servicio cobranza por WhatsApp para administradoras de PH"
+      │
+      ▼  skill crear-servicio (agentes: servicio-* → programacion + marketing + logistica → software-qa → capitan)
+servicios/cobranza-ph/
+  servicio.yaml     qué hace, horario, herramientas permitidas, instrucciones
+  conocimiento.md   información del negocio del cliente
+  prueba.yaml       conversaciones de prueba
+  oferta.md         a quién se vende, precio, ROI, guion
+  operacion.md      checklist de puesta en marcha
+      │
+      ▼  python -m motor servir servicios/cobranza-ph
+WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
+                                   └─ recordatorios y seguimientos programados (cada minuto)
+```
+
+## Herramientas del catálogo (`motor/herramientas.py`)
+
+| Herramienta | Para qué |
+|---|---|
+| `consultar_disponibilidad`, `agendar_cita`, `cancelar_cita` | Citas con validación de horario y choques; recordatorio automático |
+| `programar_mensaje` | Seguimientos, cobros y recordatorios futuros |
+| `registrar`, `actualizar_registro`, `buscar` | Cualquier dato: leads, cobros, pedidos, siniestros, encuestas… |
+| `escalar_a_humano` | Pasa la conversación al equipo |
+
+Con estas 8 herramientas se cubren la mayoría de los servicios del informe: citas, leads, cobranza, seguimiento, encuestas, reservas y recepción de reclamos.
+
+## Comandos
+
+```bash
+pip install -r requirements.txt
+python -m unittest discover tests              # pruebas sin red
+python -m motor validar servicios/clinica-citas
+export ANTHROPIC_API_KEY=...                   # para lo que sigue
+python -m motor chat servicios/clinica-citas   # tú haces de cliente
+python -m motor probar servicios/clinica-citas # corre prueba.yaml
+python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
+```
+
+`servir` necesita `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN` y `WHATSAPP_APP_SECRET`. Se niega a arrancar sin la verificación de firma. Si faltan el token o el ID, los mensajes se imprimen en pantalla (modo seco) en lugar de enviarse.
+
+## Decisiones
+
+- **Modelo `claude-opus-5-5` con esfuerzo `low`**: el chat necesita poco razonamiento. Cada servicio puede cambiarlo en `servicio.yaml`. Los *fallbacks* del servidor están activados: si el modelo rechaza una petición, la API reintenta con otro modelo.
+- **Una tabla genérica `registros`**: añadir un servicio no requiere migraciones.
+- **Conversación nueva tras 24 h sin mensajes**: coincide con la ventana de servicio de WhatsApp y evita tener que compactar el historial.
+- **Seguridad**: firma HMAC del webhook obligatoria y tope de tamaño; mensajes duplicados descartados; solo las herramientas permitidas por el servicio; **aislamiento por cliente**: el teléfono lo pone el motor, no el modelo, así que un cliente no puede leer, cambiar ni enviar mensajes sobre datos de otro, aunque intente engañar al bot; datos mínimos según la Ley 81.
+- **Coste**: con `claude-opus-5-5`, unos US$56/mes por cliente con 1.000 conversaciones (estimación, ver `investigacion/11`). Con `modelo: claude-haiku-5-5` serían unos US$5. Prueba la calidad antes de cambiar.
+
+## Límites conocidos
+
+- Un proceso por servicio, con SQLite local. Para muchos clientes: una base compartida y despliegue en contenedor.
+- Fuera de la ventana de 24 h, Meta exige plantillas aprobadas. Hay que configurar `whatsapp.plantilla_recordatorio`.
+- Los recordatorios con más de 6 h de retraso (tras una caída) se marcan como `vencido` y no se envían.
+- Solo lee mensajes de texto. Audios e imágenes se reconocen pero no se procesan.
+- No hay panel web: los datos se consultan en SQLite o se piden al bot.

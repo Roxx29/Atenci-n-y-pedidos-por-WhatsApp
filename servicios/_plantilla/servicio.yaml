@@ -1,0 +1,27 @@
+# Plantilla de servicio. Copia esta carpeta a servicios/<slug>/ y rellena.
+nombre: "<Nombre del servicio>"            # p. ej. "Citas por WhatsApp — Clínica X"
+negocio: "<Negocio del cliente y ubicación>"
+objetivo: "<Resultado que vende el servicio, en una frase>"
+modelo: claude-opus-5-5
+esfuerzo: low                               # low para chat; sube a medium si el servicio razona mucho
+zona_horaria: America/Panama
+horario:                                    # borra si el servicio no agenda citas
+  dias: [lun, mar, mie, jue, vie]
+  desde: "08:00"
+  hasta: "17:00"
+  duracion_cita_min: 30
+recordatorio_horas_antes: 24                # borra para no programar recordatorios automáticos
+herramientas:                               # elige del catálogo (motor/herramientas.py)
+  - consultar_disponibilidad
+  - agendar_cita
+  - cancelar_cita
+  - programar_mensaje
+  - registrar
+  - actualizar_registro
+  - buscar
+  - escalar_a_humano
+whatsapp:
+  plantilla_recordatorio: null              # nombre de plantilla aprobada por Meta (1 parámetro de cuerpo)
+conocimiento: conocimiento.md
+instrucciones: |
+  <Pasos concretos: qué preguntar, qué registrar (tipo y campos), cuándo programar mensajes, cuándo escalar.>

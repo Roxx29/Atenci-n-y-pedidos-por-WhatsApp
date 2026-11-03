@@ -2,7 +2,9 @@
 
   python -m motor panel [carpeta]
 """
+import os
 import sys
+import time
 from pathlib import Path
 
 from motor import herramientas
@@ -28,6 +30,16 @@ def avisos_pendientes(sv):
     """Avisos de pedidos que esperan acción del restaurante (confirmado o pago_reportado), del más nuevo al más viejo."""
     espera = {p["id"] for p in sv.listar("pedido") if p["estado"] in {"confirmado", "pago_reportado"}}
     return [a for a in reversed(sv.listar("aviso")) if a.get("pedido_id") in espera]
+
+
+def ruta_comprobante(sv, pedido):
+    """Ruta del comprobante del pedido, solo si el nombre es [0-9a-f]{32}.jpg|png y queda dentro de comprobantes/; si no, None."""
+    n = pedido.get("comprobante")
+    if not (isinstance(n, str) and herramientas.NOMBRE_COMPROBANTE.fullmatch(n)):
+        return None
+    carpeta = (sv.dir / "comprobantes").resolve()
+    f = (carpeta / n).resolve()
+    return f if f.parent == carpeta and f.is_file() else None
 
 
 def elegir_carpeta(argv, exe_dir):
@@ -80,16 +92,29 @@ def main(argv):
             messagebox.showerror("No se pudo marcar", str(e))
         refrescar(sonar=False)
 
+    def ver_comprobante():
+        sel = tabla.selection()
+        ruta = next((ruta_comprobante(sv, p) for p in sv.listar("pedido") if sel and p["id"] == int(sel[0])), None)
+        if ruta:
+            os.startfile(ruta)
+        else:
+            messagebox.showinfo("Comprobante", "Sin comprobante")
+
     barra = ttk.Frame(root)
     barra.pack(fill="x")
     for texto, estado in ACCIONES:
         ttk.Button(barra, text=texto, command=lambda e=estado: marcar(e)).pack(side="left", padx=4, pady=4)
+    ttk.Button(barra, text="Ver comprobante", command=ver_comprobante).pack(side="left", padx=4, pady=4)
 
-    estado = {"aviso": max([a["id"] for a in sv.listar("aviso")] + [0]), "vistos": {p["id"] for p in activos(sv)}}
+    estado = {"aviso": max([a["id"] for a in sv.listar("aviso")] + [0]), "vistos": {p["id"] for p in activos(sv)}, "purga": time.time()}
+    herramientas.purgar_comprobantes(sv)
 
     def refrescar(sonar=True):
         try:
             herramientas.caducar_pedidos(sv)
+            if time.time() - estado["purga"] > 3600:
+                estado["purga"] = time.time()
+                herramientas.purgar_comprobantes(sv)
             peds = activos(sv)
             nuevos, estado["aviso"] = avisos_nuevos(sv, estado["aviso"])
         except Exception as e:  # base bloqueada un momento: reintentar en el próximo ciclo
@@ -103,6 +128,7 @@ def main(argv):
             for p in peds:
                 tags = (p["estado"],) + (("nuevo",) if p["id"] in pedidos_nuevos else ())
                 pago = f"{p.get('metodo', '')} {p['referencia']}".strip() if p.get("referencia") else ""
+                pago += " (comprobante)" if p.get("comprobante") else ""
                 lineas = ", ".join(f"{l['cantidad']} x {l['nombre']}" for l in p["lineas"])
                 tabla.insert("", "end", iid=str(p["id"]), tags=tags, values=(p["id"], p["estado"], p["nombre"], p["modalidad"], herramientas.dinero(p["total_c"]), pago, lineas))
             if sel and tabla.exists(sel[0]):

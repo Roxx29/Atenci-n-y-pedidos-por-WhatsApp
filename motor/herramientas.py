@@ -5,6 +5,10 @@ mensajes programados, escalados... Así un servicio nuevo casi nunca necesita c�
 """
 import datetime as dt
 import json
+import re
+import secrets
+import struct
+import time
 import unicodedata
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
@@ -97,7 +101,7 @@ def actualizar_registro(sv, id, cambios):
 
 def _pedido_para_modelo(p):
     """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c."""
-    out = {k: v for k, v in p.items() if not k.endswith("_c") and k != "lineas"}
+    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante")}
     out.update(total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
                lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
     return out
@@ -317,9 +321,102 @@ def reportar_pago(sv, pedido_id, metodo, referencia):
     return {"ok": True, "estado": "pago_reportado", "nota": "Pago pendiente de verificación por el restaurante. No lo des por pagado ni prometas tiempo de preparación o entrega hasta que el equipo lo verifique."}
 
 
+# --- comprobante de Yappy (foto): solo para verificar el pago de ese pedido; el modelo nunca la ve ---
+NOMBRE_COMPROBANTE = re.compile(r"[0-9a-f]{32}\.(jpg|png)")
+PNG_SIG, PNG_QUITAR = b"\x89PNG\r\n\x1a\n", {b"eXIf", b"tEXt", b"zTXt", b"iTXt", b"tIME"}
+
+
+def tipo_imagen(datos):
+    """'jpg' | 'png' según la cabecera mágica, o None."""
+    return "jpg" if datos[:3] == b"\xff\xd8\xff" else "png" if datos[:8] == PNG_SIG else None
+
+
+def limpiar_imagen(datos, ext):
+    """Quita metadatos (EXIF/texto/fecha) sin recortar ni recomprimir. ValueError('Imagen no válida') si la estructura está corrupta."""
+    malo = ValueError("Imagen no válida")
+    out, i, n = bytearray(), 8 if ext == "png" else 2, len(datos)
+    if ext == "png":
+        out += PNG_SIG
+        while i + 12 <= n:
+            largo, tipo = struct.unpack(">I4s", datos[i:i + 8])
+            fin = i + 12 + largo
+            if fin > n or (len(out) == 8 and tipo != b"IHDR"):
+                raise malo
+            if tipo not in PNG_QUITAR:
+                out += datos[i:fin]
+            i = fin
+            if tipo == b"IEND":
+                return bytes(out)  # lo que haya después de IEND se descarta
+        raise malo
+    out += datos[:2]
+    while i + 4 <= n:
+        if datos[i] != 0xFF:
+            raise malo
+        m = datos[i + 1]
+        if m == 0xFF:  # relleno
+            i += 1
+            continue
+        largo = struct.unpack(">H", datos[i + 2:i + 4])[0]
+        if largo < 2 or i + 2 + largo > n:
+            raise malo
+        if m == 0xDA:  # SOS: el resto (datos comprimidos + EOI) se copia tal cual
+            return bytes(out + datos[i:])
+        if not (0xE1 <= m <= 0xEF or m == 0xFE):  # fuera APP1..APP15 y COM
+            out += datos[i:i + 2 + largo]
+        i += 2 + largo
+    raise malo
+
+
+def _borrar_archivo(sv, nombre):
+    if isinstance(nombre, str) and NOMBRE_COMPROBANTE.fullmatch(nombre):
+        try:
+            (sv.dir / "comprobantes" / nombre).unlink()
+        except FileNotFoundError:
+            pass
+
+
+def borrar_comprobante(sv, p):
+    """Borra el archivo del pedido `p` y deja solo la fecha de borrado."""
+    if p.get("comprobante"):
+        _borrar_archivo(sv, p["comprobante"])
+        sv.actualizar(p["id"], {"comprobante": "", "comprobante_borrado_at": sv.ahora().isoformat()}, tipo="pedido")
+
+
+def purgar_comprobantes(sv):
+    """Borra comprobantes con más de comprobantes.max_dias (7) y archivos huérfanos (sin pedido, con más de 10 min por si se está subiendo uno)."""
+    dias = (sv.cfg.get("comprobantes") or {}).get("max_dias", 7)
+    limite = sv.ahora() - dt.timedelta(days=dias)
+    for p in sv.listar("pedido"):
+        if p.get("comprobante") and dt.datetime.fromisoformat(p["comprobante_at"]) <= limite:
+            borrar_comprobante(sv, p)
+    carpeta = sv.dir / "comprobantes"
+    en_uso = {p.get("comprobante") for p in sv.listar("pedido")}
+    for f in carpeta.iterdir() if carpeta.is_dir() else ():
+        if f.name not in en_uso and time.time() - f.stat().st_mtime > 600:
+            f.unlink(missing_ok=True)
+
+
+def subir_comprobante(sv, p, ext, datos, referencia=""):
+    """Guarda la imagen ya limpia con nombre aleatorio y pasa el pedido `p` (confirmado o pago_reportado) a pago_reportado. ValueError si cambió de estado."""
+    carpeta = sv.dir / "comprobantes"
+    carpeta.mkdir(exist_ok=True)
+    nombre = f"{secrets.token_hex(16)}.{ext}"
+    (carpeta / nombre).write_bytes(datos)
+    try:
+        nuevo = _transicion(sv, p["id"], {"confirmado", "pago_reportado"}, "pago_reportado",
+                            {"metodo": "yappy", "referencia": referencia or "comprobante", "comprobante": nombre, "comprobante_at": sv.ahora().isoformat()})
+    except ValueError:
+        _borrar_archivo(sv, nombre)
+        raise
+    if p.get("comprobante"):
+        _borrar_archivo(sv, p["comprobante"])
+    _aviso(sv, nuevo, p["id"], f"Comprobante de Yappy recibido: verificar y marcar pagado: pedido #{p['id']}, total {dinero(nuevo['total_c'])}.")
+    return nuevo
+
+
 def cancelar_pedido(sv, pedido_id):
     caducar_pedidos(sv)
-    _transicion(sv, pedido_id, {"por_confirmar", "confirmado"}, "cancelado")
+    borrar_comprobante(sv, _transicion(sv, pedido_id, {"por_confirmar", "confirmado"}, "cancelado"))
     return {"ok": True}
 
 
@@ -331,6 +428,8 @@ def marcar_pedido(sv, pedido_id, estado):
     if estado not in PREVIOS:
         raise ValueError("Estado inválido: pagado, en_preparacion, listo o entregado.")
     p = _transicion(sv, pedido_id, PREVIOS[estado], estado)  # el pago va antes de preparar; un cancelado no está en ningún conjunto
+    if (sv.cfg.get("comprobantes") or {}).get("borrar_al_marcar", True):
+        borrar_comprobante(sv, p)
     if estado == "listo":
         programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} está listo.")
     return {"ok": True, "estado": estado}

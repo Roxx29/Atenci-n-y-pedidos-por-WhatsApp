@@ -40,3 +40,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 
 - [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.
 - [devops] cloudflared: para enseñar la demo fuera de la red local y para el webhook de WhatsApp (pendiente).
+- [ ] Web: probar en un móvil real la subida del comprobante (galería, cámara y fotos HEIC de iPhone).

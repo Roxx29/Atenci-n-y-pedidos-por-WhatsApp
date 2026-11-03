@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "diseno/web-pedidos.html"
+        ],
+        "createdAt": "2026-11-03T01:20:32.060Z",
+        "reason": "disenador: #cp-img es la vista previa del comprobante; JS le pone src (blob) al elegir foto y su contenedor está oculto hasta entonces"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "motor/web_index.html"
+        ],
+        "createdAt": "2026-11-03T01:20:32.824Z",
+        "reason": "disenador: #cp-img es la vista previa del comprobante; JS le pone src (blob) al elegir foto y su contenedor está oculto hasta entonces"
+      }
+    ]
+  }
+}

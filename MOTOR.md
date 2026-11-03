@@ -26,9 +26,11 @@ WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
 | `programar_mensaje` | Seguimientos, cobros y recordatorios futuros |
 | `registrar`, `actualizar_registro`, `buscar` | Cualquier dato: leads, cobros, pedidos, siniestros, encuestas… |
 | `escalar_a_humano` | Pasa la conversación al equipo |
-| `crear_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
+| `crear_pedido`, `modificar_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
 
 Pedidos: un solo `por_confirmar` por cliente (otra llamada a `crear_pedido` lo actualiza, misma id). Caduca a `caducado` tras `pedidos.caduca_min` min (30 por defecto) sin confirmar; el modelo nunca ve centavos (`*_c`).
+Un cliente no puede tener dos pedidos activos (`por_confirmar`, `confirmado`, `pago_reportado`, `pagado`, `en_preparacion`): `crear_pedido` falla y pide `modificar_pedido`; solo `aparte=true` crea otro (tope 3, y no si hay uno por confirmar).
+`modificar_pedido` cambia un pedido existente recalculando todo en código: `confirmado` con total distinto vuelve a `por_confirmar` (`reconfirmar: true`, no se confirma en el mismo turno); con total igual sigue confirmado y avisa al restaurante. Ya pagado o en curso solo admite dirección, hora y notas; cambiar ítems, zona o modalidad crea un `escalado` y un aviso sin tocar el pedido. El panel muestra la columna Entrega (dirección, zona, hora, notas).
 
 Con estas 8 herramientas se cubren la mayoría de los servicios del informe: citas, leads, cobranza, seguimiento, encuestas, reservas y recepción de reclamos.
 

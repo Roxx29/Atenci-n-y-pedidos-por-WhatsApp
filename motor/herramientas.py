@@ -245,17 +245,17 @@ def _envio(cfg, zona):
     return _c(por_zona[_sin_tildes(zona)])
 
 
-def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_deseada="", zona=""):
+ACTIVOS = {"por_confirmar", "confirmado", "pago_reportado", "pagado", "en_preparacion"}
+MAX_ACTIVOS = 3
+YA_PAGADO = {"pago_reportado", "pagado", "en_preparacion"}
+
+
+def _lineas(sv, items):
+    """Valida los ítems contra el menú: (lineas, subtotal_c)."""
     if not isinstance(items, list) or not items:
         raise ValueError("El pedido no tiene ítems (debe ser una lista de ítems).")
     if len(items) > MAX_LINEAS:
         raise ValueError(f"Máximo {MAX_LINEAS} líneas por pedido.")
-    nombre, direccion, hora_deseada, zona = _txt(nombre, "nombre"), _txt(direccion, "direccion"), _txt(hora_deseada, "hora_deseada"), _txt(zona, "zona")
-    _nombre_real(nombre, telefono)
-    if modalidad not in ("entrega", "recogida"):
-        raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'; pregúntasela al cliente, no inventes datos.")
-    if modalidad == "entrega" and not direccion.strip():
-        raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     lineas, subtotal = [], 0
     for it in items:
         if not isinstance(it, dict):
@@ -271,30 +271,109 @@ def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_dese
         imp = m["precio_c"] * cant
         subtotal += imp
         lineas.append({"id": m["id"], "nombre": m["nombre"], "cantidad": cant, "nota": _txt(it.get("nota"), "nota"), "precio_c": m["precio_c"], "importe_c": imp})
+    return lineas, subtotal
+
+
+def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_deseada, zona, notas, validar_hora=True):
+    """Valida y calcula TODO el pedido (compartido por crear y modificar): dict de campos listo para guardar."""
+    nombre, direccion, hora_deseada, zona, notas = _txt(nombre, "nombre"), _txt(direccion, "direccion"), _txt(hora_deseada, "hora_deseada"), _txt(zona, "zona"), _txt(notas, "notas")
+    _nombre_real(nombre, telefono)
+    if modalidad not in ("entrega", "recogida"):
+        raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'; pregúntasela al cliente, no inventes datos.")
+    if modalidad == "entrega" and not direccion.strip():
+        raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     cfg = sv.cfg.get("pedidos") or {}
-    t, hora_deseada = _hora_pedido(sv, hora_deseada)
-    turnos = _turnos(sv, t.date(), cfg.get("cierre_cocina_min", 0))
-    if not any(abre <= t <= cierra for abre, cierra in turnos):
-        rango = " y ".join(f"{a:%H:%M} a {c:%H:%M}" for a, c in turnos) or "ninguna"
-        raise ValueError(f"Local cerrado a esa hora (la cocina recibe pedidos de {rango} en días de atención).")
+    if validar_hora:  # ponytail: modificar solo revalida la hora si el cliente da una nueva; la guardada no se vuelve a juzgar
+        t, hora_deseada = _hora_pedido(sv, hora_deseada)
+        turnos = _turnos(sv, t.date(), cfg.get("cierre_cocina_min", 0))
+        if not any(abre <= t <= cierra for abre, cierra in turnos):
+            rango = " y ".join(f"{a:%H:%M} a {c:%H:%M}" for a, c in turnos) or "ninguna"
+            raise ValueError(f"Local cerrado a esa hora (la cocina recibe pedidos de {rango} en días de atención).")
     minimo = _c(cfg.get("pedido_minimo") or 0)
     if subtotal < minimo:
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
-    total = subtotal + itbms + envio
-    caducar_pedidos(sv)
-    previo = next((p for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] == "por_confirmar"), None)  # un solo pedido en construcción por cliente
-    datos = {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona,
-                                 "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": total, "estado": "por_confirmar", "creado_at": sv.ahora().isoformat()}
-    if previo:
-        pid = previo["id"]
-        sv.actualizar(pid, datos, tipo="pedido", desde={"por_confirmar"})
-    else:
-        pid = sv.insertar("pedido", datos)
-    resumen = "\n".join([f"{l['cantidad']} x {l['nombre']}: {dinero(l['importe_c'])}" + (f" ({l['nota']})" if l["nota"] else "") for l in lineas]
-                        + [f"Subtotal: {dinero(subtotal)}"] + ([f"ITBMS: {dinero(itbms)}"] if itbms else []) + ([f"Envío: {dinero(envio)}"] if modalidad == "entrega" else []) + [f"Total: {dinero(total)}"])
-    return {"ok": True, "pedido_id": pid, "resumen": resumen, "total": dinero(total), "actualizado": bool(previo)}
+    return {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
+            "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
+
+
+def _resumen(d):
+    return "\n".join([f"{l['cantidad']} x {l['nombre']}: {dinero(l['importe_c'])}" + (f" ({l['nota']})" if l["nota"] else "") for l in d["lineas"]]
+                     + [f"Subtotal: {dinero(d['subtotal_c'])}"] + ([f"ITBMS: {dinero(d['itbms_c'])}"] if d["itbms_c"] else [])
+                     + ([f"Envío: {dinero(d['envio_c'])}"] if d["modalidad"] == "entrega" else []) + [f"Total: {dinero(d['total_c'])}"]
+                     + ([f"Notas: {d['notas']}"] if d.get("notas") else []))
+
+
+def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_deseada="", zona="", notas="", aparte=False):
+    lineas, subtotal = _lineas(sv, items)
+    datos = _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_deseada, zona, notas)
+    datos.update(estado="por_confirmar", creado_at=sv.ahora().isoformat())
+    with sv.pedidos_lock:  # ponytail: lock del proceso; entre procesos basta porque solo el bot crea pedidos
+        caducar_pedidos(sv)
+        mios = [p for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] in ACTIVOS]
+        previo = next((p for p in mios if p["estado"] == "por_confirmar"), None)  # un solo pedido en construcción por cliente
+        if aparte and previo:
+            raise ValueError(f"Confirme o cancele primero el pedido #{previo['id']}.")
+        if aparte and len(mios) >= MAX_ACTIVOS:
+            raise ValueError(f"Ya tiene {MAX_ACTIVOS} pedidos en curso; no se pueden crear más hasta que termine alguno.")
+        if not aparte and not previo and mios:
+            o = mios[-1]
+            raise ValueError(f"Ya tiene el pedido #{o['id']} en curso (estado {o['estado']}). Para cambiarlo use modificar_pedido; solo si el cliente pide explícitamente OTRO pedido aparte vuelva a llamar con aparte=true.")
+        if previo:
+            pid = previo["id"]
+            sv.actualizar(pid, datos, tipo="pedido", desde={"por_confirmar"})
+        else:
+            pid = sv.insertar("pedido", datos)
+    return {"ok": True, "pedido_id": pid, "resumen": _resumen(datos), "total": dinero(datos["total_c"]), "actualizado": bool(previo)}
+
+
+def _norm_items(items):
+    return sorted((str(i.get("id")), i.get("cantidad"), i.get("nota") or "") for i in items)
+
+
+def modificar_pedido(sv, pedido_id, items=None, modalidad=None, direccion=None, zona=None, hora_deseada=None, notas=None):
+    with sv.pedidos_lock:
+        caducar_pedidos(sv)
+        p = next((x for x in sv.listar("pedido") if x["id"] == pedido_id), None)
+        if not p:
+            raise ValueError(f"No existe el pedido {pedido_id}.")
+        est = p["estado"]
+        if est not in ACTIVOS:
+            raise ValueError("Este pedido ya no se puede modificar.")
+        previas = [{"id": l["id"], "cantidad": l["cantidad"], "nota": l["nota"]} for l in p["lineas"]]
+        c_items = items is not None and not (isinstance(items, list) and all(isinstance(i, dict) for i in items) and _norm_items(items) == _norm_items(previas))
+        mod = p["modalidad"] if modalidad is None else modalidad
+        c_mod = mod != p["modalidad"]
+        c_zona = mod == "entrega" and zona is not None and _sin_tildes(zona) != _sin_tildes(p["zona"])
+        if mod == "recogida" and direccion not in (None, ""):
+            raise ValueError("Es un pedido de recogida: no lleva dirección. Si el cliente quiere entrega, cambie la modalidad.")
+        if est in YA_PAGADO and (c_items or c_mod or c_zona):
+            return _escalar_cambio(sv, p, pedido_id)
+        lineas, subtotal = _lineas(sv, items) if c_items else (p["lineas"], p["subtotal_c"])
+        pick = lambda nuevo, viejo: viejo if nuevo is None else nuevo
+        datos = _armar(sv, lineas, subtotal, mod, p["nombre"], p["telefono"], pick(direccion, p["direccion"]), pick(hora_deseada, p["hora_deseada"]), pick(zona, p["zona"]),
+                       pick(notas, p.get("notas", "")), validar_hora=hora_deseada is not None)
+        cambio_total = datos["total_c"] != p["total_c"]
+        if est in YA_PAGADO and cambio_total:
+            return _escalar_cambio(sv, p, pedido_id)
+        reconfirmar = est == "confirmado" and cambio_total
+        if reconfirmar or est == "por_confirmar":
+            datos.update(estado="por_confirmar", creado_at=sv.ahora().isoformat())
+        sv.actualizar(pedido_id, datos, tipo="pedido", desde={est})
+        que = [t for ok, t in ((c_items, "los ítems"), (c_mod, f"la modalidad a {mod}"), (c_zona, f"la zona a {datos['zona']}"),
+                               (datos["direccion"] != p["direccion"], f"la dirección a {datos['direccion']}"),
+                               (datos["hora_deseada"] != p["hora_deseada"], f"la hora a {datos['hora_deseada']}"),
+                               (datos["notas"] != p.get("notas", ""), f"las notas a {datos['notas']}")) if ok]
+        if que and not reconfirmar and est != "por_confirmar":
+            _aviso(sv, p, pedido_id, _una_linea(f"Pedido #{pedido_id}: el cliente cambió " + " y ".join(que))[:MAX_TEXTO])
+    return {"ok": True, "pedido_id": pedido_id, "estado": datos.get("estado", est), "resumen": _resumen(datos), "total": dinero(datos["total_c"]), "reconfirmar": reconfirmar}
+
+
+def _escalar_cambio(sv, p, pedido_id):
+    sv.insertar("escalado", {"telefono": p["telefono"], "motivo": f"Cambio de ítems/zona/modalidad en pedido #{pedido_id} ya pagado o en curso", "estado": "abierto"})
+    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} ya pagado o en curso: el cliente pide cambiar ítems, zona o modalidad; contactarlo.")
+    return {"ok": False, "escalado": True, "nota": "No puedo cambiar eso en un pedido ya pagado; una persona del equipo lo contactará."}
 
 
 def _aviso(sv, p, pedido_id, texto):
@@ -466,7 +545,8 @@ CATALOGO = {
     "actualizar_registro": (actualizar_registro, "Cambia campos de un registro existente (p. ej. estado de cita a 'confirmada', cobro a 'pagado').", _s({"id": {"type": "integer"}, "cambios": O}, ["id", "cambios"])),
     "buscar": (buscar, "Busca registros del cliente actual de un tipo (cita, lead, cobro...) que contengan un texto. Devuelve los 20 más recientes.", _s({"tipo": S, "texto": S}, ["tipo"])),
     "escalar_a_humano": (escalar_a_humano, "Pasa la conversación a una persona: el cliente lo pide, está molesto, es urgente o no sabes la respuesta.", _s({"motivo": S}, ["motivo"])),
-    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente: para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": S, "zona": S}, ["items", "modalidad", "nombre"])),
+    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": S, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
+    "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": S, "notas": S}, ["pedido_id"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "cancelar_pedido": (cancelar_pedido, "Cancela un pedido por_confirmar o confirmado.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
@@ -482,7 +562,7 @@ def esquemas(nombres):
 
 CON_TELEFONO = {"agendar_cita", "programar_mensaje", "escalar_a_humano", "registrar", "buscar", "crear_pedido"}
 CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
-          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
+          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 
@@ -511,4 +591,6 @@ def ejecutar(sv, nombre, entrada, cliente, turno=None):
     res = CATALOGO[nombre][0](sv, **entrada)
     if turno is not None and nombre == "crear_pedido":
         turno["creados"].add(res["pedido_id"])
+    if turno is not None and nombre == "modificar_pedido" and res.get("reconfirmar"):
+        turno["creados"].add(res["pedido_id"])  # el cliente debe ver el nuevo total y decir sí en otro mensaje
     return res

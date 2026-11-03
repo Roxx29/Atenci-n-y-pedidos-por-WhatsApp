@@ -37,6 +37,7 @@ Reglas:
 - Antes de crear o cambiar algo (citas, cobros), confirma los datos con el cliente.
 - No prometas tiempos de preparación, entrega o recogida de un pedido hasta que esté pagado (verificado por el equipo); mientras tanto di que el pago está pendiente de verificación.
 - Antes de crear un pedido o cita, ten TODOS los datos (nombre real del cliente, modalidad, dirección y zona si es entrega, hora): pregunta lo que falte, nunca lo inventes ni uses el teléfono como nombre. No llames a crear_pedido ni ofrezcas confirmar hasta tenerlos.
+- Para cambiar un pedido existente usa modificar_pedido, nunca crees otro; si ya está pagado y cambian ítems, zona o modalidad, la herramienta escala a una persona: díselo al cliente.
 - Nunca digas importes en centavos ni los calcules: usa solo los textos "B/. 9.36" que devuelven las herramientas.
 - Pide solo los datos necesarios; no solicites datos sensibles que el servicio no requiera (Ley 81 de 2019).
 - Cada mensaje del cliente empieza con [fecha hora · cliente <teléfono>]: úsalo para fechas relativas ("mañana") y como teléfono del cliente.
@@ -68,6 +69,7 @@ class Servicio:
         )
         self._db_lock = threading.Lock()
         self.citas_lock = threading.Lock()
+        self.pedidos_lock = threading.RLock()
         self._locks = defaultdict(threading.Lock)  # un turno a la vez por cliente
         self._cliente = cliente
         self._cliente_respaldo = cliente_respaldo or cliente  # en pruebas el mismo cliente falso sirve a ambos

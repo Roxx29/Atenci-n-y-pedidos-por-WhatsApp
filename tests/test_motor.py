@@ -177,7 +177,7 @@ horario: {dias: [lun, mar, mie, jue, vie, sab, dom], desde: "11:00", hasta: "21:
 menu: menu.yaml
 pedidos: {impuesto_pct: 7, pedido_minimo: 8.00, cierre_cocina_min: 30, envio: {costo: 2.50}}
 pago: {yappy: "@fonda", link: null}
-herramientas: [crear_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, buscar, actualizar_registro, registrar]
+herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, buscar, actualizar_registro, registrar]
 """
 MENU = """- {id: sancocho, nombre: Sancocho, precio: 5.00, disponible: true}
 - {id: chicha, nombre: Chicha, precio: 1.75}

@@ -100,8 +100,10 @@ class Topes(Base):
         rb = self.crear(sv, "B")  # otro cliente no interfiere
         self.assertNotEqual(rb["pedido_id"], r1["pedido_id"])
         self.assertEqual(len(sv.listar("pedido")), 2)
-        self.e(sv, "confirmar_pedido", {"pedido_id": r1["pedido_id"]})  # confirmado: no se toca y permite uno nuevo
-        r3 = self.crear(sv)
+        self.e(sv, "confirmar_pedido", {"pedido_id": r1["pedido_id"]})  # confirmado: no se toca; otro pedido solo con aparte=true
+        with self.assertRaisesRegex(ValueError, "modificar_pedido"):
+            self.crear(sv)
+        r3 = self.crear(sv, aparte=True)
         self.assertNotEqual(r3["pedido_id"], r1["pedido_id"])
         self.assertEqual(next(p for p in sv.listar("pedido") if p["id"] == r1["pedido_id"])["lineas"][0]["id"], "chicha")
 

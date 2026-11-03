@@ -20,6 +20,11 @@ def activos(sv):
     return sorted((p for p in sv.listar("pedido") if p["estado"] not in TERMINADOS), key=lambda p: p["id"])
 
 
+def entrega(p):
+    """Dirección, zona, hora y notas del pedido en una línea (para la columna Entrega)."""
+    return " · ".join(x for x in (p.get("direccion"), p.get("zona"), p.get("hora_deseada"), p.get("notas") and f"Notas: {p['notas']}") if x)
+
+
 def avisos_nuevos(sv, desde_id):
     """(avisos con id > desde_id, nuevo desde_id)."""
     nuevos = [a for a in sv.listar("aviso") if a["id"] > desde_id]
@@ -70,9 +75,9 @@ def main(argv):
         messagebox.showerror("Panel de pedidos", f"No se pudo abrir el servicio: {e}")
         return
 
-    cols = ("id", "estado", "cliente", "modalidad", "total", "pago", "lineas")
+    cols = ("id", "estado", "cliente", "modalidad", "entrega", "total", "pago", "lineas")
     tabla = ttk.Treeview(root, columns=cols, show="headings", selectmode="browse", height=14)
-    for c, w in zip(cols, (50, 110, 130, 90, 80, 150, 380)):
+    for c, w in zip(cols, (50, 110, 130, 90, 220, 80, 150, 380)):
         tabla.heading(c, text=c.capitalize())
         tabla.column(c, width=w)
     tabla.tag_configure("pago_reportado", background="#fff3a0")
@@ -130,7 +135,7 @@ def main(argv):
                 pago = f"{p.get('metodo', '')} {p['referencia']}".strip() if p.get("referencia") else ""
                 pago += " (comprobante)" if p.get("comprobante") else ""
                 lineas = ", ".join(f"{l['cantidad']} x {l['nombre']}" for l in p["lineas"])
-                tabla.insert("", "end", iid=str(p["id"]), tags=tags, values=(p["id"], p["estado"], p["nombre"], p["modalidad"], herramientas.dinero(p["total_c"]), pago, lineas))
+                tabla.insert("", "end", iid=str(p["id"]), tags=tags, values=(p["id"], p["estado"], p["nombre"], p["modalidad"], entrega(p), herramientas.dinero(p["total_c"]), pago, lineas))
             if sel and tabla.exists(sel[0]):
                 tabla.selection_set(sel[0])
             estado["vistos"] |= ids

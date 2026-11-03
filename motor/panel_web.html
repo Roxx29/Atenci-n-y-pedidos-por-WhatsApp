@@ -107,6 +107,7 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 .t-ubic{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--hoja)}
 .dlg-lado select{min-height:52px;padding:0 12px;border:1.5px solid var(--linea);border-radius:10px;background:var(--superficie);font:600 1.0625rem var(--texto);color:var(--tinta)}
 .dlg-dato .btn{margin-top:6px;justify-self:start;min-height:44px;font-size:.9375rem}
+.fuera{color:var(--achiote-osc);font-weight:600;font-size:.875rem}
 .t-nota{font-size:.875rem;color:var(--achiote-osc);font-weight:600}
 .t-pie{display:flex;align-items:center;gap:8px}
 .t-total{font-size:1.25rem;font-weight:800;margin-left:auto;white-space:nowrap}
@@ -238,7 +239,7 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
       <div class="dlg-dato"><span>Cliente</span><b id="dlg-cliente"></b></div>
       <div class="fila-btn" id="dlg-contacto"><a class="btn suave" id="dlg-llamar">Llamar</a><a class="btn suave" id="dlg-wa">WhatsApp</a></div>
       <div class="dlg-dato"><span id="dlg-modo"></span><b id="dlg-lugar"></b></div>
-      <div class="dlg-dato" id="dlg-ubic-caja"><span>Ubicación del cliente</span><b id="dlg-ubic"></b><a class="btn suave" id="dlg-mapa" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Ver en el mapa</a></div>
+      <div class="dlg-dato" id="dlg-ubic-caja"><span>Ubicación del cliente</span><b id="dlg-ubic"></b><small class="fuera" id="dlg-fuera" hidden>Ubicación fuera de la zona de entrega</small><a class="btn suave" id="dlg-mapa" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Ver en el mapa</a></div>
       <label class="dlg-dato" id="dlg-rep-caja"><span>Repartidor</span><select id="dlg-rep"></select></label>
       <div class="dlg-dato" id="dlg-ref-caja"><span>Método y referencia</span><b id="dlg-ref"></b></div>
       <ul class="t-items" id="dlg-items"></ul>
@@ -511,7 +512,9 @@ async function abrirDetalle(p, rechazar) {
   $("#dlg-modo").textContent = entrega ? "Entrega" : "Recoger en el local";
   const mapa = p.mapa || p.mapa_url;
   $("#dlg-ubic-caja").hidden = !(entrega && abierto);
-  $("#dlg-ubic").textContent = mapa ? "Recibida" : "El cliente no la compartió";
+  const ub = !!(p.tiene_ubicacion || p.ubicacion);
+  $("#dlg-ubic").textContent = ub ? "Recibida" : "No la compartió: el mapa usa la dirección escrita";
+  $("#dlg-fuera").hidden = !p.fuera_de_zona;
   $("#dlg-mapa").hidden = !mapa; if (mapa) $("#dlg-mapa").href = mapa;
   const sel = $("#dlg-rep"), actual = repNombre(p.repartidor);
   $("#dlg-rep-caja").hidden = !(entrega && ASIGNABLE.has(p.estado));

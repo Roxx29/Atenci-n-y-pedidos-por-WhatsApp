@@ -89,6 +89,8 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .bloque h2{font-size:.875rem;text-transform:uppercase;letter-spacing:.06em;color:var(--tinta-2);margin-bottom:6px}
 .bloque p{margin:0}
 .dir{font-size:1.25rem;font-weight:700}
+.fuera{margin-top:8px!important;color:var(--achiote-osc);font-weight:700}
+.chip.fuera{margin:0!important;background:var(--achiote-suave)}
 .nota{margin-top:8px!important;font-weight:700;color:var(--achiote-osc)}
 .items{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .items b{display:inline-block;min-width:2.2em}
@@ -154,7 +156,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
       <a class="btn sec" id="d-llamar"><svg class="i" aria-hidden="true"><use href="#i-tel"/></svg>Llamar</a>
       <a class="btn sec" id="d-wa"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>WhatsApp</a>
     </div>
-    <section class="bloque"><h2>Dirección</h2><p class="dir" id="d-dir"></p><p id="d-zona"></p><p class="nota" id="d-notas"></p></section>
+    <section class="bloque"><h2>Dirección</h2><p class="dir" id="d-dir"></p><p id="d-zona"></p><p class="nota" id="d-notas"></p><p class="fuera" id="d-fuera" hidden>Ubicación fuera de la zona de entrega: confirma con el cliente.</p></section>
     <section class="bloque"><h2>Lleva</h2><ul class="items" id="d-items"></ul><div class="total"><span>Total</span><span class="num" id="d-total"></span></div></section>
   </main>
   <div class="pie" id="d-pie"></div>
@@ -255,7 +257,8 @@ function pintarLista() {
       h("span", {class:"zona"}, [p.zona, p.hora_deseada].filter(Boolean).join(" · ") || "Entrega"),
       h("span", {class:"chips"},
         pagado(p) ? h("span", {class:"chip pagado"}, icono("check"), "Pagado") : h("span", {class:"chip cobrar num"}, "Cobrar " + dinero(aCobrar(p))),
-        h("span", {class:"chip" + (p.estado === "en_camino" ? " camino" : "")}, ESTADO[p.estado]))))));
+        h("span", {class:"chip" + (p.estado === "en_camino" ? " camino" : "")}, ESTADO[p.estado]),
+        p.fuera_de_zona && h("span", {class:"chip fuera"}, "Fuera de zona"))))));
 }
 
 function abrir(id) {
@@ -278,6 +281,7 @@ function pintarDetalle(p) {
   $("#d-dir").textContent = p.direccion || "Sin dirección escrita: usa el mapa o llama al cliente.";
   $("#d-zona").textContent = [p.zona, p.hora_deseada && "Hora: " + p.hora_deseada].filter(Boolean).join(" · ");
   $("#d-notas").textContent = p.notas ? "Nota: " + p.notas : ""; $("#d-notas").hidden = !p.notas;
+  $("#d-fuera").hidden = !p.fuera_de_zona;
   $("#d-items").replaceChildren(...(p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre)));
   $("#d-total").textContent = dinero(p.total);
   pintarPie(p);

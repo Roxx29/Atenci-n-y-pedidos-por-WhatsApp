@@ -33,6 +33,7 @@
 - `POST /ubicacion {lat, lon}` o `{enlace}` → `{ok, pedido_id, ubicacion:true}` · 400 `{error}`. El pedido trae `ubicacion` (o `tiene_ubicacion`).
 - `POST /repartidor/entrar {pin}` → `{ok, nombre}`; `POST /repartidor/salir`; `GET /repartidor/pedidos` (sondeo cada 6 s) → `{pedidos:[{id, estado, nombre, telefono, direccion, zona, notas, hora_deseada, items, total, pagado, mapa, acciones}]}`; `POST /repartidor/marcar {pedido_id, estado}`.
 - Panel: `repartidor` (texto o `{id,nombre}`), `tiene_ubicacion`, `mapa` en el detalle, `repartidores` (textos u objetos), `POST /panel/asignar`.
+- `fuera_de_zona`: aviso discreto en el detalle del panel y en la tarjeta y el detalle del repartidor; no bloquea. `mapa` siempre viene del servidor (coordenadas, enlace pegado o dirección).
 - La web acepta las variantes (`lng`, `mapa_url`, `cobrar`) para no romperse.
 
 ## Archivos de la PWA (los sirve el servidor)

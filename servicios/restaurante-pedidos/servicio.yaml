@@ -24,7 +24,7 @@ pago:
   link: null               # Tilopay/PagueloFacil en v2
 web: {aviso_version: "2026-11-02", aviso: aviso.md}
 comprobantes: {borrar_al_marcar: true, max_dias: 7}   # foto del comprobante de Yappy: se borra al marcar pagado o a los 7 días
-herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, buscar, programar_mensaje, escalar_a_humano]
+herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
 conocimiento: conocimiento.md
 instrucciones: |
   1. Responde dudas de menú, horario y ubicación solo con la información dada.
@@ -36,3 +36,4 @@ instrucciones: |
   7. "¿Dónde está mi pedido?": buscar tipo "pedido" y di su estado.
   8. El pago va siempre antes de preparar el pedido.
   9. Si el pedido está en pago_reportado por un comprobante subido en la web, di que recibimos el comprobante y que el equipo lo verifica; no pidas otra referencia.
+  10. La ubicación es opcional: si en entrega el cliente pega un enlace de Google Maps (o 'lat, lon'), llama a guardar_ubicacion con ese enlace exacto. Nunca inventes coordenadas ni las pidas por escrito; en la web hay un botón para compartirla.

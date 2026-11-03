@@ -14,11 +14,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import panel_web
+from . import panel_web, ubicacion
+from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
 
 PAGINA = Path(__file__).with_name("web_index.html")
 PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
+PAGINA_REP = Path(__file__).with_name("repartidor.html")
+MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "/repartidor/", "scope": "/repartidor/", "display": "standalone",
+                "background_color": "#ffffff", "theme_color": "#1f6f43", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
+SW_REP = b"self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',()=>{});"  # sin caché: los pedidos no se guardan en el móvil
+ICONO_REP = Path(__file__).with_name("repartidor_icono.svg")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
@@ -70,7 +76,7 @@ def aviso_de(sv):
 
 def formato_pedido(p):
     return {"id": p["id"], "estado": p["estado"], "modalidad": p["modalidad"],
-            "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"])} for l in p["lineas"]],
+            "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"])} for l in p["lineas"]], "ubicacion": bool(p.get("ubicacion")),
             "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"])}
 
 
@@ -98,6 +104,9 @@ def crear_servidor(sv, puerto=8080, secreto=None):
     pagina = PAGINA.read_bytes()
     acceso, bloqueo = panel_web.Acceso(secreto), panel_web.Bloqueo()
     pagina_panel = PAGINA_PANEL.read_bytes() if PAGINA_PANEL.is_file() else b""
+    repartidores = panel_web.env_repartidores()
+    acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
+    bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
     menu = [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
              "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
@@ -195,7 +204,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             try:
                 if ruta == "/panel/estado" and metodo == "GET":
                     desde = int((parse_qs(urlsplit(self.path).query).get("desde") or ["0"])[0])
-                    return self._enviar(200, panel_web.estado_panel(sv, desde), extra=renovar)
+                    return self._enviar(200, panel_web.estado_panel(sv, desde, repartidores), extra=renovar)
                 if len(partes) == 4 and partes[2] in ("pedido", "comprobante") and metodo == "GET":
                     pid = int(partes[3])
                     if partes[2] == "pedido":
@@ -219,6 +228,19 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                         return self._err(409, str(e))
                     panel_web.auditar(sv, rol, est, pid)
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
+                if ruta == "/panel/asignar" and metodo == "POST":
+                    d = self._json()
+                    if d is None:
+                        return
+                    pid, quien = d.get("pedido_id"), d.get("repartidor", "")
+                    if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(quien, str)):
+                        return self._err(400, "Datos inválidos")
+                    try:
+                        p = panel_web.asignar(sv, pid, quien, repartidores)
+                    except ValueError as e:
+                        return self._err(409, str(e))
+                    panel_web.auditar(sv, rol, "asignar", pid)
+                    return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
                     try:
                         panel_web.atender_escalado(sv, int(partes[3]))
@@ -229,7 +251,62 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(400, "Datos inválidos")
             self._err(404, "No encontrado")
 
+        def _repartidor(self, metodo, ruta):
+            """Rutas /repartidor*: PIN propio por repartidor; ve solo sus pedidos abiertos. No es solo-LAN (el móvil va por la calle): PIN + bloqueo; HTTPS en producción."""
+            ip = self.client_address[0]
+            if not acc_rep.activo:
+                return self._err(404, "No encontrado")
+            if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
+                return self._enviar(200, PAGINA_REP.read_bytes() if PAGINA_REP.is_file() else b"", "text/html", [("Content-Security-Policy", CSP)])
+            if ruta == "/repartidor/manifest.webmanifest" and metodo == "GET":
+                return self._enviar(200, MANIFEST_REP, "application/manifest+json")
+            if ruta == "/repartidor/sw.js" and metodo == "GET":
+                return self._enviar(200, SW_REP, "text/javascript", [("Service-Worker-Allowed", "/repartidor/")])
+            if ruta == "/repartidor/icono.svg" and metodo == "GET":
+                return self._enviar(200, ICONO_REP.read_bytes(), "image/svg+xml")
+            if ruta == "/repartidor/entrar" and metodo == "POST":
+                if bloqueo_rep.bloqueada(ip):
+                    return self._err(429, "Demasiados intentos; espere 5 minutos")
+                d = self._json()
+                if d is None:
+                    return
+                pin = d.get("pin")
+                nombre = acc_rep.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                if not nombre:
+                    bloqueo_rep.fallo(ip)
+                    panel_web.auditar(sv, "?", "repartidor_login_fallido")
+                    return self._err(401, "PIN incorrecto")
+                bloqueo_rep.acierto(ip)
+                panel_web.auditar(sv, nombre, "repartidor_login")
+                return self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", acc_rep.cookie(nombre))])
+            ses = acc_rep.sesion(self.headers.get("Cookie"))
+            if not ses:
+                return self._err(401, "Sesión inválida")
+            nombre, lim = ses
+            renovar = [("Set-Cookie", acc_rep.cookie(nombre, lim))]
+            if ruta == "/repartidor/salir" and metodo == "POST":
+                panel_web.auditar(sv, nombre, "repartidor_salir")
+                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acc_rep.borrar_cookie())])
+            if ruta == "/repartidor/pedidos" and metodo == "GET":
+                return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre)}, extra=renovar)
+            if ruta == "/repartidor/marcar" and metodo == "POST":
+                d = self._json()
+                if d is None:
+                    return
+                pid, est = d.get("pedido_id"), d.get("estado")
+                if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(est, str)):
+                    return self._err(400, "Datos inválidos")
+                try:
+                    p = panel_web.marcar_repartidor(sv, nombre, pid, est)
+                except ValueError as e:
+                    return self._err(409, str(e))
+                panel_web.auditar(sv, nombre, est, pid)
+                return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_repartidor(p) if p["estado"] in panel_web.EN_RUTA else None}, extra=renovar)
+            self._err(404, "No encontrado")
+
         def do_GET(self):
+            if self.path.split("?")[0].startswith("/repartidor"):
+                return self._repartidor("GET", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("GET", self.path.split("?")[0])
             if limite.excede(("ip", self.client_address[0]), 60):
@@ -261,6 +338,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             self._err(404, "No encontrado")
 
         def do_POST(self):
+            if self.path.split("?")[0].startswith("/repartidor"):
+                return self._repartidor("POST", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("POST", self.path.split("?")[0])
             ip = self.client_address[0]
@@ -273,6 +352,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._chat()
             if ruta == "/comprobante":
                 return self._comprobante()
+            if ruta == "/ubicacion":
+                return self._ubicacion()
             self._err(404, "No encontrado")
 
         def _entrar(self):
@@ -342,6 +423,42 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(409, "El pedido no está esperando pago")
             self._enviar(200, {"ok": True, "pedido": formato_pedido(nuevo)})
 
+        def _ubicacion(self):
+            cid = self._cid()
+            if not cid:
+                return self._err(401, "Sesión inválida")
+            if limite.excede(("cid", cid), 30):
+                return self._err(429, "Demasiadas peticiones")
+            d = self._json()
+            if d is None:
+                return
+            try:
+                if "enlace" in d:
+                    if not isinstance(d["enlace"], str):
+                        raise ValueError("Pegue un enlace de Google Maps.")
+                    lat, lon = ubicacion.desde_enlace(d["enlace"])
+                    fuente, enlace = "enlace", d["enlace"]
+                else:
+                    lat, lon, fuente, enlace = d.get("lat"), d.get("lon", d.get("lng")), "navegador", None
+                lat, lon = ubicacion.validar(lat, lon, **ubicacion.zona(sv.cfg))
+            except ValueError as e:
+                return self._err(400, str(e))
+            pid = self._aplicar_ubicacion(cid, (lat, lon, fuente, enlace, d.get("precision")))
+            self._enviar(200, {"ok": True, "pedido_id": pid, "ubicacion": True})
+
+        def _aplicar_ubicacion(self, cid, u):
+            """La une al pedido de entrega abierto más reciente del cliente; si no hay, la guarda en memoria para el siguiente. Devuelve el id o None."""
+            abiertos = [p for p in pedidos_de(cid) if p["modalidad"] == "entrega" and p["estado"] in herramientas.ABIERTOS]
+            if not abiertos:
+                ubic_pend[cid] = u
+                if len(ubic_pend) > 1000:
+                    ubic_pend.pop(next(iter(ubic_pend)))
+                return None
+            lat, lon, fuente, enlace, precision = u
+            herramientas.poner_ubicacion(sv, abiertos[-1]["id"], lat, lon, fuente, enlace, precision)
+            ubic_pend.pop(cid, None)
+            return abiertos[-1]["id"]
+
         def _chat(self):
             cid = self._cid()
             if not cid:
@@ -363,6 +480,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 print(f"Error atendiendo a {enmascarar(cid)}")  # sin teléfono completo ni mensajes
                 traceback.print_exc()
                 r = GENERICA
+            if cid in ubic_pend:  # ubicación enviada antes de que hubiera pedido
+                self._aplicar_ubicacion(cid, ubic_pend[cid])
             # pedido más reciente del cliente que se creó o cambió en este turno
             cambiados = [p for p in pedidos_de(cid) if antes.get(p["id"]) != p]
             self._enviar(200, {"respuesta": r, "pedido": formato_pedido(cambiados[-1]) if cambiados else None})

@@ -1,0 +1,211 @@
+"""Canal web. Ejecutar: python -m unittest tests.test_web"""
+import datetime as dt
+import http.client
+import json
+import tempfile
+import threading
+import time
+import unittest
+import unittest.mock
+from pathlib import Path
+
+from motor import web
+from motor.nucleo import Servicio
+from tests.test_motor import MENU, SERVICIO_PEDIDOS, ClienteFalso, herramienta, texto
+
+SECRETO = "secreto-de-prueba"
+TEL = "50760001111"
+AVISO = "Texto del aviso"
+PEDIDO = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Ana"}
+
+
+class Base(unittest.TestCase):
+    def arrancar(self, respuestas=()):
+        """Levanta un servidor nuevo (puerto 0); se puede llamar otra vez dentro de una prueba."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        d = Path(tmp.name)
+        (d / "servicio.yaml").write_text(SERVICIO_PEDIDOS + 'web: {aviso_version: "v1", aviso: "aviso.md"}\n', encoding="utf-8")
+        (d / "menu.yaml").write_text(MENU, encoding="utf-8")
+        (d / "aviso.md").write_text(AVISO, encoding="utf-8")
+        self.sv = sv = Servicio(d, db=":memory:", cliente=ClienteFalso(respuestas))
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
+        self.llamadas = []
+        orig = sv.responder
+        sv.responder = lambda cid, t: (self.llamadas.append((cid, t)), orig(cid, t))[1]
+        srv = web.crear_servidor(sv, 0, SECRETO)
+        self.puerto = srv.server_address[1]
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(sv.cerrar)  # corre después de cerrar el servidor
+        self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
+
+    def req(self, metodo, ruta, cuerpo=None, cookie=None, crudo=None, tipo="application/json"):
+        c = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=10)
+        h = {"Content-Type": tipo}
+        if cookie:
+            h["Cookie"] = cookie
+        data = crudo if crudo is not None else (json.dumps(cuerpo) if cuerpo is not None else None)
+        c.request(metodo, ruta, data, h)
+        r = c.getresponse()
+        raw = r.read()
+        c.close()
+        return r, raw
+
+    def js(self, *a, **k):
+        r, raw = self.req(*a, **k)
+        return r.status, json.loads(raw), r
+
+    def entrar(self, tel=TEL, nombre="Ana", **extra):
+        cuerpo = {"nombre": nombre, "telefono": tel, "consentimiento": True, "version_aviso": "v1", **extra}
+        st, d, r = self.js("POST", "/entrar", cuerpo)
+        return st, d, (r.getheader("Set-Cookie") or "").split(";")[0]
+
+
+class Acceso(Base):
+    def setUp(self):
+        self.arrancar()
+
+    def test_chat_sin_cookie_o_invalida(self):
+        self.assertEqual(self.req("POST", "/chat", {"texto": "hola"})[0].status, 401)
+        _, _, ck = self.entrar()
+        _, exp, firma = ck.split(".")
+        self.assertEqual(self.req("POST", "/chat", {"texto": "hola"}, cookie=ck[:-3] + "000")[0].status, 401)  # manipulada
+        self.assertEqual(self.req("POST", "/chat", {"texto": "hola"}, cookie=f"sesion=50760002222.{exp}.{firma}")[0].status, 401)  # otro cid
+        vieja = "sesion=" + web.firmar(SECRETO, TEL, int(time.time()) - 1)
+        self.assertEqual(self.req("POST", "/chat", {"texto": "hola"}, cookie=vieja)[0].status, 401)
+        self.assertEqual(self.req("GET", "/avisos")[0].status, 401)
+        self.assertEqual(self.req("GET", "/pedidos")[0].status, 401)
+
+    def test_entrar_invalido(self):
+        for extra in ({"telefono": "123"}, {"telefono": "abc12345678"}, {"nombre": ""}, {"nombre": "x" * 61}, {"consentimiento": False}, {"consentimiento": "true"}):
+            cuerpo = {"nombre": "Ana", "telefono": TEL, "consentimiento": True, "version_aviso": "v1", **extra}
+            self.assertEqual(self.req("POST", "/entrar", cuerpo)[0].status, 400, extra)
+        self.assertEqual(self.sv.listar("consentimiento"), [])
+
+    def test_version_aviso_equivocada(self):
+        st, d, _ = self.entrar(version_aviso="vieja")
+        self.assertEqual((st, d["error"]), (400, "El aviso cambió; vuelva a aceptarlo"))
+        self.assertEqual(self.sv.listar("consentimiento"), [])
+
+    def test_entrar_guarda_consentimiento_y_aviso(self):
+        st, d, _ = self.entrar(tel="+507 6000-1111")
+        self.assertEqual((st, d), (200, {"ok": True, "nombre": "Ana"}))
+        c = self.sv.listar("consentimiento")
+        self.assertEqual(len(c), 1)
+        self.assertEqual((c[0]["telefono"], c[0]["version_aviso"], c[0]["nombre"]), (TEL, "v1", "Ana"))
+        self.assertTrue(c[0]["consentimiento_at"].startswith("2026-11-02T12:00"))
+        self.assertEqual(self.js("GET", "/aviso")[1], {"version": "v1", "texto": AVISO})
+
+    def test_cookie_atributos(self):
+        _, _, r = self.js("POST", "/entrar", {"nombre": "Ana", "telefono": TEL, "consentimiento": True, "version_aviso": "v1"})
+        sc = r.getheader("Set-Cookie")
+        for x in ("HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=86400"):
+            self.assertIn(x, sc)
+
+    def test_flujo_chat_cid_y_nombre(self):
+        self.arrancar([texto("Hola Ana"), texto("ok")])
+        _, _, ck = self.entrar(tel="+507-6000-1111")
+        st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
+        self.assertEqual((st, d), (200, {"respuesta": "Hola Ana", "pedido": None}))
+        self.js("POST", "/chat", {"texto": "otra"}, cookie=ck)
+        self.assertEqual([c[0] for c in self.llamadas], [TEL, TEL])
+        self.assertEqual(self.llamadas[0][1], "[Nombre del cliente: Ana] hola")
+        self.assertEqual(self.llamadas[1][1], "otra")  # el nombre solo va en el primero
+
+    def test_chat_texto_invalido_y_tipo(self):
+        _, _, ck = self.entrar()
+        self.assertEqual(self.req("POST", "/chat", {"texto": ""}, cookie=ck)[0].status, 400)
+        self.assertEqual(self.req("POST", "/chat", {"texto": "x" * 1001}, cookie=ck)[0].status, 400)
+        self.assertEqual(self.req("POST", "/chat", crudo="texto=hola", tipo="text/plain", cookie=ck)[0].status, 415)
+
+    def test_cuerpo_grande_413(self):
+        _, _, ck = self.entrar()
+        self.assertEqual(self.req("POST", "/chat", crudo=json.dumps({"texto": "x" * 9000}), cookie=ck)[0].status, 413)
+
+    def test_error_del_modelo_respuesta_generica(self):
+        _, _, ck = self.entrar()  # ClienteFalso sin respuestas: falla al pedir la respuesta
+        with unittest.mock.patch("traceback.print_exc"), unittest.mock.patch("builtins.print") as pr:
+            st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
+        self.assertEqual((st, d["respuesta"]), (200, web.GENERICA))
+        self.assertNotIn(TEL, str(pr.call_args_list))  # teléfono enmascarado en consola
+        self.assertEqual(web.enmascarar(TEL), "507******11")
+
+    def test_limite_entrar_429(self):
+        for _ in range(10):
+            self.req("POST", "/entrar", {})
+        self.assertEqual(self.req("POST", "/entrar", {})[0].status, 429)
+
+    def test_limite_por_ip_429(self):
+        for _ in range(60):
+            self.req("GET", "/menu")
+        self.assertEqual(self.req("GET", "/menu")[0].status, 429)
+
+    def test_limite_por_cid_429(self):
+        self.arrancar([texto("a")] * 40)
+        _, _, ck = self.entrar()
+        codigos = [self.req("POST", "/chat", {"texto": "a"}, cookie=ck)[0].status for _ in range(31)]
+        self.assertEqual((codigos[0], codigos[-1]), (200, 429))
+
+    def test_raiz_html_csp(self):
+        r, raw = self.req("GET", "/")
+        self.assertEqual(r.status, 200)
+        self.assertIn("text/html", r.getheader("Content-Type"))
+        self.assertIn("default-src 'self'", r.getheader("Content-Security-Policy"))
+        self.assertEqual(r.getheader("X-Content-Type-Options"), "nosniff")
+        self.assertIn(b"Ver aviso de privacidad", raw)
+        self.assertIsNone(r.getheader("Access-Control-Allow-Origin"))
+
+    def test_pagina_sin_innerhtml_ni_premarcada(self):
+        h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
+        self.assertNotIn("innerHTML", h)
+        self.assertNotIn('id="consentimiento" checked', h)
+        self.assertIn('id="entrar" disabled', h)
+
+    def test_nombre_json_tal_cual(self):
+        _, d, _ = self.entrar(nombre="<img src=x onerror=alert(1)>")
+        self.assertEqual(d["nombre"], "<img src=x onerror=alert(1)>")  # el escape es del cliente (textContent)
+
+
+class Avisos(Base):
+    def test_avisos_una_vez_y_aislado(self):
+        self.arrancar()
+
+        def prog(tel, en="2026-11-02 11:00"):
+            self.sv.insertar("mensaje_programado", {"telefono": tel, "enviar_en": en, "texto": f"para {tel}", "estado": "pendiente", "cita_id": None})
+        prog(TEL)
+        prog("50760002222")
+        prog(TEL, en="2026-11-03 11:00")  # futuro
+        _, _, ck = self.entrar()
+        self.assertEqual(self.js("GET", "/avisos", cookie=ck)[1], {"mensajes": [f"para {TEL}"]})
+        self.assertEqual(self.js("GET", "/avisos", cookie=ck)[1], {"mensajes": []})
+        self.assertEqual(len([m for m in self.sv.listar("mensaje_programado") if m["estado"] == "pendiente"]), 2)
+
+
+class MenuYPedidos(Base):
+    def test_menu_sin_cookie(self):
+        self.arrancar()
+        st, d, _ = self.js("GET", "/menu")
+        self.assertEqual(st, 200)
+        s = next(i for i in d if i["id"] == "sancocho")
+        self.assertEqual((s["nombre"], s["precio"], s["disponible"]), ("Sancocho", 5.0, True))
+        self.assertFalse(next(i for i in d if i["id"] == "tres-leches")["disponible"])
+
+    def test_pedidos_aislados_y_formato(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, _, b = self.entrar(tel="50760002222", nombre="Luis")
+        _, d, _ = self.js("POST", "/chat", {"texto": "quiero 2 sancochos"}, cookie=a)
+        self.assertEqual(d["respuesta"], "Listo")
+        p = d["pedido"]
+        self.assertEqual((p["estado"], p["modalidad"], p["subtotal"], p["total"]), ("por_confirmar", "recogida", "B/. 10.00", "B/. 10.70"))
+        self.assertEqual((p["impuesto"], p["envio"]), ("B/. 0.70", "B/. 0.00"))
+        self.assertEqual(p["items"], [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}])
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"], [p])
+        self.assertEqual(self.js("GET", "/pedidos", cookie=b)[1], {"pedidos": []})
+        # un turno sin cambios en pedidos -> null
+        self.sv._cliente.respuestas.append(texto("nada"))
+        self.assertIsNone(self.js("POST", "/chat", {"texto": "hola"}, cookie=a)[1]["pedido"])
+
+
+if __name__ == "__main__":
+    unittest.main()

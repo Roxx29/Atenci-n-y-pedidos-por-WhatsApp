@@ -48,7 +48,7 @@ def enviar(telefono, texto, plantilla=None):
     urllib.request.urlopen(req, timeout=20).read()
 
 
-def enviar_pendientes(sv):
+def enviar_pendientes(sv, enviar=enviar):
     limite = f"{sv.ahora() - dt.timedelta(hours=6):%Y-%m-%d %H:%M}"
     for m in sv.pendientes():
         if m["enviar_en"] < limite:  # tras una caída no mandar avisos viejos, ni reintentar para siempre

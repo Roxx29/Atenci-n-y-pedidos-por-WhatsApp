@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedidos</title>
+<style>
+body { font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 12px; }
+#registro input, #registro button, #enviar-form input, #enviar-form button { font-size: 16px; padding: 8px; margin: 4px 0; }
+#registro input[type=text], #registro input[type=tel] { width: 100%; box-sizing: border-box; }
+#mensajes { height: 60vh; overflow-y: auto; border: 1px solid #ccc; padding: 8px; }
+.msg { margin: 6px 0; padding: 6px 10px; border-radius: 8px; white-space: pre-wrap; max-width: 85%; }
+.cliente { background: #dcf8c6; margin-left: auto; }
+.bot { background: #eee; }
+#enviar-form { display: flex; gap: 6px; }
+#texto { flex: 1; }
+#error { color: #b00; }
+#aviso-texto { white-space: pre-wrap; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>Pedidos</h1>
+
+<section id="registro">
+  <label>Nombre <input type="text" id="nombre" maxlength="60"></label>
+  <label>Teléfono <input type="tel" id="telefono" placeholder="50760001111"></label>
+  <!-- INICIO BLOQUE DE PRIVACIDAD (editable por el diseño; el texto real viene de /aviso) -->
+  <label><input type="checkbox" id="consentimiento"> Acepto el aviso de privacidad</label>
+  <a href="#" id="ver-aviso">Ver aviso de privacidad</a>
+  <p id="aviso-texto" hidden></p>
+  <!-- FIN BLOQUE DE PRIVACIDAD -->
+  <button id="entrar" disabled>Entrar</button>
+  <p id="error"></p>
+</section>
+
+<section id="chat" hidden>
+  <div id="mensajes"></div>
+  <form id="enviar-form">
+    <input type="text" id="texto" maxlength="1000" autocomplete="off">
+    <button type="submit">Enviar</button>
+  </form>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let versionAviso = "";
+
+function agregar(clase, txt) {
+  const d = document.createElement("div");
+  d.className = "msg " + clase;
+  d.textContent = txt;  // solo textContent para texto de usuario o bot
+  $("mensajes").appendChild(d);
+  $("mensajes").scrollTop = $("mensajes").scrollHeight;
+}
+
+async function post(ruta, cuerpo) {
+  const r = await fetch(ruta, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(cuerpo)});
+  return {ok: r.ok, status: r.status, datos: await r.json().catch(() => ({}))};
+}
+
+async function cargarAviso() {
+  const a = await (await fetch("/aviso")).json();
+  versionAviso = a.version;
+  $("aviso-texto").textContent = a.texto;
+}
+cargarAviso();
+
+$("ver-aviso").onclick = (e) => { e.preventDefault(); $("aviso-texto").hidden = !$("aviso-texto").hidden; };
+$("consentimiento").onchange = () => { $("entrar").disabled = !$("consentimiento").checked; };
+
+function mostrarChat() {
+  $("registro").hidden = true;
+  $("chat").hidden = false;
+  setInterval(avisos, 30000);
+}
+
+async function avisos() {
+  const r = await fetch("/avisos");
+  if (r.ok) (await r.json()).mensajes.forEach((m) => agregar("bot", m));
+}
+
+$("entrar").onclick = async () => {
+  const r = await post("/entrar", {nombre: $("nombre").value, telefono: $("telefono").value, consentimiento: $("consentimiento").checked, version_aviso: versionAviso});
+  if (r.ok) { mostrarChat(); agregar("bot", "Hola " + r.datos.nombre + ", ¿qué desea pedir?"); }
+  else { $("error").textContent = r.datos.error || "No se pudo entrar"; cargarAviso(); }
+};
+
+$("enviar-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const t = $("texto").value.trim();
+  if (!t) return;
+  $("texto").value = "";
+  agregar("cliente", t);
+  const r = await post("/chat", {texto: t});
+  agregar("bot", r.ok ? r.datos.respuesta : (r.datos.error || "Error, intente de nuevo."));
+};
+</script>
+</body>
+</html>

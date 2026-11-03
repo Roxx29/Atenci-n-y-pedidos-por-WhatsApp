@@ -125,7 +125,15 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             self.wfile.write(cuerpo)
 
         def _err(self, codigo, msg):
-            self.close_connection = True  # puede quedar cuerpo sin leer
+            self.close_connection = True
+            if not self.__dict__.get("_leido"):  # leer el cuerpo antes de cerrar: si no, Windows manda RST y el cliente pierde la respuesta
+                try:
+                    largo = int(self.headers.get("Content-Length") or 0)
+                    if 0 < largo <= 65536:  # los cuerpos enormes no se esperan
+                        self.rfile.read(largo)
+                except (OSError, ValueError):
+                    pass
+            self._leido = True
             self._enviar(codigo, {"error": msg})
 
         def _cid(self):
@@ -141,6 +149,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not 0 < largo <= MAX_CUERPO:  # antes de leer
                 return self._err(413, "Cuerpo demasiado grande")
             try:
+                self._leido = True
                 crudo = self.rfile.read(largo)
             except OSError:
                 return self._err(400, "Cuerpo incompleto")
@@ -314,6 +323,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if p["estado"] not in ("confirmado", "pago_reportado"):
                 return self._err(409, "El pedido no está esperando pago")
             try:
+                self._leido = True
                 datos = self.rfile.read(largo)
             except OSError:  # timeout o corte
                 return self._err(400, "Cuerpo incompleto")

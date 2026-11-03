@@ -3,6 +3,7 @@
   python -m motor chat <carpeta>           conversa en la terminal como si fueras un cliente
   python -m motor probar <carpeta>         corre los mensajes de prueba.yaml (base de datos temporal)
   python -m motor servir <carpeta> [puerto] webhook de WhatsApp + envío de recordatorios
+  python -m motor web <carpeta> [puerto]   canal web de pedidos con chat (por defecto 8080)
   python -m motor pedidos <carpeta>        lista los pedidos
   python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado
   python -m motor panel [carpeta]          panel gráfico del restaurante (tkinter)
@@ -59,6 +60,9 @@ def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
             print(f"#{p['id']} {p['estado']} · {p['nombre']} · {p['modalidad']} · {herramientas.dinero(p['total_c'])}" + (f" · pago {p.get('metodo', '')} ref {p['referencia']}" if p["estado"] == "pago_reportado" else ""))
     elif cmd == "servir":
         whatsapp.servir(Servicio(carpeta), int(argv[2]) if len(argv) > 2 else 8080)
+    elif cmd == "web":
+        from . import web  # import diferido
+        web.servir(Servicio(carpeta), int(argv[2]) if len(argv) > 2 else 8080)
     elif cmd == "recordatorios":
         whatsapp.enviar_pendientes(Servicio(carpeta))
     else:

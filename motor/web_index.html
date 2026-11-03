@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#A8321F">
+<title>Fonda El Chitreano · Pedidos</title>
+<style>
+:root{
+  --papel:#FBF6EC; --superficie:#FFFFFF; --tinta:#2A1A12; --tinta-2:#6B5446; --linea:#E6DACA;
+  --achiote:#A8321F; --achiote-osc:#8A2817; --sobre-achiote:#FFFFFF;
+  --maiz:#E9B949; --maiz-suave:#FFF3D1; --hoja:#2F6B3A; --hoja-suave:#E3F0E2;
+  --sombra:0 1px 2px rgba(42,26,18,.08),0 4px 12px rgba(42,26,18,.06);
+  --r:12px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --papel:#1A1310; --superficie:#251B16; --tinta:#F5EBDD; --tinta-2:#C9B6A4; --linea:#3D2E25;
+  --achiote:#D4553F; --achiote-osc:#E26A54; --sobre-achiote:#1A1310;
+  --maiz-suave:#3A2E14; --hoja:#7DC48A; --hoja-suave:#1E2E20; --sombra:0 1px 2px rgba(0,0,0,.4);
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.5 var(--texto);-webkit-text-size-adjust:100%}
+::selection{background:var(--maiz);color:#2A1A12}
+:focus-visible{outline:3px solid var(--maiz);outline-offset:2px;border-radius:6px}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+h1,h2,h3{font-family:var(--display);line-height:1.15;margin:0;text-wrap:balance}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:999px;border:0;font-weight:600;background:var(--achiote);color:var(--sobre-achiote);transition:background .15s}
+.btn:hover{background:var(--achiote-osc)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sec{background:transparent;color:var(--tinta);border:1.5px solid var(--linea)}
+.btn-sec:hover{background:var(--superficie)}
+
+/* ---------- Entrada ---------- */
+#entrada{min-height:100%;display:flex;flex-direction:column;max-width:440px;margin:0 auto;padding:max(32px,env(safe-area-inset-top)) 16px 32px}
+.marca{font-size:clamp(2.2rem,9vw,3rem);letter-spacing:-.02em}
+.marca span{display:block;font-size:1rem;letter-spacing:.02em;color:var(--achiote);font-style:italic}
+.lema{color:var(--tinta-2);margin:12px 0 28px;max-width:34ch}
+form.datos{display:grid;gap:18px}
+label.campo{display:grid;gap:6px;font-weight:600}
+.ayuda{font-weight:400;font-size:.875rem;color:var(--tinta-2)}
+.entrada-tel{display:flex;align-items:stretch;border:1.5px solid var(--linea);border-radius:var(--r);background:var(--superficie);overflow:hidden}
+.entrada-tel span{display:flex;align-items:center;padding:0 12px;border-right:1.5px solid var(--linea);color:var(--tinta-2)}
+input[type=text],input[type=tel],textarea{width:100%;min-height:48px;padding:10px 14px;border:1.5px solid var(--linea);border-radius:var(--r);background:var(--superficie);caret-color:var(--achiote)}
+.entrada-tel input{border:0;border-radius:0}
+input:focus,textarea:focus{outline:none;border-color:var(--achiote)}
+.entrada-tel:focus-within{border-color:var(--achiote)}
+[aria-invalid=true]{border-color:var(--achiote)!important}
+.error{color:var(--achiote);font-size:.875rem;font-weight:600;min-height:1.3em}
+.privacidad{display:flex;gap:12px;align-items:flex-start;font-weight:400}
+.privacidad input{width:22px;height:22px;margin:2px 0 0;accent-color:var(--achiote);flex:none}
+details{font-size:.875rem;color:var(--tinta-2)}
+summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.horario{margin-top:auto;padding-top:32px;font-size:.875rem;color:var(--tinta-2)}
+
+/* ---------- App ---------- */
+#app{height:100%;display:grid;grid-template-rows:auto auto 1fr}
+.barra{display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 12px 10px 16px;background:var(--achiote);color:var(--sobre-achiote)}
+.barra h1{font-size:1.25rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barra small{display:block;font:500 .75rem var(--texto);opacity:.9}
+.icono{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font-weight:600}
+.icono:hover{background:rgba(255,255,255,.14)}
+.demo{font-size:.75rem;padding:2px 8px;border-radius:999px;background:var(--maiz);color:#2A1A12;font-weight:700}
+.pestanas{display:flex;background:var(--superficie);border-bottom:1px solid var(--linea)}
+.pestanas button{flex:1;min-height:48px;border:0;background:none;font-weight:600;color:var(--tinta-2);border-bottom:3px solid transparent;position:relative}
+.pestanas button[aria-selected=true]{color:var(--tinta);border-bottom-color:var(--achiote)}
+.punto{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--achiote);margin-left:6px;vertical-align:middle}
+.cuerpo{min-height:0;display:grid;grid-template-columns:1fr}
+.panel{min-height:0}
+
+/* Aviso de cambio de estado */
+.aviso{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translate(-50%,-140%);width:min(440px,calc(100% - 32px));display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:var(--r);background:#2A1A12;color:#FBF6EC;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:20;transition:transform .35s cubic-bezier(.16,1,.3,1)}
+.aviso.ver{transform:translate(-50%,0)}
+.aviso p{margin:0;flex:1}
+.aviso button{color:#E9B949;background:none;border:0;font-weight:700;min-height:44px}
+
+/* Chat */
+#chat{display:grid;grid-template-rows:1fr auto auto;height:100%;min-height:0}
+.mensajes{overflow-y:auto;padding:16px 12px 8px;display:flex;flex-direction:column;gap:8px;scrollbar-color:var(--linea) transparent}
+.burbuja{max-width:min(82%,520px);padding:10px 14px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.bot{align-self:flex-start;background:var(--superficie);border:1px solid var(--linea);border-bottom-left-radius:4px}
+.yo{align-self:flex-end;background:var(--achiote);color:var(--sobre-achiote);border-bottom-right-radius:4px}
+.sistema{align-self:center;font-size:.8125rem;color:var(--tinta-2);text-align:center;max-width:90%}
+.escribiendo{align-self:flex-start;color:var(--tinta-2);font-size:.875rem;padding:4px 8px}
+.resumen{margin:0 12px;border-radius:var(--r);background:var(--maiz-suave);box-shadow:var(--sombra)}
+.resumen>button{width:100%;display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 14px;border:0;background:none;text-align:left}
+.resumen strong{font-family:var(--display);font-size:1.125rem}
+.resumen .total{margin-left:auto;font-weight:700;font-size:1.0625rem}
+.resumen .det{padding:0 14px 12px}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:700;background:var(--superficie);border:1px solid var(--linea);white-space:nowrap}
+.chip.ok{background:var(--hoja);color:var(--papel);border-color:var(--hoja)}
+table.items{width:100%;border-collapse:collapse;font-size:.9375rem}
+table.items td{padding:4px 0;vertical-align:top}
+table.items td:last-child{text-align:right;white-space:nowrap;padding-left:12px}
+table.items tr.sum td{border-top:1px solid var(--linea);padding-top:8px}
+table.items tr.tot td{font-weight:700;font-size:1.0625rem}
+.componer{display:flex;gap:8px;align-items:flex-end;padding:10px 12px max(10px,env(safe-area-inset-bottom))}
+.componer textarea{resize:none;max-height:140px;border-radius:24px;padding:12px 16px}
+.enviar{width:48px;height:48px;border-radius:50%;border:0;background:var(--achiote);color:var(--sobre-achiote);display:grid;place-items:center;flex:none}
+.enviar:disabled{opacity:.5}
+
+/* Menú */
+#menu{overflow-y:auto;padding:8px 16px 24px;background:var(--papel)}
+#menu h2{font-size:1.375rem;margin:20px 0 4px;text-transform:capitalize}
+.plato{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--linea)}
+.plato div{flex:1;min-width:0}
+.plato b{display:block;font-weight:600}
+.plato .precio{color:var(--tinta-2)}
+.plato.agotado b,.plato.agotado .precio{color:var(--tinta-2);text-decoration:line-through}
+.pedir{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--achiote);background:none;color:var(--achiote);font-weight:700}
+.pedir:hover{background:var(--achiote);color:var(--sobre-achiote)}
+.nota-menu{font-size:.875rem;color:var(--tinta-2);margin:4px 0 0}
+
+/* Estado */
+#estado{overflow-y:auto;padding:20px 16px 32px;max-width:560px;width:100%;margin:0 auto}
+#estado h2{font-size:1.75rem}
+.vacio{color:var(--tinta-2);margin-top:8px}
+ol.pasos{list-style:none;margin:24px 0;padding:0}
+ol.pasos li{display:grid;grid-template-columns:32px 1fr;gap:4px 14px;position:relative;padding-bottom:22px}
+ol.pasos li::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--linea)}
+ol.pasos li:last-child::before{display:none}
+ol.pasos li.hecho::before{background:var(--hoja)}
+.marca-paso{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--linea);background:var(--superficie);color:var(--tinta-2);grid-row:span 2}
+.hecho .marca-paso{background:var(--hoja);border-color:var(--hoja);color:var(--papel)}
+.actual .marca-paso{border-color:var(--achiote);background:var(--achiote);color:var(--sobre-achiote);box-shadow:0 0 0 5px color-mix(in srgb,var(--achiote) 22%,transparent)}
+.pasos b{font-weight:600}
+.actual b{font-family:var(--display);font-size:1.25rem}
+.pasos small{color:var(--tinta-2)}
+.pendiente b{color:var(--tinta-2);font-weight:500}
+.tarjeta{background:var(--superficie);border:1px solid var(--linea);border-radius:var(--r);padding:16px;margin-top:16px}
+.tarjeta h3{font-size:1.125rem;margin-bottom:8px}
+.pago{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 0;border-top:1px solid var(--linea)}
+.pago:first-of-type{border-top:0}
+.pago span{min-width:0;overflow-wrap:anywhere}
+.copiar{min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid var(--linea);background:none;font-weight:600;font-size:.875rem;flex:none}
+
+/* Escritorio: menú fijo a la izquierda */
+@media (min-width:900px){
+  .cuerpo{grid-template-columns:340px 1fr;max-width:1100px;width:100%;margin:0 auto}
+  #menu{display:block!important;border-right:1px solid var(--linea)}
+  #btn-menu{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-flecha" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+</svg>
+
+<!-- Menú: el servidor puede reemplazar este JSON con menu.yaml; si no, se pide a GET /menu. -->
+<script type="application/json" id="datos-menu">
+[
+ {"id":"tasajo-con-arroz","nombre":"Tasajo con arroz, ensalada y patacones","precio":7.00,"categoria":"platos","disponible":true},
+ {"id":"sancocho","nombre":"Sancocho de gallina","precio":5.00,"categoria":"platos","disponible":true},
+ {"id":"arroz-con-guandu","nombre":"Arroz con guandú y cerdo","precio":5.50,"categoria":"platos","disponible":true},
+ {"id":"tortilla-con-queso","nombre":"Tortilla de maíz con queso (2 u.)","precio":2.50,"categoria":"entradas","disponible":true},
+ {"id":"bollo","nombre":"Bollo de maíz envuelto en hoja","precio":1.50,"categoria":"entradas","disponible":true},
+ {"id":"empanadas","nombre":"Empanadas de carne o pollo (3 u.)","precio":3.00,"categoria":"entradas","disponible":true,"opciones":["carne","pollo"]},
+ {"id":"chicheme","nombre":"Chicheme (bebida de maíz con leche)","precio":1.75,"categoria":"bebidas","disponible":true},
+ {"id":"chicha-de-saril","nombre":"Chicha de saril","precio":1.50,"categoria":"bebidas","disponible":true},
+ {"id":"soda","nombre":"Soda en lata","precio":1.25,"categoria":"bebidas","disponible":true},
+ {"id":"tres-leches","nombre":"Tres leches","precio":3.50,"categoria":"postres","disponible":false}
+]
+</script>
+
+<!-- ============ 1. Entrada ============ -->
+<main id="entrada">
+  <h1 class="marca">Fonda El Chitreano <span>Chitré, Herrera</span></h1>
+  <p class="lema">Pide por chat como si nos escribieras por WhatsApp. Te decimos el total y pagas con Yappy o transferencia.</p>
+  <form class="datos" novalidate>
+    <label class="campo">Tu nombre
+      <input type="text" name="nombre" autocomplete="given-name" required maxlength="60" aria-describedby="e-nombre">
+      <span class="error" id="e-nombre" aria-live="polite"></span>
+    </label>
+    <label class="campo">Teléfono celular
+      <span class="ayuda">Para avisarte del estado de tu pedido.</span>
+      <span class="entrada-tel"><span aria-hidden="true">+507</span>
+        <input type="tel" name="telefono" inputmode="numeric" autocomplete="tel-national" placeholder="6123 4567" required aria-describedby="e-tel"></span>
+      <span class="error" id="e-tel" aria-live="polite"></span>
+    </label>
+    <div>
+      <label class="privacidad">
+        <input type="checkbox" name="privacidad" required aria-describedby="e-priv">
+        <span>Acepto que Fonda El Chitreano use mi nombre, teléfono y esta conversación para tomar y entregar mi pedido. Un asistente de IA me atiende.</span>
+      </label>
+      <details>
+        <summary>Ver aviso de privacidad</summary>
+        <!-- Texto de legal-datos (borrador sin revisar por abogado). Los [corchetes] los completa el restaurante. -->
+        <p><b>Responsable:</b> Fonda El Chitreano S.A., RUC [RUC], [dirección], Chitré, Panamá.</p>
+        <p><b>Datos que pedimos:</b> nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido y los mensajes que escribes en el chat.</p>
+        <p><b>Para qué:</b> tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin un permiso aparte.</p>
+        <p><b>Asistente de IA:</b> un sistema de inteligencia artificial lee tus mensajes para responderte. Ese servicio lo presta un proveedor tecnológico que puede estar fuera de Panamá ([proveedor], [país]); solo recibe lo necesario para contestarte y no puede usarlo para otros fines. Si quieres, pide hablar con una persona del restaurante.</p>
+        <p><b>Cuánto tiempo:</b> borramos la conversación a los 90 días y los datos del pedido a los [plazo], salvo lo que la ley obligue a conservar (facturación).</p>
+        <p><b>Tus derechos:</b> puedes pedir ver, corregir, borrar u oponerte al uso de tus datos, o recibir una copia. Escríbenos a [correo / WhatsApp]. Responderemos en el plazo legal. Si no quedas conforme, puedes acudir a la ANTAI.</p>
+        <p><b>Compartimos tus datos solo con:</b> el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor (nombre, teléfono y dirección para la entrega).</p>
+        <p>Última actualización: [fecha].</p>
+      </details>
+      <span class="error" id="e-priv" aria-live="polite"></span>
+    </div>
+    <button class="btn" type="submit">Empezar pedido</button>
+  </form>
+  <p class="horario">Martes a domingo · 11:00–15:00 y 18:00–22:00 · Cerrado los lunes<br>Entrega en Chitré (B/. 2.00) y La Villa de Los Santos (B/. 3.00)</p>
+</main>
+
+<!-- ============ 2 y 3. App: chat + estado ============ -->
+<div id="app" hidden>
+  <header class="barra">
+    <h1>Fonda El Chitreano<small id="hola"></small></h1>
+    <span class="demo" id="modo-demo" hidden>Demo</span>
+    <button class="icono" id="btn-menu" aria-controls="menu" aria-expanded="false"><svg class="i"><use href="#i-menu"/></svg>Menú</button>
+  </header>
+  <nav class="pestanas" role="tablist" aria-label="Secciones">
+    <button role="tab" id="tab-chat" aria-controls="chat" aria-selected="true">Chat</button>
+    <button role="tab" id="tab-estado" aria-controls="estado" aria-selected="false" tabindex="-1">Mi pedido<span class="punto" id="punto" hidden></span><span class="sr" id="punto-sr"></span></button>
+  </nav>
+  <div class="cuerpo">
+    <section id="menu" class="panel" aria-label="Menú" hidden>
+      <p class="nota-menu">Toca <b>Pedir</b> y el plato pasa al chat. Precios sin ITBMS (7 %).</p>
+      <div id="lista-menu"></div>
+    </section>
+
+    <section id="chat" class="panel" role="tabpanel" aria-labelledby="tab-chat">
+      <div class="mensajes" id="mensajes" role="log" aria-live="polite" aria-label="Conversación"></div>
+      <div class="resumen" id="resumen" hidden>
+        <button id="btn-resumen" aria-expanded="false" aria-controls="resumen-det">
+          <strong>Tu pedido <span id="r-id"></span></strong>
+          <span class="chip" id="r-estado"></span>
+          <span class="total num" id="r-total"></span>
+          <svg class="i"><use href="#i-flecha"/></svg>
+        </button>
+        <div class="det" id="resumen-det" hidden></div>
+      </div>
+      <form class="componer" id="componer">
+        <label class="sr" for="texto">Escribe tu mensaje</label>
+        <textarea id="texto" rows="1" placeholder="Ej.: 2 sancochos y 1 chicheme" maxlength="1000"></textarea>
+        <button class="enviar" type="submit" aria-label="Enviar"><svg class="i"><use href="#i-enviar"/></svg></button>
+      </form>
+    </section>
+
+    <section id="estado" class="panel" role="tabpanel" aria-labelledby="tab-estado" hidden>
+      <h2>Mi pedido</h2>
+      <p class="vacio" id="estado-vacio">Aún no tienes un pedido confirmado. Escribe en el chat lo que quieres comer.</p>
+      <div id="estado-lleno" hidden>
+        <p id="estado-meta"></p>
+        <ol class="pasos" id="pasos"></ol>
+        <div class="tarjeta" id="tarjeta-pago" hidden>
+          <h3>Datos de pago</h3>
+          <div class="pago"><span><b>Yappy</b><br>@elchitreano</span><button class="copiar" data-copiar="@elchitreano">Copiar</button></div>
+          <div class="pago"><span><b>Transferencia</b><br>Banco General · Ahorros 03-00-00-000000-0 · Fonda El Chitreano S.A.</span><button class="copiar" data-copiar="03-00-00-000000-0">Copiar</button></div>
+          <p class="ayuda">Al pagar, escribe en el chat el número de referencia.</p>
+        </div>
+        <div class="tarjeta"><h3>Detalle</h3><div id="estado-items"></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="aviso" id="aviso" role="status" aria-live="assertive">
+  <svg class="i" aria-hidden="true"><use href="#i-campana"/></svg><p id="aviso-texto"></p>
+  <button id="aviso-ver">Ver</button>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const MENU = JSON.parse($("#datos-menu").textContent);
+const PASOS = [
+  ["confirmado", "Confirmado", "Recibimos tu pedido. Falta el pago."],
+  ["pago_reportado", "Pago reportado", "Estamos verificando tu pago."],
+  ["pagado", "Pagado", "Pago verificado. Pasa a cocina."],
+  ["en_preparacion", "En preparación", "Tu comida se está cocinando."],
+  ["listo", "Listo", "Puedes recogerlo o va en camino."]
+];
+const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado"};
+PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
+const AVISO = {
+  pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
+  en_preparacion:"Tu pedido está en preparación.",
+  listo:"¡Tu pedido está listo!",
+  entregado:"Pedido entregado. ¡Buen provecho!",
+  cancelado:"Tu pedido fue cancelado."
+};
+const num = x => typeof x === "string" ? parseFloat(x.replace(/[^\d.]/g, "")) : x; // la API manda "B/. 7.00"
+const dinero = n => "B/. " + Number(num(n)).toFixed(2);
+const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "file:", ocupado:false, sondeo:0};
+const guardar = () => { try { localStorage.setItem("chitreano", JSON.stringify({nombre:st.nombre, telefono:st.telefono})); } catch (e) {} };
+
+/* ---------- Entrada ---------- */
+const form = $("form.datos");
+try { const g = JSON.parse(localStorage.getItem("chitreano") || "null"); if (g) { form.nombre.value = g.nombre; form.telefono.value = g.telefono; } } catch (e) {}
+form.addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const nombre = form.nombre.value.trim();
+  const tel = form.telefono.value.replace(/\D/g, "").replace(/^507/, "");
+  const errores = [
+    [form.nombre, "#e-nombre", nombre ? "" : "Escribe tu nombre."],
+    [form.telefono, "#e-tel", /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
+    [form.privacidad, "#e-priv", form.privacidad.checked ? "" : "Necesitamos tu permiso para tomar el pedido."]
+  ];
+  let primero = null;
+  for (const [el, id, msg] of errores) {
+    $(id).textContent = msg;
+    el.setAttribute("aria-invalid", msg ? "true" : "false");
+    if (msg && !primero) primero = el;
+  }
+  if (primero) return primero.focus();
+  st.nombre = nombre; st.telefono = "507" + tel; guardar();
+  const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
+  if (!st.demo) {
+    try {
+      const av = await (await fetch("/aviso")).json();
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:av.version})});
+      if (res.status === 400) { $("#e-tel").textContent = (await res.json()).error; btn.disabled = false; btn.textContent = "Empezar pedido"; return; }
+      if (!res.ok) throw new Error(res.status);
+    } catch (e) { st.demo = true; $("#modo-demo").hidden = false; }
+  }
+  btn.disabled = false; btn.textContent = "Empezar pedido";
+  $("#entrada").hidden = true; $("#app").hidden = false;
+  $("#hola").textContent = "Hola, " + nombre;
+  if (!$("#mensajes").children.length) burbuja("bot", `¡Hola, ${nombre}! ¿Qué te provoca hoy? Mira el menú o escríbeme, por ejemplo: "2 sancochos y 1 chicheme para recoger".`);
+  $("#texto").focus();
+  clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
+});
+function salir() { // cookie vencida (401): volver a la entrada
+  clearInterval(st.sondeo); $("#app").hidden = true; $("#entrada").hidden = false;
+  $("#e-priv").textContent = "Tu sesión venció. Vuelve a entrar para seguir con tu pedido.";
+  form.privacidad.checked = false; form.privacidad.focus();
+}
+
+/* ---------- Pestañas y menú ---------- */
+function pestana(cual) {
+  for (const t of ["chat", "estado"]) {
+    const on = t === cual;
+    $("#tab-" + t).setAttribute("aria-selected", on);
+    $("#tab-" + t).tabIndex = on ? 0 : -1;
+    $("#" + t).hidden = !on;
+  }
+  if (cual === "estado") { $("#punto").hidden = true; $("#punto-sr").textContent = ""; document.title = "Fonda El Chitreano · Pedidos"; }
+  if (window.innerWidth < 900) verMenu(false);
+}
+$("#tab-chat").onclick = () => pestana("chat");
+$("#tab-estado").onclick = () => pestana("estado");
+$(".pestanas").addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const otra = $("#tab-chat").tabIndex === 0 ? "estado" : "chat"; pestana(otra); $("#tab-" + otra).focus(); }
+});
+function verMenu(on) { $("#menu").hidden = !on; $("#btn-menu").setAttribute("aria-expanded", on); if (on) { $("#chat").hidden = $("#estado").hidden = true; } else if ($("#tab-chat").tabIndex === 0) $("#chat").hidden = false; else $("#estado").hidden = false; }
+$("#btn-menu").onclick = () => verMenu($("#menu").hidden);
+
+function pintarMenu() {
+  const caja = $("#lista-menu"); caja.textContent = "";
+  for (const cat of ["platos", "entradas", "bebidas", "postres"]) {
+    const items = MENU.filter(m => m.categoria === cat); if (!items.length) continue;
+    const h = document.createElement("h2"); h.textContent = cat; caja.append(h);
+    for (const m of items) {
+      const fila = document.createElement("div"); fila.className = "plato" + (m.disponible ? "" : " agotado");
+      fila.innerHTML = `<div><b></b><span class="precio num"></span></div>`;
+      fila.querySelector("b").textContent = m.nombre;
+      fila.querySelector(".precio").textContent = m.disponible ? dinero(m.precio) : dinero(m.precio) + " · Agotado hoy";
+      if (m.disponible) {
+        const b = document.createElement("button"); b.className = "pedir"; b.textContent = "Pedir";
+        b.setAttribute("aria-label", "Pedir " + m.nombre);
+        b.onclick = () => { const t = $("#texto"); t.value = (t.value.trim() ? t.value.trim() + ", " : "Quiero ") + "1 " + m.nombre.replace(/ \(.*\)$/, "").toLowerCase(); if (window.innerWidth < 900) pestana("chat"); t.focus(); };
+        fila.append(b);
+      }
+      caja.append(fila);
+    }
+  }
+}
+
+/* ---------- Chat ---------- */
+function burbuja(quien, texto) {
+  const d = document.createElement("div"); d.className = "burbuja " + quien; d.textContent = texto;
+  if (quien === "sistema") d.className = "sistema";
+  $("#mensajes").append(d); d.scrollIntoView({block:"end", behavior:"smooth"});
+}
+$("#texto").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+$("#texto").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#componer").requestSubmit(); } });
+$("#componer").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const t = $("#texto"), texto = t.value.trim();
+  if (!texto || st.ocupado) return;
+  t.value = ""; t.style.height = "auto"; burbuja("yo", texto);
+  st.ocupado = true; $(".enviar").disabled = true;
+  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.textContent = "El Chitreano está escribiendo…"; $("#mensajes").append(esc);
+  let r;
+  try { r = st.demo ? demoBot(texto) : await api("POST", "/chat", {texto}); }
+  catch (e) { if (e.message === "401") { esc.remove(); st.ocupado = false; $(".enviar").disabled = false; $("#texto").value = texto; return salir(); } }
+  if (st.demo) await new Promise(ok => setTimeout(ok, 700));
+  esc.remove(); st.ocupado = false; $(".enviar").disabled = false;
+  if (!r) return burbuja("sistema", "No pudimos enviar tu mensaje. Revisa tu conexión e inténtalo otra vez.");
+  burbuja("bot", r.respuesta);
+  if (r.pedido) ponerPedido(r.pedido);
+});
+
+async function api(metodo, ruta, cuerpo) {
+  const res = await fetch(ruta, {method:metodo, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+/* ---------- Pedido: resumen y estado ---------- */
+function tablaItems(caja, p) { // solo textContent: los nombres vienen del servidor
+  const tabla = document.createElement("table"); tabla.className = "items";
+  const fila = (a, b, cl) => { const tr = tabla.insertRow(); if (cl) tr.className = cl; tr.insertCell().textContent = a; const c = tr.insertCell(); c.className = "num"; c.textContent = b; };
+  p.items.forEach(i => fila(`${i.cantidad} × ${i.nombre}`, dinero(num(i.precio) * i.cantidad)));
+  fila("Subtotal", dinero(p.subtotal), "sum");
+  fila("ITBMS 7 %", dinero(p.impuesto));
+  if (num(p.envio)) fila("Envío", dinero(p.envio));
+  fila("Total", dinero(p.total), "tot");
+  caja.replaceChildren(tabla);
+}
+
+function ponerPedido(p) {
+  const antes = st.pedido && st.pedido.estado;
+  st.pedido = p;
+  $("#resumen").hidden = false;
+  $("#r-id").textContent = "#" + p.id;
+  $("#r-estado").textContent = ETIQUETA[p.estado] || p.estado;
+  $("#r-estado").className = "chip" + (["pagado","en_preparacion","listo","entregado"].includes(p.estado) ? " ok" : "");
+  $("#r-total").textContent = dinero(p.total);
+  tablaItems($("#resumen-det"), p);
+
+  const enCurso = p.estado !== "por_confirmar";
+  $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
+  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
+  const idx = PASOS.findIndex(([k]) => k === p.estado);
+  const fin = p.estado === "entregado";
+  $("#pasos").innerHTML = PASOS.map(([k, t, d], i) => {
+    const cl = fin || i < idx ? "hecho" : i === idx ? "actual" : "pendiente";
+    const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
+    return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
+  }).join("");
+  $("#tarjeta-pago").hidden = p.estado !== "confirmado";
+  tablaItems($("#estado-items"), p);
+
+  if (antes && antes !== p.estado && AVISO[p.estado]) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
+}
+$("#btn-resumen").onclick = () => { const d = $("#resumen-det"); d.hidden = !d.hidden; $("#btn-resumen").setAttribute("aria-expanded", !d.hidden); };
+
+let tAviso;
+function avisar(texto) {
+  $("#aviso-texto").textContent = texto; $("#aviso").classList.add("ver");
+  burbuja("sistema", texto);
+  if ($("#estado").hidden) { $("#punto").hidden = false; $("#punto-sr").textContent = " (novedad)"; document.title = "(1) " + texto; }
+  try { navigator.vibrate && navigator.vibrate(120); } catch (e) {}
+  clearTimeout(tAviso); tAviso = setTimeout(() => $("#aviso").classList.remove("ver"), 7000);
+}
+$("#aviso-ver").onclick = () => { $("#aviso").classList.remove("ver"); pestana("estado"); };
+
+async function sondear() {
+  if (st.demo) return;
+  try {
+    const [ped, av] = await Promise.all([api("GET", "/pedidos"), api("GET", "/avisos")]);
+    const p = ped.pedidos[0];
+    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total)) ponerPedido(p);
+    for (const m of av.mensajes) burbuja("bot", m);
+  } catch (e) { if (e.message === "401") salir(); /* sin conexión: se reintenta en 5 s */ }
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-copiar]"); if (!b) return;
+  navigator.clipboard?.writeText(b.dataset.copiar).then(() => { b.textContent = "Copiado"; setTimeout(() => b.textContent = "Copiar", 1500); });
+});
+
+/* ---------- Modo demostración (sin servidor) ---------- */
+// ponytail: bot de guion para el prototipo; con servidor, la API real responde y esto no se usa.
+const CLAVES = {"tasajo":"tasajo-con-arroz","sancocho":"sancocho","guand":"arroz-con-guandu","tortilla":"tortilla-con-queso","bollo":"bollo","empanada":"empanadas","chicheme":"chicheme","chicha":"chicha-de-saril","soda":"soda","tres leches":"tres-leches"};
+const NUM = {un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5};
+function demoBot(texto) {
+  const t = texto.toLowerCase(), p = st.pedido;
+  if (!p || p.estado === "por_confirmar" && !/^(s[ií]|dale|ok)(?![a-zñ])/.test(t)) {
+    if (t.includes("tres leches")) return {respuesta:"Hoy no tenemos tres leches, lo siento. ¿Te provoca otra cosa?"};
+    const items = [];
+    for (const [k, id] of Object.entries(CLAVES)) {
+      const pos = t.indexOf(k); if (pos < 0) continue;
+      const m = t.slice(Math.max(0, pos - 10), pos).match(/(\d+|un|uno|una|dos|tres|cuatro|cinco)\s*$/);
+      const it = MENU.find(x => x.id === id);
+      items.push({nombre:it.nombre, cantidad:m ? (+m[1] || NUM[m[1]]) : 1, precio:it.precio});
+    }
+    if (!items.length) return {respuesta:"Dime qué quieres pedir y si es para recoger o entrega. Por ejemplo: \"1 tasajo y 2 chichas para recoger\"."};
+    const entrega = /entrega|domicilio|casa|villa/.test(t);
+    const sub = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    const imp = Math.round(sub * 7) / 100, env = entrega ? (t.includes("villa") ? 3 : 2) : 0;
+    const ped = {id:(p && p.id) || 27, estado:"por_confirmar", modalidad:entrega ? "entrega" : "recogida", items, subtotal:sub, impuesto:imp, envio:env, total:sub + imp + env};
+    const lista = items.map(i => `• ${i.cantidad} × ${i.nombre}`).join("\n");
+    return {pedido:ped, respuesta:`Tu pedido para ${entrega ? "entrega" : "recoger"}:\n${lista}\nTotal con ITBMS${env ? " y envío" : ""}: ${dinero(ped.total)}.\n¿Lo confirmo? Responde "sí".`};
+  }
+  if (p.estado === "por_confirmar") {
+    return {pedido:{...p, estado:"confirmado"}, respuesta:`¡Listo, pedido #${p.id} confirmado! Total ${dinero(p.total)}.\nPaga por Yappy a @elchitreano o por transferencia (datos en "Mi pedido"). Cuando pagues, escríbeme el número de referencia.`};
+  }
+  if (p.estado === "confirmado" && /pag|ref|yappy|\d{4,}/.test(t)) {
+    [["pagado", 6000], ["en_preparacion", 12000], ["listo", 20000]].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms));
+    return {pedido:{...p, estado:"pago_reportado"}, respuesta:"Gracias. Tu pago queda pendiente de verificación por el restaurante; te aviso aquí en cuanto lo confirmemos."};
+  }
+  return {respuesta:`Tu pedido #${p.id} está: ${ETIQUETA[p.estado]}. Te aviso aquí cuando cambie.`};
+}
+
+/* ---------- Arranque ---------- */
+pintarMenu();
+if (!st.demo) fetch("/menu").then(r => r.ok ? r.json() : null).then(m => { if (Array.isArray(m) && m.length) { MENU.splice(0, MENU.length, ...m); pintarMenu(); } }).catch(() => {});
+if (st.demo) $("#modo-demo").hidden = false;
+</script>
+</body>
+</html>

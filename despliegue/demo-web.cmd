@@ -12,7 +12,8 @@ set "ANTHROPIC_BASE_URL=http://127.0.0.1:11435"
 if "%ANTHROPIC_API_KEY%"=="" set "ANTHROPIC_API_KEY=ollama"
 set "LLM_MODEL=qwen3:8b"
 
-start "Ollama demo" /min cmd /c demo-ollama.cmd
+rem Si el Ollama de demo ya responde, no abre otro.
+curl -s -o nul http://127.0.0.1:11435/api/version || start "Ollama demo" /min cmd /c demo-ollama.cmd
 start "Web pedidos" cmd /k python -m motor web %SERVICIO% %PUERTO%
 start "Panel" python -m motor panel %SERVICIO%
 

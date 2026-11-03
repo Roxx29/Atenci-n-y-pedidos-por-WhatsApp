@@ -4,7 +4,7 @@
 
 | Ventana | Qué es |
 |---|---|
-| Ollama demo | `demo-ollama.cmd` (puerto 11435, modelos en `F:\Modelo de IA`) |
+| Ollama demo | `demo-ollama.cmd` (puerto 11435, modelos en `F:\Modelo de IA`)|
 | Web pedidos | `python -m motor web servicios/restaurante-pedidos <puerto>` |
 | Panel | `python -m motor panel servicios/restaurante-pedidos` |
 | Tunel publico | solo si existe `F:\herramientas\cloudflared\cloudflared.exe` |

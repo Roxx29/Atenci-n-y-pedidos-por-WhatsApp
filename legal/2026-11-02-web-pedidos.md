@@ -92,6 +92,29 @@ Variante corta (móvil):
 - **No** se copia a logs, a avisos ni a WhatsApp del personal.
 - Mencionado en el aviso (1.2). **[ABOGADO: confirmar que basta con conservar `pago_ref` como prueba ante reclamos]**
 
+### 2.8 Panel web (/panel, red del local, PIN)
+**Qué ve el personal** (solo lo necesario para atender):
+| Dato | Pedido abierto (lista) | Pedido abierto (detalle) | Pedido cerrado / historial |
+|---|---|---|---|
+| Nombre | sí | sí | sí |
+| Teléfono | enmascarado (`6***-**12`) | completo, con botón llamar/WhatsApp | enmascarado |
+| Dirección | barrio/zona | completa (solo delivery) | oculta |
+| Comprobante Yappy | icono "recibido" | imagen, solo mientras el pago está pendiente | no existe (ya borrado, 2.7) |
+| Chat | — | conversación del pedido | hasta su borrado (90 días) |
+- Sin búsqueda libre de clientes para el personal; buscar por teléfono y exportar/borrar (ARCO, 2.4) solo con el rol **dueño**.
+
+**Usuarios y PIN**
+- Un PIN **por persona** (no compartido): sin eso no se sabe quién marcó pagado. Dos roles: `personal` y `dueno` (gestiona PINs, ARCO y exportar).
+- PIN de 6 dígitos, guardado con hash lento (`hashlib.scrypt` o `pbkdf2_hmac` con sal), nunca en texto. Prohibir 000000, 123456 y similares.
+- 5 intentos fallidos → bloqueo de 5 minutos para ese dispositivo/usuario.
+- Sesión: cookie `HttpOnly`, `SameSite=Strict`, aleatoria. **Bloqueo por inactividad de 30 min** (vuelve a pedir PIN; la pantalla de pedidos de cocina puede quedar visible sin datos de contacto). La sesión caduca al cierre del día (máx. 12 h). Botón "Salir" visible.
+- Solo red local: escuchar en la IP de la LAN y rechazar accesos desde fuera. Recomendación al restaurante: el Wi-Fi del personal debe ser distinto del Wi-Fi de los clientes (en HTTP el PIN viaja sin cifrar en la red local) **[ponytail: HTTP en la LAN; HTTPS local si el Wi-Fi es compartido]**.
+
+**Registro de accesos y acciones**
+- En el pedido: `pagado_por`, `pagado_at` (y lo mismo para rechazado/cancelado). Se conservan lo mismo que el pedido (anonimizado).
+- Tabla `auditoria(usuario, accion, pedido_id, at)` con: login, login fallido, salir, marcar pagado/rechazado/cancelado, ver comprobante, exportar, borrar (ARCO), cambiar PIN. **Sin** datos personales: solo `pedido_id`.
+- Conservación de la auditoría: **12 meses** y luego se borra **[ABOGADO: confirmar plazo]**. Solo la ve el `dueno`; no se puede editar desde el panel.
+
 ### 2.6 Seguridad mínima
 - BD SQLite en la PC del restaurante con usuario de Windows con contraseña; panel sin acceso desde Internet o con login.
 - Web: HTTPS obligatorio.

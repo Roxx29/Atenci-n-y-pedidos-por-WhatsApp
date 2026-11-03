@@ -91,3 +91,7 @@ $env:PIP_CACHE_DIR="F:\cache\pip"; python -m venv F:\build\venv-panel
 F:\build\venv-panel\Scripts\pip install -r requirements-build.txt
 F:\build\venv-panel\Scripts\pyinstaller --onefile --windowed --name PanelPedidos --paths . --collect-data tzdata --exclude-module anthropic --distpath F:\build\dist --workpath F:\build\work --specpath F:\build\spec motor\panel.py
 ```
+
+## Panel web (`/panel`)
+Mismo servidor que `motor web`. Solo LAN (IP privada/loopback) y solo si hay PIN en `.env`: `PANEL_PIN` (6 dígitos, rol dueno) o `PANEL_PIN_HASH` (generar con `python -m motor.panel_web 123456`), y opcional `PANEL_PIN_PERSONAL[_HASH]` (rol personal). 5 fallos → bloqueo 5 min por IP; cookie `panel` (HttpOnly, SameSite=Strict, 30 min de inactividad, máx. 12 h).
+API: `POST /panel/entrar {pin}`, `POST /panel/salir`, `GET /panel/estado?desde=N` (sondeo 3 s), `GET /panel/pedido/<id>` (teléfono y dirección completos), `GET /panel/comprobante/<id>` (solo con pago pendiente), `POST /panel/marcar {pedido_id, estado}` (pagado, pago_rechazado, en_preparacion, listo, entregado, cancelado; 409 si no procede), `POST /panel/escalado/<id>/atendido`. Lista con teléfono enmascarado y sin dirección. Registro en tabla `auditoria` (rol, acción, pedido, hora) y `<estado>_por/_at` en el pedido.

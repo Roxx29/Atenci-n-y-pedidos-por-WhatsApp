@@ -24,7 +24,7 @@ Variante corta (móvil):
 >
 > **Datos que pedimos:** nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
 >
-> **Comprobante de Yappy:** solo lo usa el personal del restaurante para confirmar tu pago. No se envía al asistente de IA y se borra a los 7 días de confirmar o rechazar el pago.
+> **Comprobante de Yappy:** la captura puede mostrar tu nombre y datos de tu cuenta. Solo la ve el personal del restaurante para confirmar tu pago, no se envía al asistente de IA y se borra al confirmar o rechazar el pago (como máximo a los 7 días).
 >
 > **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin tu permiso aparte.
 >
@@ -64,7 +64,7 @@ Variante corta (móvil):
 | Pedido (ítems, total, fecha, estado) | **[ABOGADO: plazo fiscal/contable; Código de Comercio exige libros ~5 años]** | anonimizar (quitar nombre/teléfono/dirección) |
 | Cliente (nombre, teléfono) | 12 meses desde el último pedido | borrar |
 | Logs técnicos | 30 días | borrar |
-| Captura de Yappy | 7 días tras marcar el pago como pagado o rechazado; si no se marca, 30 días desde la subida | borrar el archivo |
+| Captura de Yappy | al marcar pagado o rechazado; como máximo 7 días desde la subida | borrar el archivo |
 
 - Tarea programada diaria (al arrancar el motor basta) que aplique estos plazos. Plazos en una tabla/constantes, no esparcidos.
 
@@ -87,9 +87,10 @@ Variante corta (móvil):
 - **Subida:** solo desde la web del pedido, ligada a `pedido_id`. Solo imagen (jpg/png/webp) de 5 MB como máximo. **Quitar los metadatos EXIF** y guardarla con un nombre aleatorio, en una carpeta fuera de lo que sirve la web (o como BLOB en SQLite).
 - **Quién la ve:** solo el personal con acceso al panel, dentro del detalle del pedido. Nunca llega al cliente ni a otros pedidos, y **nunca se envía al proveedor de IA** (el bot solo sabe "comprobante recibido").
 - **Lo que se guarda en texto:** `pago_ref` (número de operación), monto, fecha y `pago_estado`. Eso es lo que queda tras borrar la imagen.
-- **Borrado:** 7 días después de marcarlo como `pagado` o `rechazado` (margen para reclamos). Si nunca se marca, a los 30 días de la subida. También se borra con la petición ARCO del cliente (2.4). Puede ir en la misma tarea diaria de 2.3.
+- **Borrado:** al marcar `pagado` o `rechazado`; como máximo 7 días desde la subida; también ante una petición ARCO (2.4). Si hay reclamo, la prueba es `pago_ref`, que se conserva. Los plazos van configurables en `servicio.yaml`.
+- No hace falta recortar la imagen (recortar automáticamente es frágil); basta con quitar el EXIF.
 - **No** se copia a logs, a avisos ni a WhatsApp del personal.
-- Mencionado en el aviso (1.2). **[ABOGADO: confirmar que 7 días bastan para reclamos/contracargos de Yappy]**
+- Mencionado en el aviso (1.2). **[ABOGADO: confirmar que basta con conservar `pago_ref` como prueba ante reclamos]**
 
 ### 2.6 Seguridad mínima
 - BD SQLite en la PC del restaurante con usuario de Windows con contraseña; panel sin acceso desde Internet o con login.

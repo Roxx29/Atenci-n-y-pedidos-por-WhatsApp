@@ -12,7 +12,8 @@ Prototipo: `diseno/web-pedidos.html` (un solo archivo, CSS y JS en línea, sin C
 - **Privacidad:** casilla sin marcar, junto al botón, con el aviso completo de legal-datos (borrador) en un desplegable. Los `[corchetes]` los completa el restaurante.
 
 ## Contrato con la API (acordado con agentedeprogramacion)
-- `POST /entrar {nombre, telefono, acepta_privacidad}` → cookie firmada; 400 → `{error}` se muestra bajo el teléfono.
+- `GET /aviso` → `{version, texto}`: el texto se pinta en "Ver aviso de privacidad" (textContent); el bloque fijo es solo para el modo demo.
+- `POST /entrar {nombre, telefono, acepta_privacidad, version_aviso}` → cookie firmada; 400 → `{error}` bajo el teléfono; si el aviso cambió, recarga el aviso, desmarca la casilla y pide aceptarlo otra vez.
 - `POST /chat {texto}` → `{respuesta, pedido?}`; 401 → vuelve a la entrada.
 - Cada 5 s: `GET /pedidos` (pinta el más reciente) y `GET /avisos` → `{mensajes}` (burbujas del bot).
 - `GET /menu` (números en dólares); si falla, usa el JSON en línea `#datos-menu`.

@@ -303,7 +303,7 @@ $("#form-pin").addEventListener("submit", async ev => {
     try {
       const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
       if (!r.ok) { const j = await r.json().catch(() => ({})); $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
-    } catch (e) { st.demo = true; }
+    } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad();
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }

@@ -118,6 +118,7 @@ table.items tr.tot td{font-weight:700;font-size:1.0625rem}
 .plato.agotado b,.plato.agotado .precio{color:var(--tinta-2);text-decoration:line-through}
 .pedir{min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--achiote);background:none;color:var(--achiote);font-weight:700}
 .pedir:hover{background:var(--achiote);color:var(--sobre-achiote)}
+.resumen .cta{margin:0 14px 12px;width:calc(100% - 28px)}
 .nota-menu{font-size:.875rem;color:var(--tinta-2);margin:4px 0 0}
 
 /* Estado */
@@ -141,6 +142,21 @@ ol.pasos li.hecho::before{background:var(--hoja)}
 .pago{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:8px 0;border-top:1px solid var(--linea)}
 .pago:first-of-type{border-top:0}
 .pago span{min-width:0;overflow-wrap:anywhere}
+.comprobante{margin-top:12px;padding-top:14px;border-top:1px solid var(--linea);display:grid;gap:10px}
+.btn-ancho{width:100%}
+.comprobante .ayuda{margin:0}
+.previa{display:flex;gap:12px;align-items:center}
+.previa img{width:72px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--linea);background:var(--papel);flex:none}
+.previa div{min-width:0;flex:1}
+.fila-btn{display:flex;gap:8px;flex-wrap:wrap}
+.fila-btn .btn{flex:1 1 140px}
+progress{width:100%;height:6px;accent-color:var(--achiote)}
+.recibido{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:var(--r);background:var(--maiz-suave)}
+.recibido p{margin:0}
+.enlace{background:none;border:0;padding:0;min-height:44px;color:var(--achiote);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.espera{display:block;font-size:.8125rem}
+.comprobante .error{margin:0;min-height:0}
+#pago-datos[hidden]+.comprobante{border-top:0;margin-top:0;padding-top:0}
 .copiar{min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid var(--linea);background:none;font-weight:600;font-size:.875rem;flex:none}
 
 /* Escritorio: menú fijo a la izquierda */
@@ -159,6 +175,8 @@ ol.pasos li.hecho::before{background:var(--hoja)}
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></symbol>
   <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
   <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
   <symbol id="i-flecha" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
 </svg>
@@ -199,9 +217,10 @@ ol.pasos li.hecho::before{background:var(--hoja)}
         <input type="checkbox" name="privacidad" required aria-describedby="e-priv">
         <span>Acepto que Fonda El Chitreano use mi nombre, teléfono y esta conversación para tomar y entregar mi pedido. Un asistente de IA me atiende.</span>
       </label>
-      <details>
+      <details id="det-privacidad">
         <summary>Ver aviso de privacidad</summary>
-        <!-- Texto de legal-datos (borrador sin revisar por abogado). Los [corchetes] los completa el restaurante. -->
+        <!-- Con servidor, GET /aviso sustituye este bloque (textContent). Fijo = solo modo demo: borrador de legal-datos. -->
+        <div id="privacidad-texto">
         <p><b>Responsable:</b> Fonda El Chitreano S.A., RUC [RUC], [dirección], Chitré, Panamá.</p>
         <p><b>Datos que pedimos:</b> nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido y los mensajes que escribes en el chat.</p>
         <p><b>Para qué:</b> tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin un permiso aparte.</p>
@@ -210,6 +229,7 @@ ol.pasos li.hecho::before{background:var(--hoja)}
         <p><b>Tus derechos:</b> puedes pedir ver, corregir, borrar u oponerte al uso de tus datos, o recibir una copia. Escríbenos a [correo / WhatsApp]. Responderemos en el plazo legal. Si no quedas conforme, puedes acudir a la ANTAI.</p>
         <p><b>Compartimos tus datos solo con:</b> el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor (nombre, teléfono y dirección para la entrega).</p>
         <p>Última actualización: [fecha].</p>
+        </div>
       </details>
       <span class="error" id="e-priv" aria-live="polite"></span>
     </div>
@@ -245,6 +265,7 @@ ol.pasos li.hecho::before{background:var(--hoja)}
           <svg class="i"><use href="#i-flecha"/></svg>
         </button>
         <div class="det" id="resumen-det" hidden></div>
+        <button class="btn cta" id="r-pagar" hidden><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Enviar comprobante de pago</button>
       </div>
       <form class="componer" id="componer">
         <label class="sr" for="texto">Escribe tu mensaje</label>
@@ -258,13 +279,39 @@ ol.pasos li.hecho::before{background:var(--hoja)}
       <p class="vacio" id="estado-vacio">Aún no tienes un pedido confirmado. Escribe en el chat lo que quieres comer.</p>
       <div id="estado-lleno" hidden>
         <p id="estado-meta"></p>
-        <ol class="pasos" id="pasos"></ol>
         <div class="tarjeta" id="tarjeta-pago" hidden>
-          <h3>Datos de pago</h3>
-          <div class="pago"><span><b>Yappy</b><br>@elchitreano</span><button class="copiar" data-copiar="@elchitreano">Copiar</button></div>
-          <div class="pago"><span><b>Transferencia</b><br>Banco General · Ahorros 03-00-00-000000-0 · Fonda El Chitreano S.A.</span><button class="copiar" data-copiar="03-00-00-000000-0">Copiar</button></div>
-          <p class="ayuda">Al pagar, escribe en el chat el número de referencia.</p>
+          <h3 id="pago-titulo">Paga y envía tu comprobante</h3>
+          <div id="pago-datos">
+            <div class="pago"><span><b>Yappy</b><br>@elchitreano</span><button class="copiar" data-copiar="@elchitreano">Copiar</button></div>
+            <div class="pago"><span><b>Transferencia</b><br>Banco General · Ahorros 03-00-00-000000-0 · Fonda El Chitreano S.A.</span><button class="copiar" data-copiar="03-00-00-000000-0">Copiar</button></div>
+          </div>
+          <div class="comprobante">
+            <input type="file" id="cp-archivo" accept="image/*" hidden>
+            <div id="cp-elegir">
+              <button class="btn btn-ancho" id="cp-boton" aria-describedby="cp-privacidad"><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Enviar comprobante</button>
+            </div>
+            <div id="cp-previa" hidden>
+              <div class="previa">
+                <img id="cp-img" alt="Vista previa de tu comprobante">
+                <div><b>Revisa que se lean el monto y la referencia.</b><br>
+                  <button class="enlace" id="cp-cambiar">Elegir otra foto</button></div>
+              </div>
+              <label class="campo">Número de referencia <span class="ayuda">Opcional. Ayuda a verificar más rápido.</span>
+                <input type="text" id="cp-ref" maxlength="40" autocomplete="off"></label>
+              <progress id="cp-progreso" hidden aria-label="Enviando comprobante"></progress>
+              <div class="fila-btn"><button class="btn" id="cp-enviar">Enviar</button></div>
+            </div>
+            <p class="error" id="cp-error" role="alert"></p>
+            <div class="recibido" id="cp-ok" hidden tabindex="-1">
+              <svg class="i" aria-hidden="true"><use href="#i-reloj"/></svg>
+              <div><p><b id="cp-ok-titulo">Comprobante recibido</b></p>
+                <p>Pendiente de verificación por el restaurante. Te avisamos aquí en cuanto esté pagado.</p>
+                <button class="enlace" id="cp-otra">Enviar otra foto</button></div>
+            </div>
+            <p class="ayuda" id="cp-privacidad">Comprobante de Yappy: solo lo usa el personal del restaurante para confirmar tu pago. No se envía al asistente de IA y se borra a los 7 días de confirmar o rechazar el pago.</p>
+          </div>
         </div>
+        <ol class="pasos" id="pasos"></ol>
         <div class="tarjeta"><h3>Detalle</h3><div id="estado-items"></div></div>
       </div>
     </section>
@@ -287,7 +334,7 @@ const PASOS = [
   ["en_preparacion", "En preparación", "Tu comida se está cocinando."],
   ["listo", "Listo", "Puedes recogerlo o va en camino."]
 ];
-const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado"};
+const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado", caducado:"Caducó, pide de nuevo"};
 PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
 const AVISO = {
   pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
@@ -296,8 +343,8 @@ const AVISO = {
   entregado:"Pedido entregado. ¡Buen provecho!",
   cancelado:"Tu pedido fue cancelado."
 };
-const num = x => typeof x === "string" ? parseFloat(x.replace(/[^\d.]/g, "")) : x; // la API manda "B/. 7.00"
-const dinero = n => "B/. " + Number(num(n)).toFixed(2);
+const num = x => typeof x === "string" ? parseFloat(((x.match(/-?\d+(?:[.,]\d+)?/) || ["0"])[0]).replace(",", ".")) : Number(x); // "B/. 7.00" → 7
+const dinero = n => { const v = num(n); return "B/. " + (isFinite(v) ? v : 0).toFixed(2); }; // siempre B/. 0.00
 const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "file:", ocupado:false, sondeo:0};
 const guardar = () => { try { localStorage.setItem("chitreano", JSON.stringify({nombre:st.nombre, telefono:st.telefono})); } catch (e) {} };
 
@@ -324,8 +371,18 @@ form.addEventListener("submit", async ev => {
   const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
   if (!st.demo) {
     try {
-      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true})});
-      if (res.status === 400) { $("#e-tel").textContent = (await res.json()).error; btn.disabled = false; btn.textContent = "Empezar pedido"; return; }
+      if (!st.aviso) await cargarAviso();
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version})});
+      if (res.status === 400) {
+        const err = (await res.json()).error || "Revisa tus datos.";
+        btn.disabled = false; btn.textContent = "Empezar pedido";
+        if (/aviso/i.test(err)) { // el aviso cambió: mostrar el nuevo y pedir aceptarlo otra vez
+          await cargarAviso(); form.privacidad.checked = false; $("#det-privacidad").open = true;
+          $("#e-priv").textContent = "Actualizamos el aviso de privacidad. Léelo y vuelve a marcar la casilla.";
+          return form.privacidad.focus();
+        }
+        $("#e-tel").textContent = err; return;
+      }
       if (!res.ok) throw new Error(res.status);
     } catch (e) { st.demo = true; $("#modo-demo").hidden = false; }
   }
@@ -336,6 +393,10 @@ form.addEventListener("submit", async ev => {
   $("#texto").focus();
   clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
 });
+async function cargarAviso() { // GET /aviso → {version, texto}; texto con textContent
+  st.aviso = await api("GET", "/aviso");
+  const caja = $("#privacidad-texto"); caja.textContent = st.aviso.texto; caja.style.whiteSpace = "pre-wrap";
+}
 function salir() { // cookie vencida (401): volver a la entrada
   clearInterval(st.sondeo); $("#app").hidden = true; $("#entrada").hidden = false;
   $("#e-priv").textContent = "Tu sesión venció. Vuelve a entrar para seguir con tu pedido.";
@@ -396,12 +457,13 @@ $("#componer").addEventListener("submit", async ev => {
   if (!texto || st.ocupado) return;
   t.value = ""; t.style.height = "auto"; burbuja("yo", texto);
   st.ocupado = true; $(".enviar").disabled = true;
-  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.textContent = "El Chitreano está escribiendo…"; $("#mensajes").append(esc);
+  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.setAttribute("role", "status"); esc.textContent = "El Chitreano está escribiendo…"; $("#mensajes").append(esc);
+  const tEspera = setTimeout(() => { const e = document.createElement("span"); e.className = "espera"; e.textContent = "Es una demostración: la respuesta puede tardar unos 30 s."; esc.append(e); }, 3000);
   let r;
   try { r = st.demo ? demoBot(texto) : await api("POST", "/chat", {texto}); }
   catch (e) { if (e.message === "401") { esc.remove(); st.ocupado = false; $(".enviar").disabled = false; $("#texto").value = texto; return salir(); } }
   if (st.demo) await new Promise(ok => setTimeout(ok, 700));
-  esc.remove(); st.ocupado = false; $(".enviar").disabled = false;
+  clearTimeout(tEspera); esc.remove(); st.ocupado = false; $(".enviar").disabled = false;
   if (!r) return burbuja("sistema", "No pudimos enviar tu mensaje. Revisa tu conexión e inténtalo otra vez.");
   burbuja("bot", r.respuesta);
   if (r.pedido) ponerPedido(r.pedido);
@@ -426,6 +488,7 @@ function tablaItems(caja, p) { // solo textContent: los nombres vienen del servi
 }
 
 function ponerPedido(p) {
+  if (st.pedido && st.pedido.id !== p.id) st.comprobante = false;
   const antes = st.pedido && st.pedido.estado;
   st.pedido = p;
   $("#resumen").hidden = false;
@@ -435,7 +498,7 @@ function ponerPedido(p) {
   $("#r-total").textContent = dinero(p.total);
   tablaItems($("#resumen-det"), p);
 
-  const enCurso = p.estado !== "por_confirmar";
+  const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
   $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
   $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
   const idx = PASOS.findIndex(([k]) => k === p.estado);
@@ -445,7 +508,14 @@ function ponerPedido(p) {
     const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
     return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
   }).join("");
-  $("#tarjeta-pago").hidden = p.estado !== "confirmado";
+  const reportado = p.estado === "pago_reportado";
+  $("#tarjeta-pago").hidden = !(p.estado === "confirmado" || reportado);
+  $("#pago-datos").hidden = reportado;
+  $("#pago-titulo").textContent = reportado ? "Tu pago" : "Paga y envía tu comprobante";
+  $("#cp-ok-titulo").textContent = st.comprobante ? "Comprobante recibido" : "Pago reportado";
+  $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
+  if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
+  $("#r-pagar").hidden = p.estado !== "confirmado";
   tablaItems($("#estado-items"), p);
 
   if (antes && antes !== p.estado && AVISO[p.estado]) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
@@ -477,7 +547,53 @@ document.addEventListener("click", e => {
   navigator.clipboard?.writeText(b.dataset.copiar).then(() => { b.textContent = "Copiado"; setTimeout(() => b.textContent = "Copiar", 1500); });
 });
 
+/* ---------- Comprobante de pago ---------- */
+const archivo = $("#cp-archivo");
+const elegirFoto = () => { $("#cp-error").textContent = ""; archivo.value = ""; archivo.click(); };
+$("#cp-boton").onclick = $("#cp-cambiar").onclick = $("#cp-otra").onclick = elegirFoto;
+$("#r-pagar").onclick = () => { pestana("estado"); $("#cp-boton").focus(); $("#tarjeta-pago").scrollIntoView({block:"start", behavior:"smooth"}); };
+async function reducir(f) { // siempre JPEG ≤1600 px: pesa poco en datos móviles; el servidor quita metadatos
+  if (!f.type.startsWith("image/")) throw new Error("Elige una imagen: una foto o captura de pantalla del pago.");
+  if (f.size > 20e6) throw new Error("La foto es demasiado grande. Prueba con una captura de pantalla.");
+  let img;
+  try { img = await createImageBitmap(f); } catch (e) { throw new Error("No pudimos abrir esa imagen. Prueba con una captura de pantalla."); }
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok, mal) => c.toBlob(b => b ? ok(b) : mal(new Error("No pudimos preparar la foto.")), "image/jpeg", 0.85));
+}
+archivo.addEventListener("change", async () => {
+  const f = archivo.files[0]; if (!f) return;
+  $("#cp-error").textContent = "";
+  try { st.cpBlob = await reducir(f); }
+  catch (e) { $("#cp-error").textContent = e.message; return; }
+  if (st.cpUrl) URL.revokeObjectURL(st.cpUrl);
+  st.cpUrl = URL.createObjectURL(st.cpBlob); $("#cp-img").src = st.cpUrl;
+  $("#cp-elegir").hidden = $("#cp-ok").hidden = true; $("#cp-previa").hidden = false; $("#cp-enviar").focus();
+});
+$("#cp-enviar").onclick = async () => {
+  const b = $("#cp-enviar"), ref = $("#cp-ref").value.trim();
+  b.disabled = true; b.textContent = "Enviando…"; $("#cp-progreso").hidden = false; $("#cp-error").textContent = "";
+  let res = null, err = "";
+  try {
+    if (st.demo) { await new Promise(ok => setTimeout(ok, 1200)); res = {pedido:{...st.pedido, estado:"pago_reportado"}}; if (st.pedido.estado === "confirmado") demoAvance(); }
+    else {
+      const r = await fetch(`/comprobante?pedido=${st.pedido.id}&referencia=${encodeURIComponent(ref)}`, {method:"POST", headers:{"Content-Type":"image/jpeg"}, body:st.cpBlob});
+      if (r.status === 401) return salir();
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) res = j; else err = j.error || (r.status === 413 ? "La foto pesa demasiado. Prueba con una captura de pantalla." : "No pudimos enviar el comprobante.");
+    }
+  } catch (e) { err = "Sin conexión. Revisa tu internet e inténtalo otra vez."; }
+  b.disabled = false; b.textContent = "Enviar"; $("#cp-progreso").hidden = true;
+  if (!res) { $("#cp-error").textContent = err; return; }
+  st.comprobante = true; st.cpBlob = null; $("#cp-ref").value = ""; $("#cp-previa").hidden = true;
+  burbuja("sistema", "Enviaste el comprobante de pago. Queda pendiente de verificación.");
+  ponerPedido(res.pedido || {...st.pedido, estado:"pago_reportado"});
+  $("#cp-ok").hidden = false; $("#cp-ok").focus();
+};
+
 /* ---------- Modo demostración (sin servidor) ---------- */
+function demoAvance() { [["pagado", 8000], ["en_preparacion", 14000], ["listo", 22000]].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms)); }
 // ponytail: bot de guion para el prototipo; con servidor, la API real responde y esto no se usa.
 const CLAVES = {"tasajo":"tasajo-con-arroz","sancocho":"sancocho","guand":"arroz-con-guandu","tortilla":"tortilla-con-queso","bollo":"bollo","empanada":"empanadas","chicheme":"chicheme","chicha":"chicha-de-saril","soda":"soda","tres leches":"tres-leches"};
 const NUM = {un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5};
@@ -501,10 +617,10 @@ function demoBot(texto) {
     return {pedido:ped, respuesta:`Tu pedido para ${entrega ? "entrega" : "recoger"}:\n${lista}\nTotal con ITBMS${env ? " y envío" : ""}: ${dinero(ped.total)}.\n¿Lo confirmo? Responde "sí".`};
   }
   if (p.estado === "por_confirmar") {
-    return {pedido:{...p, estado:"confirmado"}, respuesta:`¡Listo, pedido #${p.id} confirmado! Total ${dinero(p.total)}.\nPaga por Yappy a @elchitreano o por transferencia (datos en "Mi pedido"). Cuando pagues, escríbeme el número de referencia.`};
+    return {pedido:{...p, estado:"confirmado"}, respuesta:`¡Listo, pedido #${p.id} confirmado! Total ${dinero(p.total)}.\nPaga por Yappy a @elchitreano o por transferencia. Luego toca "Enviar comprobante de pago" y sube la captura, o escríbeme el número de referencia.`};
   }
   if (p.estado === "confirmado" && /pag|ref|yappy|\d{4,}/.test(t)) {
-    [["pagado", 6000], ["en_preparacion", 12000], ["listo", 20000]].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms));
+    demoAvance();
     return {pedido:{...p, estado:"pago_reportado"}, respuesta:"Gracias. Tu pago queda pendiente de verificación por el restaurante; te aviso aquí en cuanto lo confirmemos."};
   }
   return {respuesta:`Tu pedido #${p.id} está: ${ETIQUETA[p.estado]}. Te aviso aquí cuando cambie.`};
@@ -513,7 +629,7 @@ function demoBot(texto) {
 /* ---------- Arranque ---------- */
 pintarMenu();
 if (!st.demo) fetch("/menu").then(r => r.ok ? r.json() : null).then(m => { if (Array.isArray(m) && m.length) { MENU.splice(0, MENU.length, ...m); pintarMenu(); } }).catch(() => {});
-if (st.demo) $("#modo-demo").hidden = false;
+if (st.demo) $("#modo-demo").hidden = false; else cargarAviso().catch(() => {});
 </script>
 </body>
 </html>

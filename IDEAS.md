@@ -47,3 +47,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - BLOQUEANTE PARA PRODUCCIÓN (legal, revisión de e48b732): (1) un PIN por persona: tabla usuarios(nombre, rol, pin_hash) y nombre en auditoria/_por; (2) vía ARCO de borrado/exportación para dueno (mientras tanto, procedimiento manual SQL documentado); (3) PIN solo con hash (quitar PANEL_PIN en texto o convertirlo al arrancar). No urgente: retención de 12 meses de auditoría y registro de cambio de PIN. La auditoría hoy no se expone por ninguna ruta (punto 5 cumplido).
 - [ ] Panel web: pantallas del rol dueño (buscar cliente por teléfono, exportar/borrar datos, gestionar PINs, registro de acciones) — legal 2.8.
 - [ ] Panel web: probar en la tablet real del local (sonido tras el PIN, tamaño de botones, luz de día).
+- [ ] Repartidor: probar en un móvil real al sol (contraste, botones) e instalar la PWA (necesita HTTPS).
+- [ ] Ubicación: probar el GPS por HTTPS y el pegado de enlaces maps.app.goo.gl reales.

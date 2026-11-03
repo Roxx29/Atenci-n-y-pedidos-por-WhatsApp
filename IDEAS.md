@@ -43,3 +43,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Web: en modo demo mostrar "el bot está pensando, puede tardar ~30 s" mientras responde el modelo local (capitan) (disenador)
 - [ ] Web: probar en un móvil real la subida del comprobante (galería, cámara y fotos HEIC de iPhone).
 - [ ] 2026-11-02 — Medir qwen3:4b como respaldo Ollama (tiempo + acierto crear_pedido) cuando haya memoria libre; ver investigacion/2026-11-02-modelo-rapido.md (agenteinvestigacion)
+- [ ] Panel web: pantallas del rol dueño (buscar cliente por teléfono, exportar/borrar datos, gestionar PINs, registro de acciones) — legal 2.8.
+- [ ] Panel web: probar en la tablet real del local (sonido tras el PIN, tamaño de botones, luz de día).

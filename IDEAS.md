@@ -49,3 +49,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] Panel web: probar en la tablet real del local (sonido tras el PIN, tamaño de botones, luz de día).
 - [ ] 2026-11-02 — Panel web antes de producción (legal §2.8): un PIN por persona, ARCO exportar/borrar para el dueno, PIN solo con hash, teléfono enmascarado en pedidos cerrados, auditoría solo para el dueno, retención de 12 meses (agentedeprogramacion)
 - Ubicación/repartidor: seguimiento GPS del repartidor, ubicación por WhatsApp ya enchufada (probar con Meta), PIN de repartidor solo hash en producción, campo externo sí/no (NDA, legal §2.9), página /repartidor y botón de ubicación de disenador.
+- [ ] Repartidor: probar en un móvil real al sol (contraste, botones) e instalar la PWA (necesita HTTPS).
+- [ ] Ubicación: probar el GPS por HTTPS y el pegado de enlaces maps.app.goo.gl reales.

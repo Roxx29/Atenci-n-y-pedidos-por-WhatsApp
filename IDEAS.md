@@ -24,3 +24,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Token permanente (usuario del sistema) antes de un restaurante real (usuario)
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
+
+- [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.

@@ -22,7 +22,9 @@ Variante corta (móvil):
 >
 > **Responsable:** {Razón social}, RUC {RUC}, {dirección}, {ciudad}, Panamá.
 >
-> **Datos que pedimos:** nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido y los mensajes que escribes en el chat.
+> **Datos que pedimos:** nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
+>
+> **Comprobante de Yappy:** solo lo usa el personal del restaurante para confirmar tu pago. No se envía al asistente de IA y se borra a los 7 días de confirmar o rechazar el pago.
 >
 > **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin tu permiso aparte.
 >
@@ -48,7 +50,7 @@ Variante corta (móvil):
 ### 2.2 Qué guardar y qué no (minimización)
 - **Sí:** nombre, teléfono, dirección de entrega (solo delivery), ítems, total, estado, método de pago (texto: "Yappy", "efectivo"), mensajes del chat.
 - **No guardar:**
-  - Comprobantes de pago como imagen ni datos bancarios/tarjeta; solo `pago_ref` (número de operación) y estado.
+  - Datos bancarios ni de tarjeta. La captura de Yappy solo se guarda con la regla de 2.7.
   - Cédula, correo, fecha de nacimiento: no se piden.
   - **Datos sensibles** (salud: alergias, religión, etc.): si el cliente escribe "soy alérgico a X", se usa para el pedido como nota del ítem, pero **no** se guarda como dato del perfil del cliente **[ABOGADO: alergias = dato de salud; valorar si basta con nota del pedido]**.
   - IP, user-agent, ubicación GPS: no guardar salvo necesidad de seguridad (logs técnicos ≤ 30 días).
@@ -62,6 +64,7 @@ Variante corta (móvil):
 | Pedido (ítems, total, fecha, estado) | **[ABOGADO: plazo fiscal/contable; Código de Comercio exige libros ~5 años]** | anonimizar (quitar nombre/teléfono/dirección) |
 | Cliente (nombre, teléfono) | 12 meses desde el último pedido | borrar |
 | Logs técnicos | 30 días | borrar |
+| Captura de Yappy | 7 días tras marcar el pago como pagado o rechazado; si no se marca, 30 días desde la subida | borrar el archivo |
 
 - Tarea programada diaria (al arrancar el motor basta) que aplique estos plazos. Plazos en una tabla/constantes, no esparcidos.
 
@@ -78,6 +81,15 @@ Variante corta (móvil):
   - Usar API comercial con términos que **no entrenan con los datos** y retención limitada; guardar copia de los términos/DPA del proveedor **[ABOGADO: revisar DPA de Anthropic]**.
   - Enviar a la IA **solo** lo necesario: mensajes de la conversación en curso y el menú. No mandar historial de otros pedidos ni el teléfono completo si no hace falta.
 - Repartidor: compartir solo nombre, teléfono y dirección del pedido concreto.
+
+### 2.7 Captura del comprobante de Yappy
+- **Finalidad única:** que el personal verifique el pago de **ese** pedido. No se usa para nada más.
+- **Subida:** solo desde la web del pedido, ligada a `pedido_id`. Solo imagen (jpg/png/webp) de 5 MB como máximo. **Quitar los metadatos EXIF** y guardarla con un nombre aleatorio, en una carpeta fuera de lo que sirve la web (o como BLOB en SQLite).
+- **Quién la ve:** solo el personal con acceso al panel, dentro del detalle del pedido. Nunca llega al cliente ni a otros pedidos, y **nunca se envía al proveedor de IA** (el bot solo sabe "comprobante recibido").
+- **Lo que se guarda en texto:** `pago_ref` (número de operación), monto, fecha y `pago_estado`. Eso es lo que queda tras borrar la imagen.
+- **Borrado:** 7 días después de marcarlo como `pagado` o `rechazado` (margen para reclamos). Si nunca se marca, a los 30 días de la subida. También se borra con la petición ARCO del cliente (2.4). Puede ir en la misma tarea diaria de 2.3.
+- **No** se copia a logs, a avisos ni a WhatsApp del personal.
+- Mencionado en el aviso (1.2). **[ABOGADO: confirmar que 7 días bastan para reclamos/contracargos de Yappy]**
 
 ### 2.6 Seguridad mínima
 - BD SQLite en la PC del restaurante con usuario de Windows con contraseña; panel sin acceso desde Internet o con login.

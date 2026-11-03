@@ -20,6 +20,10 @@ Cada espacio de Orca es una rama. Tu rol depende de la rama en la que estás (`g
 | `Roxx29/AgenteDeProgramacion` | `agentedeprogramacion` | `arquitecto` (opus), `programador` (sonnet), `programador-rapido` (haiku), `tester`, `revisor` |
 | `Roxx29/AgenteInvestigacion` | `agenteinvestigacion` | `investigador-profundo` (opus), `investigador-web` (sonnet), `investigador-rapido` (haiku) |
 | `Roxx29/CreadorAgentes` | `creadoragentes` | crea agentes nuevos |
+| `Roxx29/AgenteDespliegue` | `devops` | apoya a `agentedeprogramacion`: despliegue y operación |
+| `Roxx29/AgenteLegal` | `legal-datos` | apoya a `comercial` y `agentedeprogramacion`: Ley 81, privacidad, términos |
+| `Roxx29/AgenteComercial` | `comercial` | usa `agenteservicios`, `agenteinvestigacion`, `legal-datos`, `disenador` |
+| `Roxx29/AgenteDiseno` | `disenador` | apoya a `comercial` y `agentedeprogramacion`: diseño y marca |
 
 - El capitán encarga trabajo a otros espacios con `ListAgents` + `SendMessage`, e integra sus ramas en `master`.
 - Los subagentes no pueden lanzar otros subagentes: el reparto lo hace la sesión principal de cada espacio.

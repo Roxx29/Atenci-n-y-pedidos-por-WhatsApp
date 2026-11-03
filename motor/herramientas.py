@@ -232,16 +232,21 @@ def caducar_pedidos(sv):
 
 
 def _envio(cfg, zona):
-    """Costo de envío en centavos: fijo, o por zona (lista = zonas permitidas a costo fijo, dict = zona -> costo)."""
+    """Costo de envío en centavos: fijo, o por zona (lista = zonas permitidas a costo fijo, dict = zona -> costo).
+    `alias: {zona: [corregimientos o barrios]}` hace que esos nombres cuenten como esa zona."""
     e = cfg.get("envio") or {}
     zonas = e.get("zonas")
     if not zonas:
         return _c(e.get("costo", 0))
     por_zona = {_sin_tildes(z): e.get("costo", 0) for z in zonas} if isinstance(zonas, list) else {_sin_tildes(z): c for z, c in zonas.items()}
+    for canon, nombres in (e.get("alias") or {}).items():
+        if _sin_tildes(canon) in por_zona:
+            for n in nombres:
+                por_zona.setdefault(_sin_tildes(n), por_zona[_sin_tildes(canon)])
     if not (zona or "").strip():
         raise ValueError("Falta la zona de entrega: pregúntasela al cliente (" + ", ".join(por_zona) + "); no inventes datos.")
     if _sin_tildes(zona) not in por_zona:
-        raise ValueError("Zona sin entrega; ofrece recogida o escalar_a_humano.")
+        raise ValueError("No reconozco esa zona: pregunta al cliente a qué zona o corregimiento pertenece; solo si claramente no es de las zonas de entrega, ofrece recogida.")
     return _c(por_zona[_sin_tildes(zona)])
 
 

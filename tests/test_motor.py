@@ -361,12 +361,12 @@ class Pedidos(unittest.TestCase):
         self.assertEqual(self.crear(sv, zona="LOS SANTOS")["total_c"], 1650)
         with self.assertRaisesRegex(ValueError, "Falta la zona"):
             self.crear(sv, zona="")
-        with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+        with self.assertRaisesRegex(ValueError, "No reconozco esa zona"):
             self.crear(sv, zona="Panamá")
         self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1350)  # recogida no pide zona
         sv.cfg["pedidos"] = {"envio": {"costo": 2.5, "zonas": ["Obarrio"]}}
         self.assertEqual(self.crear(sv, "B", zona="obarrio")["total_c"], 1600)  # otro cliente: tope de 3 sin confirmar por cliente
-        with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+        with self.assertRaisesRegex(ValueError, "No reconozco esa zona"):
             self.crear(sv, zona="Costa del Este")
 
     def test_menu_invalido_falla(self):

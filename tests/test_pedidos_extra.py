@@ -212,7 +212,7 @@ class Dinero(Base):
         self.assertEqual(self.crear(sv, zona="el cangrejo")["total_c"], 1600)
         self.assertEqual(self.crear(sv, modalidad="recogida", zona="Marte")["total_c"], 1350)  # recogida ignora zona
         self.assertEqual(sv.listar("pedido")[-1]["envio_c"], 0)
-        with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+        with self.assertRaisesRegex(ValueError, "No reconozco esa zona"):
             self.crear(sv, zona="Costa del Este")
         sv = self.sv(cfg={"envio": {"costo": 0}})  # envío gratis
         self.assertEqual(self.crear(sv)["total_c"], 1350)

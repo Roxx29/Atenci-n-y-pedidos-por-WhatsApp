@@ -37,3 +37,6 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Canal web: verificar el teléfono (WhatsApp/SMS) para que nadie entre con un número ajeno; HTTPS obligatorio en producción (devops) (agentedeprogramacion)
 - [ ] 2026-11-02 — Canal web: verificar el teléfono (WhatsApp/SMS); en v1 quien escribe un teléfono ajeno entra con ese cid y ve/usa sus datos (agentedeprogramacion)
 - [ ] 2026-11-02 — Canal web: retención/borrado/ARCO de consentimientos y datos, y redactar aviso.md con legal-datos (legal-datos)
+
+- [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.
+- [devops] cloudflared: para enseñar la demo fuera de la red local y para el webhook de WhatsApp (pendiente).

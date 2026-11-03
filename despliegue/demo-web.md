@@ -9,7 +9,10 @@
 | Panel | `python -m motor panel servicios/restaurante-pedidos` |
 | Tunel publico | solo si existe `F:\herramientas\cloudflared\cloudflared.exe` |
 
-Variables que pone: `ANTHROPIC_BASE_URL=http://127.0.0.1:11435`, `LLM_MODEL=qwen3:8b`, `ANTHROPIC_API_KEY=ollama` (si no había otra).
+Modelo: si `.env` (raíz del repo, ignorado por git) tiene `DEEPSEEK_API_KEY=`, el script usa DeepSeek (`ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`, `LLM_MODEL=deepseek-v4-flash`) y deja Ollama como respaldo (`LLM_RESPALDO_BASE_URL=http://127.0.0.1:11435`, `LLM_RESPALDO_MODEL=qwen3:8b`).
+La clave la lee el motor del `.env`; el script no la toca ni la muestra.
+Si DeepSeek falla por saldo (402), clave (401/403), límite (429), caída (5xx) o red, el motor pasa a Ollama, avisa una vez en el panel y reintenta DeepSeek a los 5 min.
+Sin clave en `.env`: solo Ollama (`ANTHROPIC_BASE_URL=http://127.0.0.1:11435`, `LLM_MODEL=qwen3:8b`, `ANTHROPIC_API_KEY=ollama` si no había otra).
 Cerrar: cerrar las ventanas.
 
 ## Red local

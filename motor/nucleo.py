@@ -16,6 +16,15 @@ from . import herramientas
 
 VENTANA_S = 24 * 3600  # conversación nueva tras 24 h sin mensajes (= ventana de servicio de WhatsApp)
 MAX_VUELTAS = 10
+CAIDA_S = 300  # tras fallar el principal, se usa el respaldo este tiempo antes de reintentar
+
+
+def _de_proveedor(e):
+    """Fallo del proveedor (saldo, clave, límite, caída, red), no error nuestro (400/404/422). Sin importar anthropic."""
+    c = getattr(e, "status_code", None)
+    if isinstance(c, int):
+        return c in (401, 402, 403, 429) or c >= 500
+    return isinstance(e, (ConnectionError, TimeoutError)) or type(e).__name__ in ("APIConnectionError", "APITimeoutError")
 PREFIJO = re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · cliente [^\]]*\]\s*")  # eco del prefijo que el código antepone al mensaje
 
 PROMPT = """Eres el asistente de {negocio}. Atiendes a sus clientes por WhatsApp en nombre del negocio.
@@ -43,7 +52,7 @@ Información del negocio:
 
 
 class Servicio:
-    def __init__(self, carpeta, db=None, cliente=None):
+    def __init__(self, carpeta, db=None, cliente=None, cliente_respaldo=None):
         self.dir = Path(carpeta)
         self.cfg = yaml.safe_load((self.dir / "servicio.yaml").read_text(encoding="utf-8"))
         self.tz = ZoneInfo(self.cfg.get("zona_horaria", "America/Panama"))
@@ -61,6 +70,10 @@ class Servicio:
         self.citas_lock = threading.Lock()
         self._locks = defaultdict(threading.Lock)  # un turno a la vez por cliente
         self._cliente = cliente
+        self._cliente_respaldo = cliente_respaldo or cliente  # en pruebas el mismo cliente falso sirve a ambos
+        self._principal_caido_hasta = 0.0
+        self._avisado = False
+        self._reloj = time.monotonic
         self.menu = herramientas.cargar_menu(self.dir, self.cfg["menu"]) if self.cfg.get("menu") else {}
         kb = self.dir / self.cfg.get("conocimiento", "conocimiento.md")
         self.system = PROMPT.format(
@@ -115,8 +128,18 @@ class Servicio:
     def cliente(self):
         if self._cliente is None:
             import anthropic
-            self._cliente = anthropic.Anthropic()
+            base, clave = os.environ.get("ANTHROPIC_BASE_URL", ""), os.environ.get("ANTHROPIC_API_KEY")
+            if "deepseek" in base and not clave and os.environ.get("DEEPSEEK_API_KEY"):
+                clave = os.environ["DEEPSEEK_API_KEY"]
+            self._cliente = anthropic.Anthropic(api_key=clave) if clave else anthropic.Anthropic()
         return self._cliente
+
+    @property
+    def cliente_respaldo(self):
+        if self._cliente_respaldo is None:
+            import anthropic
+            self._cliente_respaldo = anthropic.Anthropic(base_url=os.environ["LLM_RESPALDO_BASE_URL"], api_key=os.environ.get("LLM_RESPALDO_API_KEY", "ollama"))
+        return self._cliente_respaldo
 
     def _historial(self, cid):
         fila = self._q("SELECT mensajes, actualizado FROM conversaciones WHERE id=?", (cid,))
@@ -132,14 +155,34 @@ class Servicio:
             return respuesta
 
     def _llamar_modelo(self, msgs):
-        """Única llamada al proveedor del modelo: punto de cambio si se usa otro."""
-        modelo = os.environ.get("LLM_MODEL") or self.cfg.get("modelo", "claude-opus-5-5")
+        """Llamada al proveedor del modelo. Devuelve (respuesta, compatible): compatible=True si respondió un servidor
+        no-Anthropic (principal compatible o respaldo); entonces los bloques thinking no se reenvían."""
         base = os.environ.get("ANTHROPIC_BASE_URL", "")
-        if base and "anthropic.com" not in base:  # servidor compatible (p. ej. Ollama): solo lo básico, sin betas ni tool_choice
+        modelo = os.environ.get("LLM_MODEL") or self.cfg.get("modelo", "claude-opus-5-5")
+        respaldo = os.environ.get("LLM_RESPALDO_BASE_URL") and os.environ.get("LLM_RESPALDO_MODEL")
+        if not (respaldo and self._reloj() < self._principal_caido_hasta):
+            try:
+                r = self._llamar(self.cliente, modelo, msgs, bool(base and "anthropic.com" not in base))
+                self._avisado = False  # el principal volvió: un próximo fallo vuelve a avisar
+                return r
+            except Exception as e:
+                if not (respaldo and _de_proveedor(e)):
+                    raise
+                self._principal_caido_hasta = self._reloj() + CAIDA_S
+                if not self._avisado:
+                    self._avisado = True
+                    texto = "IA principal sin saldo o caída: usando respaldo local"
+                    self.insertar("aviso", {"texto": texto, "telefono": None, "pedido_id": None})
+                    print(f"{texto} ({getattr(e, 'status_code', None) or type(e).__name__})")
+        return self._llamar(self.cliente_respaldo, os.environ["LLM_RESPALDO_MODEL"], msgs, True)
+
+    def _llamar(self, cliente, modelo, msgs, compatible):
+        if compatible:  # servidor compatible (DeepSeek, Ollama): solo lo básico, sin betas ni tool_choice
             # thinking desactivado: con qwen3 el razonamiento hace cada vuelta ~40 s (sin él, ~1 s)
-            return self.cliente.messages.create(model=modelo, max_tokens=16000, system=self.system, tools=self.tools, messages=msgs,
-                                                thinking={"type": "disabled"})
-        return self.cliente.beta.messages.create(
+            r = cliente.messages.create(model=modelo, max_tokens=16000, system=self.system, tools=self.tools, messages=msgs,
+                                        thinking={"type": "disabled"})
+            return r, True
+        r = cliente.beta.messages.create(
             model=modelo,
             max_tokens=16000,
             system=self.system,
@@ -150,12 +193,12 @@ class Servicio:
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
         )
+        return r, False
 
     def _bucle(self, msgs, cid, texto_cliente=""):
         turno = {"texto": texto_cliente, "creados": set()}  # contexto de ESTE mensaje del cliente (sin estado compartido)
-        compatible = "anthropic.com" not in os.environ.get("ANTHROPIC_BASE_URL", "anthropic.com")
         for _ in range(MAX_VUELTAS):
-            r = self._llamar_modelo(msgs)
+            r, compatible = self._llamar_modelo(msgs)
             # servidores compatibles (qwen3 en Ollama): el razonamiento no se reenvía en el historial
             msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in r.content if not (compatible and b.type in ("thinking", "redacted_thinking"))]})
             if r.stop_reason == "pause_turn":

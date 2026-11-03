@@ -8,9 +8,18 @@ if "%PUERTO%"=="" set "PUERTO=8080"
 set "SERVICIO=servicios\restaurante-pedidos"
 set "CLOUDFLARED=F:\herramientas\cloudflared\cloudflared.exe"
 
-set "ANTHROPIC_BASE_URL=http://127.0.0.1:11435"
-if "%ANTHROPIC_API_KEY%"=="" set "ANTHROPIC_API_KEY=ollama"
-set "LLM_MODEL=qwen3:8b"
+rem Con DEEPSEEK_API_KEY en .env: DeepSeek principal (el motor lee la clave del .env) y Ollama de respaldo. Sin clave: solo Ollama.
+findstr /b /c:"DEEPSEEK_API_KEY=" .env >nul 2>nul
+if not errorlevel 1 (
+  set "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic"
+  set "LLM_MODEL=deepseek-v4-flash"
+  set "LLM_RESPALDO_BASE_URL=http://127.0.0.1:11435"
+  set "LLM_RESPALDO_MODEL=qwen3:8b"
+) else (
+  set "ANTHROPIC_BASE_URL=http://127.0.0.1:11435"
+  if "%ANTHROPIC_API_KEY%"=="" set "ANTHROPIC_API_KEY=ollama"
+  set "LLM_MODEL=qwen3:8b"
+)
 
 rem Si el Ollama de demo ya responde, no abre otro.
 curl -s -o nul http://127.0.0.1:11435/api/version || start "Ollama demo" /min cmd /c demo-ollama.cmd

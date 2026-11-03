@@ -65,6 +65,9 @@ python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 
 - `LLM_MODEL` (variable de entorno) manda sobre `modelo` de `servicio.yaml`. Producción: `claude-haiku-5-5`, sin tocar código.
 - `ANTHROPIC_BASE_URL` la lee el SDK. Si apunta a un servidor que no es anthropic.com (demo con Ollama: `http://localhost:11434`), el motor llama a `messages.create` solo con model, max_tokens, system, tools y messages (sin betas, fallbacks, caché ni `tool_choice`).
+- `.env` en la raíz del repo: `python -m motor ...` lo carga al iniciar (`motor/entorno.py`; no pisa variables ya definidas, no se imprime). Si `ANTHROPIC_BASE_URL` contiene `deepseek` y no hay `ANTHROPIC_API_KEY`, se usa `DEEPSEEK_API_KEY`.
+- DeepSeek: `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic`, `LLM_MODEL=deepseek-v4-flash`.
+- Respaldo: `LLM_RESPALDO_BASE_URL` + `LLM_RESPALDO_MODEL` (+ `LLM_RESPALDO_API_KEY`, por defecto `ollama`). Si el principal falla por 401/402/403/429, 5xx o red/timeout, se repite la petición en el respaldo (modo compatible, sin thinking), se registra un `aviso` una vez y no se reintenta el principal durante 300 s. 400/404/422 no activan el respaldo. Sin respaldo configurado, el error se propaga.
 - Ollama: ponga `OLLAMA_MODELS` en F:/ o E: (C: está lleno) antes de descargar modelos.
 
 ## Comprobante de Yappy

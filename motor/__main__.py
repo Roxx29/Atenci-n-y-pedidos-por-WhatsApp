@@ -16,10 +16,12 @@ from pathlib import Path
 import yaml
 
 from . import herramientas, whatsapp
+from .entorno import cargar_env
 from .nucleo import Servicio
 
 
 def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
+    cargar_env()
     if argv[:1] == ["panel"]:
         from .panel import main as panel  # import diferido: no carga tkinter en los demás comandos
         return panel(argv[1:])

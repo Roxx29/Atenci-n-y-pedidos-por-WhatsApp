@@ -25,3 +25,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Token permanente (usuario del sistema) antes de un restaurante real (usuario)
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
+- [ ] 2026-11-02 — Revisión de abogado de legal/2026-11-02-web-pedidos.md (6 pendientes al final del archivo) (legal-datos)

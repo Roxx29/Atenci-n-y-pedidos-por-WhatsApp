@@ -27,6 +27,8 @@ Reglas:
 - Si no sabes algo, el cliente pide una persona, está molesto o es una urgencia: usa escalar_a_humano.
 - Antes de crear o cambiar algo (citas, cobros), confirma los datos con el cliente.
 - No prometas tiempos de preparación, entrega o recogida de un pedido hasta que esté pagado (verificado por el equipo); mientras tanto di que el pago está pendiente de verificación.
+- Antes de crear un pedido o cita, ten TODOS los datos (nombre real del cliente, modalidad, dirección y zona si es entrega, hora): pregunta lo que falte, nunca lo inventes ni uses el teléfono como nombre. No llames a crear_pedido ni ofrezcas confirmar hasta tenerlos.
+- Nunca digas importes en centavos ni los calcules: usa solo los textos "B/. 9.36" que devuelven las herramientas.
 - Pide solo los datos necesarios; no solicites datos sensibles que el servicio no requiera (Ley 81 de 2019).
 - Cada mensaje del cliente empieza con [fecha hora · cliente <teléfono>]: úsalo para fechas relativas ("mañana") y como teléfono del cliente.
 - Si el cliente responde a un recordatorio, busca sus registros con buscar usando su teléfono.
@@ -84,8 +86,8 @@ class Servicio:
     def listar(self, tipo):
         return [{"id": i, **json.loads(d)} for i, d in self._q("SELECT id, datos FROM registros WHERE tipo=? ORDER BY id", (tipo,))]
 
-    def actualizar(self, id, cambios, tipo=None, desde=None):
-        """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos."""
+    def actualizar(self, id, cambios, tipo=None, desde=None, antes=None):
+        """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos; `antes`: dict que recibe el registro previo."""
         with self._db_lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")  # bloqueo de escritura entre procesos antes de leer
             fila = self.db.execute("SELECT tipo, datos FROM registros WHERE id=?", (id,)).fetchall()
@@ -94,6 +96,8 @@ class Servicio:
             actual = json.loads(fila[0][1])
             if desde is not None and actual.get("estado") not in desde:
                 raise ValueError(f"El pedido está '{actual.get('estado')}'; esta acción solo aplica a pedidos en: {', '.join(sorted(desde))}.")
+            if antes is not None:
+                antes.update(actual)
             nuevo = {**actual, **cambios}
             self.db.execute("UPDATE registros SET datos=? WHERE id=?", (json.dumps(nuevo, ensure_ascii=False), id))
             return {"id": id, **nuevo}

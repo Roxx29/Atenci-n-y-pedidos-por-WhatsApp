@@ -12,13 +12,16 @@ import traceback
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
-from .herramientas import dinero
+from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
 
 PAGINA = Path(__file__).with_name("web_index.html")
 MAX_CUERPO = 8192
+MAX_IMAGEN = 5 * 1024 * 1024
+TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
-CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
 
 
@@ -99,6 +102,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
         return [p for p in sv.listar("pedido") if p["telefono"] == cid]
 
     class H(BaseHTTPRequestHandler):
+        timeout = TIMEOUT_S
+
         def log_message(self, *a):
             pass
 
@@ -132,7 +137,13 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not 0 < largo <= MAX_CUERPO:  # antes de leer
                 return self._err(413, "Cuerpo demasiado grande")
             try:
-                d = json.loads(self.rfile.read(largo))
+                crudo = self.rfile.read(largo)
+            except OSError:
+                return self._err(400, "Cuerpo incompleto")
+            if len(crudo) != largo:
+                return self._err(400, "Cuerpo incompleto")
+            try:
+                d = json.loads(crudo)
             except ValueError:
                 return self._err(400, "JSON inválido")
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
@@ -175,6 +186,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._entrar()
             if ruta == "/chat":
                 return self._chat()
+            if ruta == "/comprobante":
+                return self._comprobante()
             self._err(404, "No encontrado")
 
         def _entrar(self):
@@ -196,6 +209,52 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             nombres[tel] = nombre
             cookie = f"sesion={firmar(secreto, tel, int(time.time()) + VIDA_S)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={VIDA_S}"
             self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", cookie)])
+
+        def _comprobante(self):
+            cid = self._cid()
+            if not cid:
+                return self._err(401, "Sesión inválida")
+            if limite.excede(("cid", cid), 30):
+                return self._err(429, "Demasiadas peticiones")
+            tipo = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if tipo not in ("image/jpeg", "image/png"):
+                return self._err(415, "Solo se aceptan imágenes JPEG o PNG")
+            try:
+                largo = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._err(400, "Cuerpo inválido")
+            if largo > MAX_IMAGEN:  # antes de leer
+                return self._err(413, "La imagen supera 5 MB")
+            if largo <= 0:
+                return self._err(400, "Imagen no válida")
+            q = parse_qs(urlsplit(self.path).query)
+            ref = (q.get("referencia") or [""])[0].strip()
+            if len(ref) > 40:
+                return self._err(400, "Referencia demasiado larga")
+            pid = (q.get("pedido") or [""])[0]
+            p = next((p for p in pedidos_de(cid) if str(p["id"]) == pid), None)
+            if not p:
+                return self._err(404, "No existe ese pedido")
+            if p["estado"] not in ("confirmado", "pago_reportado"):
+                return self._err(409, "El pedido no está esperando pago")
+            try:
+                datos = self.rfile.read(largo)
+            except OSError:  # timeout o corte
+                return self._err(400, "Cuerpo incompleto")
+            if len(datos) != largo:
+                return self._err(400, "Cuerpo incompleto")
+            ext = tipo_imagen(datos)
+            if ext != {"image/jpeg": "jpg", "image/png": "png"}[tipo]:
+                return self._err(415, "El archivo no es una imagen del tipo indicado")
+            try:
+                limpia = limpiar_imagen(datos, ext)
+            except ValueError as e:
+                return self._err(400, str(e))
+            try:
+                nuevo = subir_comprobante(sv, p, ext, limpia, ref)
+            except ValueError:
+                return self._err(409, "El pedido no está esperando pago")
+            self._enviar(200, {"ok": True, "pedido": formato_pedido(nuevo)})
 
         def _chat(self):
             cid = self._cid()
@@ -234,7 +293,25 @@ def _ip_local():
         return "no detectada"
 
 
+def iniciar_purga(sv, cada=3600):
+    """Purga ya y luego cada `cada` s en un hilo daemon; devuelve el Event que lo detiene."""
+    parar = threading.Event()
+
+    def bucle():
+        while True:
+            try:
+                purgar_comprobantes(sv)
+            except Exception as e:  # base bloqueada: reintenta en el próximo ciclo
+                print(f"[purga] {e}")
+            if parar.wait(cada):
+                return
+
+    threading.Thread(target=bucle, daemon=True).start()
+    return parar
+
+
 def servir(sv, puerto=8080):
+    iniciar_purga(sv)
     srv = crear_servidor(sv, puerto)
     p = srv.server_address[1]
     print(f"Canal web de '{sv.cfg.get('nombre')}': http://localhost:{p}/  ·  http://{_ip_local()}:{p}/")

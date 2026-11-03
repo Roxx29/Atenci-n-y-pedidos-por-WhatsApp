@@ -28,6 +28,8 @@ WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
 | `escalar_a_humano` | Pasa la conversación al equipo |
 | `crear_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
 
+Pedidos: un solo `por_confirmar` por cliente (otra llamada a `crear_pedido` lo actualiza, misma id). Caduca a `caducado` tras `pedidos.caduca_min` min (30 por defecto) sin confirmar; el modelo nunca ve centavos (`*_c`).
+
 Con estas 8 herramientas se cubren la mayoría de los servicios del informe: citas, leads, cobranza, seguimiento, encuestas, reservas y recepción de reclamos.
 
 ## Comandos
@@ -64,6 +66,11 @@ python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 - `LLM_MODEL` (variable de entorno) manda sobre `modelo` de `servicio.yaml`. Producción: `claude-haiku-5-5`, sin tocar código.
 - `ANTHROPIC_BASE_URL` la lee el SDK. Si apunta a un servidor que no es anthropic.com (demo con Ollama: `http://localhost:11434`), el motor llama a `messages.create` solo con model, max_tokens, system, tools y messages (sin betas, fallbacks, caché ni `tool_choice`).
 - Ollama: ponga `OLLAMA_MODELS` en F:/ o E: (C: está lleno) antes de descargar modelos.
+
+## Comprobante de Yappy
+- `POST /comprobante?pedido=N&referencia=` (cookie; cuerpo = imagen JPEG/PNG cruda, máx. 5 MB). Pasa el pedido a `pago_reportado` y avisa al restaurante.
+- Se le quitan los metadatos (EXIF, texto, fecha), se guarda en `<servicio>/comprobantes/<nombre aleatorio>` (fuera de lo que sirve la web, ignorada por git) y solo la ve el personal desde el panel ("Ver comprobante"). Nunca llega al modelo, a los logs ni a los avisos.
+- Se borra al marcar el pedido (pagado o posterior), al cancelarlo o a los `comprobantes.max_dias` (7) días; `purgar_comprobantes` también borra huérfanos y corre al arrancar web/panel y cada hora en el panel. Del pedido quedan en texto método, referencia, monto y fecha.
 
 ## Límites conocidos
 

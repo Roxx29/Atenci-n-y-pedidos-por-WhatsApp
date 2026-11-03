@@ -22,9 +22,11 @@ Variante corta (móvil):
 >
 > **Responsable:** {Razón social}, RUC {RUC}, {dirección}, {ciudad}, Panamá.
 >
-> **Datos que pedimos:** nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
+> **Datos que pedimos:** nombre, teléfono, dirección y, si la compartes, ubicación de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
 >
 > **Comprobante de Yappy:** la captura puede mostrar tu nombre y datos de tu cuenta. Solo la ve el personal del restaurante para confirmar tu pago, no se envía al asistente de IA y se borra al confirmar o rechazar el pago (como máximo a los 7 días).
+>
+> **Ubicación:** si pides a domicilio, puedes compartir tu ubicación o un enlace de mapa (es opcional; también puedes escribir la dirección). Solo sirve para que el repartidor te encuentre, no se envía al asistente de IA y se borra al entregar o cancelar el pedido (como máximo a las 24 horas).
 >
 > **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin tu permiso aparte.
 >
@@ -34,7 +36,7 @@ Variante corta (móvil):
 >
 > **Tus derechos (ARCO y portabilidad):** puedes pedir ver, corregir, borrar u oponerte al uso de tus datos, o recibir una copia. Escríbenos a **{correo / WhatsApp}**. Responderemos en el plazo legal **[ABOGADO: confirmar plazo, el reglamento fija días hábiles]**. Si no quedas conforme, puedes acudir a la ANTAI.
 >
-> **Compartimos tus datos solo con:** el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor (nombre, teléfono y dirección para la entrega).
+> **Compartimos tus datos solo con:** el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor asignado a tu pedido (nombre, teléfono, dirección y ubicación, solo hasta la entrega). El repartidor puede abrir la ubicación en una app de mapas para llegar.
 >
 > Última actualización: {fecha}.
 
@@ -53,7 +55,7 @@ Variante corta (móvil):
   - Datos bancarios ni de tarjeta. La captura de Yappy solo se guarda con la regla de 2.7.
   - Cédula, correo, fecha de nacimiento: no se piden.
   - **Datos sensibles** (salud: alergias, religión, etc.): si el cliente escribe "soy alérgico a X", se usa para el pedido como nota del ítem, pero **no** se guarda como dato del perfil del cliente **[ABOGADO: alergias = dato de salud; valorar si basta con nota del pedido]**.
-  - IP, user-agent, ubicación GPS: no guardar salvo necesidad de seguridad (logs técnicos ≤ 30 días).
+  - IP y user-agent: no guardar salvo necesidad de seguridad (logs técnicos ≤ 30 días). Ubicación del cliente: solo con la regla de 2.9; nunca en logs ni en la auditoría.
   - Prompts del sistema, notas internas del bot o respuestas crudas de la IA con datos: no en logs de texto plano.
 - Logs de la app: enmascarar teléfono (`+507 6***-**12`) y no volcar mensajes completos.
 
@@ -115,6 +117,29 @@ Variante corta (móvil):
 - Tabla `auditoria(usuario, accion, pedido_id, at)` con: login, login fallido, salir, marcar pagado/rechazado/cancelado, ver comprobante, exportar, borrar (ARCO), cambiar PIN. **Sin** datos personales: solo `pedido_id`.
 - Conservación de la auditoría: **12 meses** y luego se borra **[ABOGADO: confirmar plazo]**. Solo la ve el `dueno`; no se puede editar desde el panel.
 
+### 2.9 Ubicación del cliente y app del repartidor (/repartidor)
+**Ubicación**
+- Es **opcional**: siempre se puede escribir la dirección. El permiso del navegador no basta como aviso. Junto al botón "Compartir ubicación" va una línea: *"Solo para que el repartidor te encuentre. Se borra al entregar el pedido."* con enlace al aviso. No hace falta otra casilla, porque pulsar el botón ya es el consentimiento **[ABOGADO: confirmar, pendiente 8]**.
+- Una sola lectura (`getCurrentPosition`), **nunca seguimiento** (`watchPosition`) ni ubicación en segundo plano.
+- Enlace de Google Maps: guardar el enlace tal cual, sin expandirlo ni consultar a Google desde el servidor.
+- Nunca va a la IA (el bot solo recibe "ubicación recibida"), ni a los logs, ni a la auditoría.
+- **Borrado:** coordenadas y enlace al pasar a `entregado`, `cancelado` o `caducado`; **como máximo 24 h** desde la creación del pedido, para que no queden si el pedido se queda colgado. La dirección en texto sigue los plazos de 2.3.
+
+**Qué ve el repartidor**
+- Solo los pedidos **asignados a ese repartidor** en `en_preparacion`, `listo` o `en_camino`. Al pasar a `entregado` o `cancelado`, o si se le reasigna a otro, desaparecen de su vista. No tiene historial, búsqueda ni exportación.
+- Ve el nombre, el **teléfono completo** (botón llamar/WhatsApp), la dirección, la ubicación (botón "Abrir en mapas"), los ítems y el monto a cobrar si paga en efectivo. **No** ve el chat, el comprobante ni otros pedidos del cliente.
+- La página lleva `Cache-Control: no-store` y no guarda nada en el móvil (sin localStorage ni modo offline con datos).
+
+**Acceso**
+- Un PIN por repartidor con las reglas de 2.8 (6 dígitos con hash; 5 fallos → bloqueo de 5 min). Sesión de 12 h como máximo o hasta el fin del turno, con botón Salir. Sin bloqueo por inactividad: se confía en el bloqueo de pantalla del móvil, que es obligatorio (se le dice al repartidor).
+- /repartidor sale a Internet (datos móviles), así que **HTTPS es obligatorio** fuera de la demo. Solo se expone /repartidor; /panel sigue solo en la LAN (devops).
+- Auditoría (2.8): login, login fallido, ver pedido, recogido (`en_camino`), entregado, y asignar/reasignar desde el panel.
+
+**Repartidor empleado o externo**
+- **Empleado** del restaurante: forma parte del responsable. Basta con una cláusula de confidencialidad en su contrato o el reglamento interno: usar los datos solo para entregar y no guardar contactos de clientes.
+- **Externo** (freelance o motorizado por cuenta propia): es **encargado** del restaurante. Antes de darle acceso firma un acuerdo corto con estas condiciones: solo entregar, no guardar ni reutilizar datos, no contactar al cliente después y borrar todo al acabar **[ABOGADO: modelo de acuerdo, pendiente 7]**. Para el código es lo mismo; el panel marca `externo: sí/no` en el repartidor para recordar el acuerdo.
+- **Plataforma** (PedidosYa, etc.): queda fuera de esta app; los datos se rigen por su propio contrato.
+
 ### 2.6 Seguridad mínima
 - BD SQLite en la PC del restaurante con usuario de Windows con contraseña; panel sin acceso desde Internet o con login.
 - Web: HTTPS obligatorio.
@@ -129,3 +154,5 @@ Variante corta (móvil):
 4. Plazo de conservación de pedidos por obligaciones fiscales.
 5. Tratamiento de alergias (dato de salud).
 6. Si la web la usan menores de edad.
+7. Modelo de acuerdo de confidencialidad/encargado para repartidores externos (2.9).
+8. Si la geolocalización precisa necesita un consentimiento aparte de la casilla general.

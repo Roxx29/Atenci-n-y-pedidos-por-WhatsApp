@@ -155,6 +155,16 @@ progress{width:100%;height:6px;accent-color:var(--achiote)}
 .recibido p{margin:0}
 .enlace{background:none;border:0;padding:0;min-height:44px;color:var(--achiote);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .espera{display:block;font-size:.8125rem}
+.ubic-ok{display:flex;gap:6px;align-items:center;margin:0 14px 12px;color:var(--hoja);font-weight:700}
+dialog.hoja{margin:auto auto 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border:0;border-radius:20px 20px 0 0;padding:24px 16px max(20px,env(safe-area-inset-bottom));background:var(--superficie);color:var(--tinta)}
+dialog.hoja::backdrop{background:rgba(42,26,18,.5)}
+.hoja h2{font-size:1.5rem;margin:0 40px 6px 0}
+.hoja>*+*{margin-top:12px}
+.hoja .cerrar{position:absolute;top:12px;right:12px;color:var(--tinta)}
+.hoja details{font-size:1rem;color:var(--tinta)}
+.hoja details[open]{display:grid;gap:10px}
+.hoja summary{font-weight:600;color:var(--achiote);min-height:44px;display:flex;align-items:center}
+#ubic-aviso-texto{white-space:pre-wrap;max-height:40vh;overflow-y:auto;font-size:.875rem;color:var(--tinta-2);background:var(--papel);border-radius:var(--r);padding:12px}
 .comprobante .error{margin:0;min-height:0}
 #pago-datos[hidden]+.comprobante{border-top:0;margin-top:0;padding-top:0}
 .copiar{min-height:40px;padding:0 12px;border-radius:999px;border:1.5px solid var(--linea);background:none;font-weight:600;font-size:.875rem;flex:none}
@@ -176,6 +186,7 @@ progress{width:100%;height:6px;accent-color:var(--achiote)}
   <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
   <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
   <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
   <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
   <symbol id="i-flecha" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
@@ -265,6 +276,8 @@ progress{width:100%;height:6px;accent-color:var(--achiote)}
           <svg class="i"><use href="#i-flecha"/></svg>
         </button>
         <div class="det" id="resumen-det" hidden></div>
+        <button class="btn btn-sec cta" id="r-ubic" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Compartir mi ubicación</button>
+        <p class="ubic-ok" id="r-ubic-ok" hidden><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Ubicación recibida</p>
         <button class="btn cta" id="r-pagar" hidden><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Enviar comprobante de pago</button>
       </div>
       <form class="componer" id="componer">
@@ -312,11 +325,33 @@ progress{width:100%;height:6px;accent-color:var(--achiote)}
           </div>
         </div>
         <ol class="pasos" id="pasos"></ol>
+        <div class="tarjeta" id="tarjeta-ubic" hidden>
+          <h3>Entrega a domicilio</h3>
+          <p class="ayuda" id="ubic-estado"></p>
+          <button class="btn btn-sec btn-ancho" id="e-ubic"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg><span>Compartir mi ubicación</span></button>
+        </div>
         <div class="tarjeta"><h3>Detalle</h3><div id="estado-items"></div></div>
       </div>
     </section>
   </div>
 </div>
+
+<dialog class="hoja" id="dlg-ubic" aria-labelledby="ubic-titulo">
+  <button class="icono cerrar" id="ubic-cerrar" aria-label="Cerrar"><svg class="i" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+  <h2 id="ubic-titulo">¿Dónde te lo llevamos?</h2>
+  <p class="ayuda">Es opcional: también puedes escribir la dirección en el chat.</p>
+  <button class="btn btn-ancho" id="ubic-gps"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg><span>Compartir mi ubicación</span></button>
+  <details id="ubic-pegar">
+    <summary>Pegar un enlace de Google Maps</summary>
+    <p class="ayuda">En Google Maps, mantén presionado el lugar de entrega, toca Compartir y luego Copiar. Pégalo aquí.</p>
+    <label class="sr" for="ubic-enlace">Enlace de Google Maps</label>
+    <input type="text" id="ubic-enlace" inputmode="url" autocomplete="off" placeholder="maps.app.goo.gl/…">
+    <button class="btn btn-sec btn-ancho" id="ubic-enviar">Enviar enlace</button>
+  </details>
+  <p class="error" id="ubic-error" role="alert"></p>
+  <p class="ayuda">Solo para que el repartidor te encuentre. Se borra al entregar el pedido. <button class="enlace" id="ubic-ver-aviso" aria-expanded="false" aria-controls="ubic-aviso-texto">Ver aviso de privacidad</button></p>
+  <div id="ubic-aviso-texto" hidden></div>
+</dialog>
 
 <div class="aviso" id="aviso" role="status" aria-live="assertive">
   <svg class="i" aria-hidden="true"><use href="#i-campana"/></svg><p id="aviso-texto"></p>
@@ -336,10 +371,13 @@ const PASOS = [
 ];
 const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado", caducado:"Caducó, pide de nuevo"};
 PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
+ETIQUETA.en_camino = "En camino";
+const PASOS_ENTREGA = [...PASOS.slice(0, 4), ["listo", "Listo", "Sale enseguida con el repartidor."], ["en_camino", "En camino", "El repartidor va hacia ti."]];
 const AVISO = {
   pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
   en_preparacion:"Tu pedido está en preparación.",
   listo:"¡Tu pedido está listo!",
+  en_camino:"¡Tu pedido va en camino!",
   entregado:"Pedido entregado. ¡Buen provecho!",
   cancelado:"Tu pedido fue cancelado."
 };
@@ -494,16 +532,17 @@ function ponerPedido(p) {
   $("#resumen").hidden = false;
   $("#r-id").textContent = "#" + p.id;
   $("#r-estado").textContent = ETIQUETA[p.estado] || p.estado;
-  $("#r-estado").className = "chip" + (["pagado","en_preparacion","listo","entregado"].includes(p.estado) ? " ok" : "");
+  $("#r-estado").className = "chip" + (["pagado","en_preparacion","listo","en_camino","entregado"].includes(p.estado) ? " ok" : "");
   $("#r-total").textContent = dinero(p.total);
   tablaItems($("#resumen-det"), p);
 
   const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
   $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
   $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
-  const idx = PASOS.findIndex(([k]) => k === p.estado);
+  const pasos = p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
+  const idx = pasos.findIndex(([k]) => k === p.estado);
   const fin = p.estado === "entregado";
-  $("#pasos").innerHTML = PASOS.map(([k, t, d], i) => {
+  $("#pasos").innerHTML = pasos.map(([k, t, d], i) => {
     const cl = fin || i < idx ? "hecho" : i === idx ? "actual" : "pendiente";
     const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
     return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
@@ -516,6 +555,12 @@ function ponerPedido(p) {
   $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
   if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
   $("#r-pagar").hidden = p.estado !== "confirmado";
+  const pide = p.modalidad === "entrega" && !["entregado", "cancelado", "caducado"].includes(p.estado);
+  const ub = !!(p.ubicacion || p.tiene_ubicacion);
+  $("#r-ubic").hidden = !pide || ub; $("#r-ubic-ok").hidden = !pide || !ub;
+  $("#tarjeta-ubic").hidden = !pide;
+  $("#ubic-estado").textContent = ub ? "Ubicación recibida. El repartidor la usará para llegar." : "Comparte tu ubicación para que el repartidor llegue directo. Es opcional.";
+  $("#e-ubic span").textContent = ub ? "Cambiar ubicación" : "Compartir mi ubicación";
   tablaItems($("#estado-items"), p);
 
   if (antes && antes !== p.estado && AVISO[p.estado]) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
@@ -537,7 +582,7 @@ async function sondear() {
   try {
     const [ped, av] = await Promise.all([api("GET", "/pedidos"), api("GET", "/avisos")]);
     const p = ped.pedidos[0];
-    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total)) ponerPedido(p);
+    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total || !!p.ubicacion !== !!st.pedido.ubicacion)) ponerPedido(p);
     for (const m of av.mensajes) burbuja("bot", m);
   } catch (e) { if (e.message === "401") salir(); /* sin conexión: se reintenta en 5 s */ }
 }
@@ -546,6 +591,57 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-copiar]"); if (!b) return;
   navigator.clipboard?.writeText(b.dataset.copiar).then(() => { b.textContent = "Copiado"; setTimeout(() => b.textContent = "Copiar", 1500); });
 });
+
+/* ---------- Ubicación de entrega (opcional) ---------- */
+const dlgUbic = $("#dlg-ubic");
+function abrirUbic() {
+  $("#ubic-error").textContent = ""; $("#ubic-enlace").value = "";
+  const gps = !!navigator.geolocation && window.isSecureContext !== false;
+  $("#ubic-gps").hidden = !gps; $("#ubic-pegar").open = !gps;
+  if (!gps) $("#ubic-error").textContent = "Aquí el navegador no deja compartir la ubicación. Pega un enlace de Google Maps.";
+  dlgUbic.showModal(); (gps ? $("#ubic-gps") : $("#ubic-enlace")).focus();
+}
+$("#r-ubic").onclick = $("#e-ubic").onclick = abrirUbic;
+$("#ubic-cerrar").onclick = () => dlgUbic.close();
+dlgUbic.addEventListener("click", e => { if (e.target === dlgUbic) dlgUbic.close(); });
+$("#ubic-ver-aviso").onclick = () => {
+  const t = $("#ubic-aviso-texto"), ver = t.hidden;
+  t.textContent = $("#privacidad-texto").textContent.trim(); t.hidden = !ver; $("#ubic-ver-aviso").setAttribute("aria-expanded", ver);
+};
+function ocupado(b, on, texto) { b.disabled = on; b.setAttribute("aria-busy", on); b.querySelector("span") ? b.querySelector("span").textContent = texto : b.textContent = texto; }
+$("#ubic-gps").onclick = () => {
+  const b = $("#ubic-gps"); $("#ubic-error").textContent = "";
+  ocupado(b, true, "Buscando tu ubicación…");
+  navigator.geolocation.getCurrentPosition(
+    pos => enviarUbic({lat:+pos.coords.latitude.toFixed(6), lon:+pos.coords.longitude.toFixed(6)}, b, "Compartir mi ubicación"),
+    err => {
+      ocupado(b, false, "Compartir mi ubicación");
+      $("#ubic-error").textContent = err.code === 1 ? "No diste permiso para usar tu ubicación. Puedes pegar un enlace de Google Maps." : "No pudimos encontrar tu ubicación. Prueba otra vez o pega un enlace de Google Maps.";
+      $("#ubic-pegar").open = true;
+    }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+};
+$("#ubic-enviar").onclick = () => {
+  const v = $("#ubic-enlace").value.trim();
+  if (!/goo\.gl|google\.|maps\.|^-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+$/i.test(v)) { $("#ubic-error").textContent = "Pega el enlace que copiaste de Google Maps."; return $("#ubic-enlace").focus(); }
+  enviarUbic({enlace:v}, $("#ubic-enviar"), "Enviar enlace");
+};
+async function enviarUbic(cuerpo, b, texto) {
+  ocupado(b, true, "Enviando…"); $("#ubic-error").textContent = "";
+  let err = "";
+  try {
+    if (st.demo) await new Promise(ok => setTimeout(ok, 700));
+    else {
+      const r = await fetch("/ubicacion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cuerpo)});
+      if (r.status === 401) { ocupado(b, false, texto); dlgUbic.close(); return salir(); }
+      if (!r.ok) err = (await r.json().catch(() => ({}))).error || "No pudimos guardar tu ubicación. Inténtalo otra vez.";
+    }
+  } catch (e) { err = "Sin conexión. Revisa tu internet e inténtalo otra vez."; }
+  ocupado(b, false, texto);
+  if (err) { $("#ubic-error").textContent = err; return; }
+  dlgUbic.close();
+  burbuja("sistema", "Ubicación recibida. El repartidor la usará para llegar.");
+  if (st.pedido) ponerPedido({...st.pedido, ubicacion:true});
+}
 
 /* ---------- Comprobante de pago ---------- */
 const archivo = $("#cp-archivo");
@@ -593,7 +689,7 @@ $("#cp-enviar").onclick = async () => {
 };
 
 /* ---------- Modo demostración (sin servidor) ---------- */
-function demoAvance() { [["pagado", 8000], ["en_preparacion", 14000], ["listo", 22000]].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms)); }
+function demoAvance() { [["pagado", 8000], ["en_preparacion", 14000], ["listo", 22000], ...(st.pedido.modalidad === "entrega" ? [["en_camino", 30000]] : [])].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms)); }
 // ponytail: bot de guion para el prototipo; con servidor, la API real responde y esto no se usa.
 const CLAVES = {"tasajo":"tasajo-con-arroz","sancocho":"sancocho","guand":"arroz-con-guandu","tortilla":"tortilla-con-queso","bollo":"bollo","empanada":"empanadas","chicheme":"chicheme","chicha":"chicha-de-saril","soda":"soda","tres leches":"tres-leches"};
 const NUM = {un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5};

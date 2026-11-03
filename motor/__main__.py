@@ -5,7 +5,7 @@
   python -m motor servir <carpeta> [puerto] webhook de WhatsApp + envío de recordatorios
   python -m motor web <carpeta> [puerto]   canal web de pedidos con chat (por defecto 8080)
   python -m motor pedidos <carpeta>        lista los pedidos
-  python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado
+  python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado|pago_rechazado
   python -m motor panel [carpeta]          panel gráfico del restaurante (tkinter)
   python -m motor recordatorios <carpeta>  envía una vez los mensajes programados vencidos
 """
@@ -51,7 +51,7 @@ def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
         sv = Servicio(carpeta)
         if argv[2:3] == ["marcar"]:
             if len(argv) != 5:
-                raise SystemExit("Uso: python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado")
+                raise SystemExit("Uso: python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|entregado|pago_rechazado")
             try:
                 herramientas.marcar_pedido(sv, int(argv[3]), argv[4])
             except ValueError as e:

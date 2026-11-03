@@ -12,7 +12,7 @@ from motor.nucleo import Servicio
 
 TERMINADOS = {"entregado", "cancelado", "caducado"}
 SONDEO_MS = 3000
-ACCIONES = [("Pagado", "pagado"), ("En preparación", "en_preparacion"), ("Listo", "listo"), ("Entregado", "entregado")]
+ACCIONES = [("Pagado", "pagado"), ("En preparación", "en_preparacion"), ("Listo", "listo"), ("Entregado", "entregado"), ("Pago no válido", "pago_rechazado")]
 
 
 def activos(sv):

@@ -2,12 +2,16 @@
 import datetime as dt
 import http.client
 import os
+import socket
+import threading
+import socket
+import threading
 import struct
 import time
 import unittest
 import zlib
 
-from motor import herramientas, panel
+from motor import herramientas, panel, web
 from tests.test_web import PEDIDO, TEL, Base
 
 EXIF = b"Exif\x00\x00GPS-SECRETO"
@@ -147,6 +151,88 @@ class Comprobante(Base):
         for malo in ("../servicio.yaml", "..\\servicio.yaml", "x.jpg", "a" * 32 + ".exe", "a" * 32 + ".jpg", "/etc/passwd", "", None):
             self.assertIsNone(panel.ruta_comprobante(self.sv, {"comprobante": malo}))
         self.assertIsNone(panel.ruta_comprobante(self.sv, {}))
+
+
+class Extra(Base):
+    def setUp(self):
+        orig = web.TIMEOUT_S
+        web.TIMEOUT_S = 1  # el handler lo lee al crear el servidor
+        self.addCleanup(setattr, web, "TIMEOUT_S", orig)
+        Comprobante.setUp(self)
+
+    subir = Comprobante.subir
+    archivos = Comprobante.archivos
+    pedido = Comprobante.pedido
+
+    def test_purga_periodica(self):
+        self.subir(jpeg())
+        self.sv.actualizar(self.pid, {"comprobante_at": (self.sv.ahora() - dt.timedelta(days=8)).isoformat()})
+        parar = web.iniciar_purga(self.sv, cada=0.05)
+        self.addCleanup(parar.set)
+        for _ in range(100):
+            if self.pedido()["comprobante"] == "":
+                break
+            time.sleep(0.05)
+        self.assertEqual((self.pedido()["comprobante"], self.archivos()), ("", []))
+
+    def test_pago_rechazado(self):
+        self.subir(jpeg())
+        herramientas.marcar_pedido(self.sv, self.pid, "pago_rechazado")
+        p = self.pedido()
+        self.assertEqual((p["estado"], p["comprobante"], self.archivos()), ("confirmado", "", []))
+        self.assertIn("pago_rechazado_at", p)
+        self.assertIn("comprobante_borrado_at", p)
+        m = self.sv.pendientes()[-1]["texto"]
+        self.assertEqual(m, f"No pudimos verificar su pago del pedido #{self.pid}. Revise los datos y envíe de nuevo su comprobante o la referencia.")
+        with self.assertRaises(ValueError):  # ya está confirmado: no es rechazable
+            herramientas.marcar_pedido(self.sv, self.pid, "pago_rechazado")
+        self.assertEqual(self.subir(png(), tipo="image/png")[0], 200)  # puede reenviar
+        self.assertNotIn("pago_rechazado", herramientas.CATALOGO)
+        with self.assertRaises(ValueError):
+            herramientas.ejecutar(self.sv, "pago_rechazado", {"pedido_id": self.pid}, TEL)
+
+    def test_modelo_no_ve_fechas(self):
+        self.subir(jpeg())
+        herramientas.marcar_pedido(self.sv, self.pid, "pago_rechazado")
+        self.subir(jpeg())
+        herramientas.marcar_pedido(self.sv, self.pid, "pagado")
+        r, = herramientas.buscar(self.sv, "pedido", "", TEL)
+        for k in ("comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at"):
+            self.assertNotIn(k, r)
+
+    def test_timeout_cuerpo_incompleto(self):
+        cab = f"POST /comprobante?pedido={self.pid} HTTP/1.1\r\nHost: x\r\nContent-Type: image/jpeg\r\nCookie: {self.ck}\r\nContent-Length: 5000\r\n\r\n"
+        with socket.create_connection(("127.0.0.1", self.puerto), timeout=10) as s:
+            s.sendall(cab.encode() + b"0123456789")
+            t0, resp = time.time(), b""
+            try:
+                while c := s.recv(4096):
+                    resp += c
+            except OSError:
+                pass
+        self.assertLess(time.time() - t0, 8)
+        self.assertTrue(resp == b"" or b" 400 " in resp.split(b"\r\n")[0], resp[:40])
+        self.assertEqual(self.archivos(), [])
+
+    def test_jpeg_limpieza(self):
+        seg = lambda m, d: b"\xff" + bytes([m]) + struct.pack(">H", len(d) + 2) + d
+        base = (b"\xff\xd8" + seg(0xE0, b"JFIF\x00") + seg(0xE2, b"ICC_PROFILE\x00") + seg(0xEE, b"Adobe") + seg(0xE1, EXIF) + seg(0xED, b"IPTC")
+                + seg(0xEB, b"XXX") + seg(0xEF, b"YYY") + seg(0xFE, b"COMM") + b"\xff\x01" + b"\xff\xd0" + seg(0xDB, b"\x00" * 65)
+                + seg(0xDA, b"\x01\x01\x00\x00\x3f\x00") + b"\x12\x34\xff\xd9")
+        out = herramientas.limpiar_imagen(base + b"BASURA-POSTERIOR", "jpg")
+        for q in (b"Exif", b"IPTC", b"XXX", b"YYY", b"COMM", b"BASURA"):
+            self.assertNotIn(q, out)
+        for q in (b"JFIF", b"ICC_PROFILE", b"Adobe", b"\xff\x01\xff\xd0"):  # RST/TEM sin longitud intactos
+            self.assertIn(q, out)
+        self.assertTrue(out.endswith(b"\xff\xd9"))
+
+    def test_subidas_concurrentes_sin_huerfanos(self):
+        self.subir(jpeg())
+        viejo = self.pedido()  # `p` obsoleto para todos los hilos
+        hilos = [threading.Thread(target=herramientas.subir_comprobante, args=(self.sv, viejo, "jpg", jpeg())) for _ in range(5)]
+        [h.start() for h in hilos]
+        [h.join() for h in hilos]
+        self.assertEqual([f.name for f in self.archivos()], [self.pedido()["comprobante"]])
 
 
 def json_txt(x):

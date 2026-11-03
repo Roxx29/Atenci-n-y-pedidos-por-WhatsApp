@@ -86,8 +86,8 @@ class Servicio:
     def listar(self, tipo):
         return [{"id": i, **json.loads(d)} for i, d in self._q("SELECT id, datos FROM registros WHERE tipo=? ORDER BY id", (tipo,))]
 
-    def actualizar(self, id, cambios, tipo=None, desde=None):
-        """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos."""
+    def actualizar(self, id, cambios, tipo=None, desde=None, antes=None):
+        """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos; `antes`: dict que recibe el registro previo."""
         with self._db_lock, self.db:
             self.db.execute("BEGIN IMMEDIATE")  # bloqueo de escritura entre procesos antes de leer
             fila = self.db.execute("SELECT tipo, datos FROM registros WHERE id=?", (id,)).fetchall()
@@ -96,6 +96,8 @@ class Servicio:
             actual = json.loads(fila[0][1])
             if desde is not None and actual.get("estado") not in desde:
                 raise ValueError(f"El pedido está '{actual.get('estado')}'; esta acción solo aplica a pedidos en: {', '.join(sorted(desde))}.")
+            if antes is not None:
+                antes.update(actual)
             nuevo = {**actual, **cambios}
             self.db.execute("UPDATE registros SET datos=? WHERE id=?", (json.dumps(nuevo, ensure_ascii=False), id))
             return {"id": id, **nuevo}

@@ -19,6 +19,7 @@ from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_com
 PAGINA = Path(__file__).with_name("web_index.html")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
+TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
 CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
@@ -101,6 +102,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
         return [p for p in sv.listar("pedido") if p["telefono"] == cid]
 
     class H(BaseHTTPRequestHandler):
+        timeout = TIMEOUT_S
+
         def log_message(self, *a):
             pass
 
@@ -134,7 +137,13 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not 0 < largo <= MAX_CUERPO:  # antes de leer
                 return self._err(413, "Cuerpo demasiado grande")
             try:
-                d = json.loads(self.rfile.read(largo))
+                crudo = self.rfile.read(largo)
+            except OSError:
+                return self._err(400, "Cuerpo incompleto")
+            if len(crudo) != largo:
+                return self._err(400, "Cuerpo incompleto")
+            try:
+                d = json.loads(crudo)
             except ValueError:
                 return self._err(400, "JSON inválido")
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
@@ -228,7 +237,12 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(404, "No existe ese pedido")
             if p["estado"] not in ("confirmado", "pago_reportado"):
                 return self._err(409, "El pedido no está esperando pago")
-            datos = self.rfile.read(largo)
+            try:
+                datos = self.rfile.read(largo)
+            except OSError:  # timeout o corte
+                return self._err(400, "Cuerpo incompleto")
+            if len(datos) != largo:
+                return self._err(400, "Cuerpo incompleto")
             ext = tipo_imagen(datos)
             if ext != {"image/jpeg": "jpg", "image/png": "png"}[tipo]:
                 return self._err(415, "El archivo no es una imagen del tipo indicado")
@@ -279,8 +293,25 @@ def _ip_local():
         return "no detectada"
 
 
+def iniciar_purga(sv, cada=3600):
+    """Purga ya y luego cada `cada` s en un hilo daemon; devuelve el Event que lo detiene."""
+    parar = threading.Event()
+
+    def bucle():
+        while True:
+            try:
+                purgar_comprobantes(sv)
+            except Exception as e:  # base bloqueada: reintenta en el próximo ciclo
+                print(f"[purga] {e}")
+            if parar.wait(cada):
+                return
+
+    threading.Thread(target=bucle, daemon=True).start()
+    return parar
+
+
 def servir(sv, puerto=8080):
-    purgar_comprobantes(sv)
+    iniciar_purga(sv)
     srv = crear_servidor(sv, puerto)
     p = srv.server_address[1]
     print(f"Canal web de '{sv.cfg.get('nombre')}': http://localhost:{p}/  ·  http://{_ip_local()}:{p}/")

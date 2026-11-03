@@ -101,7 +101,7 @@ def actualizar_registro(sv, id, cambios):
 
 def _pedido_para_modelo(p):
     """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c."""
-    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante")}
+    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at")}
     out.update(total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
                lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
     return out
@@ -162,9 +162,9 @@ def texto_menu(menu):
     return "\n".join(f"- {i['id']} | {i['nombre']} | {dinero(i['precio_c'])} | {i.get('categoria', '')}" + ("" if i.get("disponible", True) else " | AGOTADO") for i in menu.values())
 
 
-def _transicion(sv, pedido_id, desde, hacia, extra=None):
+def _transicion(sv, pedido_id, desde, hacia, extra=None, antes=None):
     """Cambio de estado atómico (también entre procesos): ver Servicio.actualizar."""
-    return sv.actualizar(pedido_id, {"estado": hacia, **(extra or {})}, tipo="pedido", desde=desde)
+    return sv.actualizar(pedido_id, {"estado": hacia, **(extra or {})}, tipo="pedido", desde=desde, antes=antes)
 
 
 def _hora_pedido(sv, hora_deseada):
@@ -332,7 +332,7 @@ def tipo_imagen(datos):
 
 
 def limpiar_imagen(datos, ext):
-    """Quita metadatos (EXIF/texto/fecha) sin recortar ni recomprimir. ValueError('Imagen no válida') si la estructura está corrupta."""
+    """Quita metadatos (EXIF/XMP/IPTC/texto/fecha) sin recortar ni recomprimir; en JPEG limpia la cabecera, no los segmentos entre escaneos. ValueError('Imagen no válida') si la estructura está corrupta."""
     malo = ValueError("Imagen no válida")
     out, i, n = bytearray(), 8 if ext == "png" else 2, len(datos)
     if ext == "png":
@@ -349,19 +349,28 @@ def limpiar_imagen(datos, ext):
                 return bytes(out)  # lo que haya después de IEND se descarta
         raise malo
     out += datos[:2]
-    while i + 4 <= n:
+    while i + 2 <= n:
         if datos[i] != 0xFF:
             raise malo
         m = datos[i + 1]
         if m == 0xFF:  # relleno
             i += 1
             continue
+        if m == 0x01 or 0xD0 <= m <= 0xD8:  # sin longitud
+            out += datos[i:i + 2]
+            i += 2
+            continue
+        if i + 4 > n:
+            raise malo
         largo = struct.unpack(">H", datos[i + 2:i + 4])[0]
         if largo < 2 or i + 2 + largo > n:
             raise malo
-        if m == 0xDA:  # SOS: el resto (datos comprimidos + EOI) se copia tal cual
-            return bytes(out + datos[i:])
-        if not (0xE1 <= m <= 0xEF or m == 0xFE):  # fuera APP1..APP15 y COM
+        if m == 0xDA:  # SOS: datos comprimidos tal cual, hasta el último EOI (lo posterior se descarta)
+            fin = datos.rfind(b"\xff\xd9")
+            if fin < i:
+                raise malo
+            return bytes(out + datos[i:fin + 2])
+        if not (0xE1 <= m <= 0xEF and m not in (0xE2, 0xEE) or m == 0xFE):  # se conservan APP0, APP2 (ICC) y APP14 (Adobe)
             out += datos[i:i + 2 + largo]
         i += 2 + largo
     raise malo
@@ -402,14 +411,14 @@ def subir_comprobante(sv, p, ext, datos, referencia=""):
     carpeta.mkdir(exist_ok=True)
     nombre = f"{secrets.token_hex(16)}.{ext}"
     (carpeta / nombre).write_bytes(datos)
+    antes = {}
     try:
         nuevo = _transicion(sv, p["id"], {"confirmado", "pago_reportado"}, "pago_reportado",
-                            {"metodo": "yappy", "referencia": referencia or "comprobante", "comprobante": nombre, "comprobante_at": sv.ahora().isoformat()})
+                            {"metodo": "yappy", "referencia": referencia or "comprobante", "comprobante": nombre, "comprobante_at": sv.ahora().isoformat()}, antes)
     except ValueError:
         _borrar_archivo(sv, nombre)
         raise
-    if p.get("comprobante"):
-        _borrar_archivo(sv, p["comprobante"])
+    _borrar_archivo(sv, antes.get("comprobante"))  # el anterior según la base, no el `p` posiblemente obsoleto
     _aviso(sv, nuevo, p["id"], f"Comprobante de Yappy recibido: verificar y marcar pagado: pedido #{p['id']}, total {dinero(nuevo['total_c'])}.")
     return nuevo
 
@@ -425,8 +434,14 @@ PREVIOS = {"pagado": {"pago_reportado", "confirmado"}, "en_preparacion": {"pagad
 
 def marcar_pedido(sv, pedido_id, estado):
     """Uso del restaurante (comando `pedidos`), no del modelo."""
+    if estado == "pago_rechazado":  # el pago no se pudo verificar: vuelve a confirmado para que el cliente pague de nuevo
+        p = _transicion(sv, pedido_id, {"pago_reportado"}, "confirmado", {"pago_rechazado_at": sv.ahora().isoformat()})
+        borrar_comprobante(sv, p)
+        programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"No pudimos verificar su pago del pedido #{pedido_id}. Revise los datos y envíe de nuevo su comprobante o la referencia.")
+        _aviso(sv, p, pedido_id, f"Pago no válido del pedido #{pedido_id}: avisado el cliente.")
+        return {"ok": True, "estado": "confirmado"}
     if estado not in PREVIOS:
-        raise ValueError("Estado inválido: pagado, en_preparacion, listo o entregado.")
+        raise ValueError("Estado inválido: pagado, en_preparacion, listo, entregado o pago_rechazado.")
     p = _transicion(sv, pedido_id, PREVIOS[estado], estado)  # el pago va antes de preparar; un cancelado no está en ningún conjunto
     if (sv.cfg.get("comprobantes") or {}).get("borrar_al_marcar", True):
         borrar_comprobante(sv, p)

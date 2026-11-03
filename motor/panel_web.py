@@ -173,7 +173,8 @@ def pedido_json(p, detalle=False):
          "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
          "metodo": p.get("metodo"), "referencia": p.get("referencia"), "comprobante": bool(p.get("comprobante")),
          "creado_at": p.get("creado_at"), "estado_at": p.get("estado_at") or p.get("creado_at"), "acciones": acciones_de(p),
-         "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion"))}
+         "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion")),
+         "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona"))}
     if detalle and not cerrado:
         d["direccion"] = p.get("direccion")
         d["mapa"] = ubicacion.url_mapa(p)
@@ -229,7 +230,7 @@ def pedido_repartidor(p):
             "notas": p.get("notas"), "hora_deseada": p.get("hora_deseada"),
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
             "total": dinero(p["total_c"]), "pagado": True,  # el pago va antes de preparar: el repartidor no cobra
-            "mapa": ubicacion.url_mapa(p), "tiene_ubicacion": bool(p.get("ubicacion")),
+            "mapa": ubicacion.url_mapa(p), "tiene_ubicacion": bool(p.get("ubicacion")), "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona")),
             "acciones": [SIGUIENTE[p["estado"]]] if p["estado"] in SIGUIENTE else []}
 
 

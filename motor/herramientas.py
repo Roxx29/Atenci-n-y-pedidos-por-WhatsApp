@@ -546,9 +546,16 @@ ABIERTOS = {"por_confirmar", "confirmado", "pago_reportado", "pagado", "en_prepa
 
 
 def poner_ubicacion(sv, pedido_id, lat, lon, fuente, enlace=None, precision=None):
-    """Guarda en el pedido abierto la ubicación ya validada (rango y cercanía). Nunca la imprime ni la audita."""
-    lat, lon = ubicacion.validar(lat, lon, **ubicacion.zona(sv.cfg))
-    u = {"lat": lat, "lon": lon, "fuente": fuente, "recibida_at": sv.ahora().isoformat()}
+    """Guarda en el pedido abierto la ubicación (rango validado). Sin coordenadas basta un enlace de Google. Fuera del radio solo se marca
+    `fuera_de_zona`: no se bloquea. Nunca la imprime ni la audita."""
+    if lat is None and lon is None:
+        if not enlace:
+            raise ValueError("Ubicación no válida.")
+        u = {"lat": None, "lon": None}
+    else:
+        lat, lon = ubicacion.validar(lat, lon)
+        u = {"lat": lat, "lon": lon, "fuera_de_zona": ubicacion.fuera_de_zona(lat, lon, **ubicacion.zona(sv.cfg))}
+    u.update(fuente=fuente, recibida_at=sv.ahora().isoformat())
     if enlace:
         u["enlace"] = str(enlace)[:300]  # tal cual lo pegó el cliente
     if isinstance(precision, (int, float)) and not isinstance(precision, bool) and 0 <= precision < 100000:
@@ -561,8 +568,8 @@ def guardar_ubicacion(sv, pedido_id, enlace):
     p = next((p for p in sv.listar("pedido") if p["id"] == pedido_id), None)
     if not p or p["modalidad"] != "entrega":
         raise ValueError("La ubicación solo se guarda en pedidos de entrega.")
-    lat, lon = ubicacion.desde_enlace(enlace)
-    poner_ubicacion(sv, pedido_id, lat, lon, "enlace", enlace)
+    lat, lon, url = ubicacion.desde_enlace(enlace)
+    poner_ubicacion(sv, pedido_id, lat, lon, "enlace", url)
     return {"ok": True, "nota": "Ubicación guardada para el repartidor. No muestres ni repitas coordenadas."}
 
 

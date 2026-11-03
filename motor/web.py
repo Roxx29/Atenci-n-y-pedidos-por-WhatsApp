@@ -436,11 +436,12 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if "enlace" in d:
                     if not isinstance(d["enlace"], str):
                         raise ValueError("Pegue un enlace de Google Maps.")
-                    lat, lon = ubicacion.desde_enlace(d["enlace"])
-                    fuente, enlace = "enlace", d["enlace"]
+                    lat, lon, enlace = ubicacion.desde_enlace(d["enlace"])
+                    fuente = "enlace"
                 else:
                     lat, lon, fuente, enlace = d.get("lat"), d.get("lon", d.get("lng")), "navegador", None
-                lat, lon = ubicacion.validar(lat, lon, **ubicacion.zona(sv.cfg))
+                if lat is not None or fuente == "navegador":
+                    lat, lon = ubicacion.validar(lat, lon)
             except ValueError as e:
                 return self._err(400, str(e))
             pid = self._aplicar_ubicacion(cid, (lat, lon, fuente, enlace, d.get("precision")))

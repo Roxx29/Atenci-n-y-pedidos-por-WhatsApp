@@ -19,9 +19,9 @@ class Funciones(unittest.TestCase):
         self.assertIsNone(ubicacion.extraer("https://www.google.com/maps/place/Chitre"))
 
     def test_enlace_largo_pegado_a_mano_y_corto(self):
-        self.assertEqual(ubicacion.desde_enlace(LARGO), (7.9667, -80.4333))
-        self.assertEqual(ubicacion.desde_enlace("7.9667, -80.4333"), (7.9667, -80.4333))
-        self.assertEqual(ubicacion.desde_enlace("https://maps.app.goo.gl/abc", resolver=lambda u: LARGO), (7.9667, -80.4333))
+        self.assertEqual(ubicacion.desde_enlace(LARGO), (7.9667, -80.4333, LARGO))
+        self.assertEqual(ubicacion.desde_enlace("7.9667, -80.4333"), (7.9667, -80.4333, None))
+        self.assertEqual(ubicacion.desde_enlace("https://maps.app.goo.gl/abc", resolver=lambda u: LARGO), (7.9667, -80.4333, LARGO))
 
     def test_solo_dominios_de_google_y_nunca_se_sigue_otro(self):
         resolver = unittest.mock.Mock(return_value=LARGO)
@@ -29,14 +29,23 @@ class Funciones(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ubicacion.desde_enlace(malo, resolver=resolver)
         resolver.assert_not_called()
-        with self.assertRaises(ValueError):  # un corto que redirige a un sitio no-Google no da coordenadas
-            ubicacion.desde_enlace("https://maps.app.goo.gl/abc", resolver=lambda u: "https://evil.com/@7.9667,-80.4333")
-        with self.assertRaises(ValueError):  # un enlace sin coordenadas
-            ubicacion.desde_enlace("https://www.google.com/maps/place/Chitre", resolver=lambda u: u)
+        # un corto que redirige a un sitio no-Google: ni sus coordenadas ni su URL se usan; queda el enlace original (de Google)
+        corto = "https://maps.app.goo.gl/abc"
+        self.assertEqual(ubicacion.desde_enlace(corto, resolver=lambda u: "https://evil.com/@7.9667,-80.4333"), (None, None, corto))
+        self.assertTrue(ubicacion.host_ok("https://g.co/kgs/abc"))
+
+    def test_enlace_de_google_sin_coordenadas_se_acepta(self):
+        place = "https://www.google.com/maps/place/Parque+Union+Chitre"
+        self.assertEqual(ubicacion.desde_enlace(place, resolver=lambda u: u), (None, None, place))
+        self.assertEqual(ubicacion.url_mapa({"ubicacion": {"lat": None, "lon": None, "enlace": place}, "direccion": "Calle 5"}), place)
+        self.assertIn("Calle%205", ubicacion.url_mapa({"ubicacion": {"lat": None, "lon": None}, "direccion": "Calle 5"}))
 
     def test_validar_rango_y_zona(self):
         self.assertEqual(ubicacion.validar(7.9667, -80.4333), (7.9667, -80.4333))
-        for lat, lon in ((9.0, -79.5), (91, 0), (float("nan"), 0), ("7.9", -80.4), (True, -80.4), (None, None)):
+        self.assertEqual(ubicacion.validar(8.9824, -79.5199), (8.9824, -79.5199))  # Panamá ciudad: válida
+        self.assertTrue(ubicacion.fuera_de_zona(8.9824, -79.5199))
+        self.assertFalse(ubicacion.fuera_de_zona(7.9667, -80.4333))
+        for lat, lon in ((91, 0), (float("nan"), 0), ("7.9", -80.4), (True, -80.4), (None, None)):
             with self.assertRaises(ValueError):
                 ubicacion.validar(lat, lon)
 
@@ -86,11 +95,34 @@ class Flujo(Base):
         ck = self.entrar()[2]
         self.assertEqual(self.js("POST", "/ubicacion", {"enlace": LARGO}, cookie=ck)[0], 200)
         self.assertEqual(self.pedido(1)["ubicacion"]["enlace"], LARGO)
-        for cuerpo in ({"lat": 9.0, "lon": -79.5}, {"enlace": "https://evil.com/@7.9667,-80.4333"}, {"lat": "x", "lon": 1}, {"enlace": 5}):
+        for cuerpo in ({"enlace": "https://evil.com/@7.9667,-80.4333"}, {"lat": "x", "lon": 1}, {"enlace": 5}):
             st, d, _ = self.js("POST", "/ubicacion", cuerpo, cookie=ck)
             self.assertEqual(st, 400)
             self.assertIn("error", d)
         self.assertEqual(self.js("POST", "/ubicacion", {"enlace": LARGO})[0], 401)
+
+    def test_lejos_y_sin_coordenadas_se_aceptan_con_aviso(self):
+        pid = self.entrega()
+        ck = self.entrar()[2]
+        self.assertEqual(self.js("POST", "/ubicacion", {"lat": 8.9824, "lon": -79.5199}, cookie=ck)[0], 200)
+        self.assertTrue(self.pedido(pid)["ubicacion"]["fuera_de_zona"])
+        place = "https://www.google.com/maps/place/Parque+Union+Chitre"
+        with unittest.mock.patch.object(ubicacion, "_seguir", lambda u, timeout=4: u):
+            st, d, _ = self.js("POST", "/ubicacion", {"enlace": place}, cookie=ck)
+        self.assertEqual(st, 200)
+        u = self.pedido(pid)["ubicacion"]
+        self.assertEqual((u["lat"], u["enlace"]), (None, place))
+        self.assertEqual(self.js("GET", "/pedidos", cookie=ck)[1]["pedidos"][0]["ubicacion"], True)
+        # panel y repartidor funcionan sin coordenadas
+        herramientas.confirmar_pedido(self.sv, pid)
+        for e in ("pagado", "en_preparacion", "listo"):
+            herramientas.marcar_pedido(self.sv, pid, e)
+        pan = self.cookie("/panel/entrar", PIN_P)[1]
+        self.js("POST", "/panel/asignar", {"pedido_id": pid, "repartidor": "Juan"}, cookie=pan)
+        self.assertEqual(self.js("GET", f"/panel/pedido/{pid}", cookie=pan)[1]["pedido"]["mapa"], place)
+        juan = self.cookie("/repartidor/entrar", PIN_J)[1]
+        p = self.js("GET", "/repartidor/pedidos", cookie=juan)[1]["pedidos"][0]
+        self.assertEqual((p["mapa"], p["tiene_ubicacion"], p["fuera_de_zona"]), (place, True, False))
 
     def test_ubicacion_antes_del_pedido_se_une_al_siguiente(self):
         ck = self.entrar()[2]
@@ -196,7 +228,9 @@ class Flujo(Base):
         (tel, lat, lon), = whatsapp.ubicaciones_entrantes(payload)
         self.assertTrue(whatsapp.guardar_ubicacion_wa(self.sv, tel, lat, lon))
         self.assertEqual(self.pedido(pid)["ubicacion"]["fuente"], "whatsapp")
-        self.assertFalse(whatsapp.guardar_ubicacion_wa(self.sv, TEL, 9.0, -79.5))  # fuera de zona
+        self.assertTrue(whatsapp.guardar_ubicacion_wa(self.sv, TEL, 9.0, -79.5))  # lejos: se guarda con aviso
+        self.assertTrue(self.pedido(pid)["ubicacion"]["fuera_de_zona"])
+        self.assertFalse(whatsapp.guardar_ubicacion_wa(self.sv, TEL, 99, 0))
 
     def test_recogida_no_se_asigna(self):
         pid = herramientas.crear_pedido(self.sv, telefono=TEL, **PEDIDO)["pedido_id"]

@@ -155,11 +155,18 @@ class Acceso(Base):
         self.assertIn(b"Ver aviso de privacidad", raw)
         self.assertIsNone(r.getheader("Access-Control-Allow-Origin"))
 
-    def test_pagina_sin_innerhtml_ni_premarcada(self):
+    def test_pagina_segura_y_casilla_no_premarcada(self):
         h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
-        self.assertNotIn("innerHTML", h)
-        self.assertNotIn('id="consentimiento" checked', h)
-        self.assertIn('id="entrar" disabled', h)
+        self.assertEqual(h.count("innerHTML"), 2)  # solo plantillas fijas (fila del menú y pasos); el texto del servidor va con textContent
+        self.assertNotIn("${p.nombre", h)
+        self.assertNotRegex(h, r'<input type="checkbox"[^>]*checked')
+        self.assertRegex(h, r'<input type="checkbox" name="privacidad" required')
+        for malo in ("<script src", "http://", "https://", "eval("):
+            self.assertNotIn(malo, h)
+
+    def test_entrar_acepta_acepta_privacidad(self):
+        st, d, _ = self.entrar(consentimiento=None, acepta_privacidad=True)
+        self.assertEqual(st, 200)
 
     def test_nombre_json_tal_cual(self):
         _, d, _ = self.entrar(nombre="<img src=x onerror=alert(1)>")

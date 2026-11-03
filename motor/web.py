@@ -186,7 +186,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(400, "Nombre inválido")
             if not (tel.isascii() and tel.isdigit() and 8 <= len(tel) <= 15):
                 return self._err(400, "Teléfono inválido")
-            if d.get("consentimiento") is not True:
+            if d.get("consentimiento") is not True and d.get("acepta_privacidad") is not True:
                 return self._err(400, "Se requiere el consentimiento")
             version = aviso_de(sv)[0]
             if d.get("version_aviso") != version:

@@ -18,6 +18,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [x] 2026-11-02 — Investigar modelo gratuito con herramientas para la demo, repartidor propio vs PedidosYa y horario típico en Chitré: Ollama (qwen3:8b), repartidor propio + recoger en local; ver investigacion/2026-11-02-demo-restaurante.md (agenteinvestigacion)
 - [x] 2026-11-02 — Panel de escritorio (.exe) para pedidos y verificación de Yappy: F:\build\dist\PanelPedidos.exe (agentedeprogramacion)
 - [x] 2026-11-02 — Panel: la caja de avisos carga los pendientes al abrir. Firma del .exe: no por ahora (capitan) (agentedeprogramacion)
-- [ ] 2026-11-02 — Elegir y conectar WhatsApp (aún no hay cuenta; Meta Cloud API es lo que soporta el motor) (usuario)
+- [ ] 2026-11-02 — Conectar WhatsApp (Meta Cloud API): token temporal en .env; faltan WHATSAPP_PHONE_ID y WHATSAPP_APP_SECRET, que el motor cargue .env, túnel HTTPS y webhook (usuario/capitan)
+- [ ] 2026-11-02 — Token permanente (usuario del sistema) antes de un restaurante real (usuario)
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)

@@ -199,9 +199,10 @@ ol.pasos li.hecho::before{background:var(--hoja)}
         <input type="checkbox" name="privacidad" required aria-describedby="e-priv">
         <span>Acepto que Fonda El Chitreano use mi nombre, teléfono y esta conversación para tomar y entregar mi pedido. Un asistente de IA me atiende.</span>
       </label>
-      <details>
+      <details id="det-privacidad">
         <summary>Ver aviso de privacidad</summary>
-        <!-- Texto de legal-datos (borrador sin revisar por abogado). Los [corchetes] los completa el restaurante. -->
+        <!-- Con servidor, GET /aviso sustituye este bloque (textContent). Fijo = solo modo demo: borrador de legal-datos. -->
+        <div id="privacidad-texto">
         <p><b>Responsable:</b> Fonda El Chitreano S.A., RUC [RUC], [dirección], Chitré, Panamá.</p>
         <p><b>Datos que pedimos:</b> nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido y los mensajes que escribes en el chat.</p>
         <p><b>Para qué:</b> tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin un permiso aparte.</p>
@@ -210,6 +211,7 @@ ol.pasos li.hecho::before{background:var(--hoja)}
         <p><b>Tus derechos:</b> puedes pedir ver, corregir, borrar u oponerte al uso de tus datos, o recibir una copia. Escríbenos a [correo / WhatsApp]. Responderemos en el plazo legal. Si no quedas conforme, puedes acudir a la ANTAI.</p>
         <p><b>Compartimos tus datos solo con:</b> el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor (nombre, teléfono y dirección para la entrega).</p>
         <p>Última actualización: [fecha].</p>
+        </div>
       </details>
       <span class="error" id="e-priv" aria-live="polite"></span>
     </div>
@@ -324,9 +326,18 @@ form.addEventListener("submit", async ev => {
   const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
   if (!st.demo) {
     try {
-      const av = await (await fetch("/aviso")).json();
-      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:av.version})});
-      if (res.status === 400) { $("#e-tel").textContent = (await res.json()).error; btn.disabled = false; btn.textContent = "Empezar pedido"; return; }
+      if (!st.aviso) await cargarAviso();
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version})});
+      if (res.status === 400) {
+        const err = (await res.json()).error || "Revisa tus datos.";
+        btn.disabled = false; btn.textContent = "Empezar pedido";
+        if (/aviso/i.test(err)) { // el aviso cambió: mostrar el nuevo y pedir aceptarlo otra vez
+          await cargarAviso(); form.privacidad.checked = false; $("#det-privacidad").open = true;
+          $("#e-priv").textContent = "Actualizamos el aviso de privacidad. Léelo y vuelve a marcar la casilla.";
+          return form.privacidad.focus();
+        }
+        $("#e-tel").textContent = err; return;
+      }
       if (!res.ok) throw new Error(res.status);
     } catch (e) { st.demo = true; $("#modo-demo").hidden = false; }
   }
@@ -337,6 +348,10 @@ form.addEventListener("submit", async ev => {
   $("#texto").focus();
   clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
 });
+async function cargarAviso() { // GET /aviso → {version, texto}; texto con textContent
+  st.aviso = await api("GET", "/aviso");
+  const caja = $("#privacidad-texto"); caja.textContent = st.aviso.texto; caja.style.whiteSpace = "pre-wrap";
+}
 function salir() { // cookie vencida (401): volver a la entrada
   clearInterval(st.sondeo); $("#app").hidden = true; $("#entrada").hidden = false;
   $("#e-priv").textContent = "Tu sesión venció. Vuelve a entrar para seguir con tu pedido.";
@@ -514,7 +529,7 @@ function demoBot(texto) {
 /* ---------- Arranque ---------- */
 pintarMenu();
 if (!st.demo) fetch("/menu").then(r => r.ok ? r.json() : null).then(m => { if (Array.isArray(m) && m.length) { MENU.splice(0, MENU.length, ...m); pintarMenu(); } }).catch(() => {});
-if (st.demo) $("#modo-demo").hidden = false;
+if (st.demo) $("#modo-demo").hidden = false; else cargarAviso().catch(() => {});
 </script>
 </body>
 </html>

@@ -29,6 +29,24 @@
         ],
         "createdAt": "2026-11-03T04:52:50.173Z",
         "reason": "disenador: #dlg-img del detalle recibe src por JS solo con pago pendiente; el diálogo está cerrado hasta entonces"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "diseno/panel-web.html"
+        ],
+        "createdAt": "2026-11-03T04:53:35.624Z",
+        "reason": "disenador: el <dialog> deja el comprobante a sangre a propósito; la columna de texto tiene 20px de relleno"
+      },
+      {
+        "rule": "cream-palette",
+        "value": "*",
+        "files": [
+          "diseno/panel-web.html"
+        ],
+        "createdAt": "2026-11-03T04:53:36.829Z",
+        "reason": "disenador: papel crema es el token de marca de la fonda, compartido con la web de pedidos"
       }
     ]
   }

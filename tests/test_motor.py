@@ -195,7 +195,7 @@ class Salvaguardas(unittest.TestCase):
         sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
         return sv
 
-    NUEVO = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "L"}
+    NUEVO = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Luis"}
 
     def error_de(self, sv, vuelta):
         return sv.cliente.llamadas[vuelta][-1]["content"][0]
@@ -265,7 +265,9 @@ class Pedidos(unittest.TestCase):
 
     def crear(self, sv, cliente="A", items=None, **kw):
         datos = {"items": items if items is not None else [{"id": "sancocho", "cantidad": 2}, {"id": "chicha", "cantidad": 2}], "modalidad": "entrega", "nombre": "Luis", "direccion": "Calle 53", **kw}
-        return herramientas.ejecutar(sv, "crear_pedido", datos, cliente)
+        r = herramientas.ejecutar(sv, "crear_pedido", datos, cliente)
+        r["total_c"] = next(p["total_c"] for p in sv.listar("pedido") if p["id"] == r["pedido_id"])  # la respuesta al modelo ya no lleva centavos; las pruebas los leen de la base
+        return r
 
     def test_total_con_impuesto_y_envio(self):
         sv = self.sv()
@@ -357,9 +359,10 @@ class Pedidos(unittest.TestCase):
         self.assertEqual((r["total_c"], sv.listar("pedido")[0]["itbms_c"]), (1350 + 150, 0))
         self.assertNotIn("ITBMS", r["resumen"])
         self.assertEqual(self.crear(sv, zona="LOS SANTOS")["total_c"], 1650)
-        for zona in ("", "Panamá"):
-            with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
-                self.crear(sv, zona=zona)
+        with self.assertRaisesRegex(ValueError, "Falta la zona"):
+            self.crear(sv, zona="")
+        with self.assertRaisesRegex(ValueError, "Zona sin entrega"):
+            self.crear(sv, zona="Panamá")
         self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1350)  # recogida no pide zona
         sv.cfg["pedidos"] = {"envio": {"costo": 2.5, "zonas": ["Obarrio"]}}
         self.assertEqual(self.crear(sv, "B", zona="obarrio")["total_c"], 1600)  # otro cliente: tope de 3 sin confirmar por cliente
@@ -396,7 +399,7 @@ class Panel(unittest.TestCase):
 
     def test_activos_y_avisos_nuevos(self):
         a, b = self.dos_servicios()
-        ids = [herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"] for _ in range(3)]
+        ids = [herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Nora"}, c)["pedido_id"] for c in "ABC"]  # un cliente distinto por pedido: el mismo actualizaría el suyo
         for i in ids[:2]:
             herramientas.confirmar_pedido(a, i)
         herramientas.cancelar_pedido(a, ids[0])
@@ -413,7 +416,7 @@ class Panel(unittest.TestCase):
 
     def test_avisos_pendientes_hasta_pagado(self):
         a, b = self.dos_servicios()
-        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"]
+        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Nora"}, "A")["pedido_id"]
         self.assertEqual(panel.avisos_pendientes(b), [])  # por_confirmar: sin aviso
         herramientas.confirmar_pedido(a, pid)
         self.assertEqual([x["pedido_id"] for x in panel.avisos_pendientes(b)], [pid])
@@ -422,7 +425,7 @@ class Panel(unittest.TestCase):
 
     def test_reportar_pago_nota_pendiente_de_verificacion(self):
         a, _ = self.dos_servicios()
-        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "N"}, "A")["pedido_id"]
+        pid = herramientas.ejecutar(a, "crear_pedido", {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Nora"}, "A")["pedido_id"]
         herramientas.confirmar_pedido(a, pid)
         r = herramientas.reportar_pago(a, pid, "yappy", "884512")
         self.assertIn("pendiente de verificación", r["nota"])

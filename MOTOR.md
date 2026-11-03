@@ -28,6 +28,8 @@ WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
 | `escalar_a_humano` | Pasa la conversación al equipo |
 | `crear_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
 
+Pedidos: un solo `por_confirmar` por cliente (otra llamada a `crear_pedido` lo actualiza, misma id). Caduca a `caducado` tras `pedidos.caduca_min` min (30 por defecto) sin confirmar; el modelo nunca ve centavos (`*_c`).
+
 Con estas 8 herramientas se cubren la mayoría de los servicios del informe: citas, leads, cobranza, seguimiento, encuestas, reservas y recepción de reclamos.
 
 ## Comandos

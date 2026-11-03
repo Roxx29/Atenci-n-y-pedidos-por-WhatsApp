@@ -2,6 +2,7 @@
 import contextlib
 import datetime as dt
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -9,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from motor import __main__ as cli
-from motor import herramientas
+from motor import herramientas, panel
 from motor.nucleo import Servicio
 from tests.test_motor import MENU, SERVICIO_PEDIDOS, ClienteFalso, Pedidos, herramienta, texto
 
@@ -88,14 +89,78 @@ class Topes(Base):
         with self.assertRaisesRegex(ValueError, "largo"):
             self.e(sv, "reportar_pago", {"pedido_id": pid, "metodo": "y", "referencia": "1" * 201})
 
-    def test_maximo_tres_sin_confirmar_por_cliente(self):
+    def test_un_solo_pedido_en_construccion_se_actualiza(self):
         sv = self.sv()
-        ids = [self.crear(sv)["pedido_id"] for _ in range(3)]
-        with self.assertRaisesRegex(ValueError, "sin confirmar"):
-            self.crear(sv)
-        self.assertTrue(self.crear(sv, "B")["ok"])  # otro cliente no se ve afectado
-        self.e(sv, "confirmar_pedido", {"pedido_id": ids[0]})
-        self.assertTrue(self.crear(sv)["ok"])
+        r1 = self.crear(sv)
+        self.assertFalse(r1["actualizado"])
+        r2 = self.crear(sv, items=[{"id": "chicha", "cantidad": 5}], modalidad="recogida")
+        self.assertEqual((r2["pedido_id"], r2["actualizado"]), (r1["pedido_id"], True))
+        [p] = sv.listar("pedido")
+        self.assertEqual(([l["id"] for l in p["lineas"]], p["total_c"], p["modalidad"]), (["chicha"], 875 + 61, "recogida"))  # recalculado en código
+        rb = self.crear(sv, "B")  # otro cliente no interfiere
+        self.assertNotEqual(rb["pedido_id"], r1["pedido_id"])
+        self.assertEqual(len(sv.listar("pedido")), 2)
+        self.e(sv, "confirmar_pedido", {"pedido_id": r1["pedido_id"]})  # confirmado: no se toca y permite uno nuevo
+        r3 = self.crear(sv)
+        self.assertNotEqual(r3["pedido_id"], r1["pedido_id"])
+        self.assertEqual(next(p for p in sv.listar("pedido") if p["id"] == r1["pedido_id"])["lineas"][0]["id"], "chicha")
+
+    def test_caducidad(self):
+        sv = self.sv()
+        pid = self.crear(sv)["pedido_id"]
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 29, tzinfo=sv.tz)
+        self.assertEqual(herramientas.caducar_pedidos(sv), [])
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 30, tzinfo=sv.tz)
+        with self.assertRaisesRegex(ValueError, "caducó; cree uno nuevo"):
+            self.e(sv, "confirmar_pedido", {"pedido_id": pid})
+        self.assertEqual(sv.listar("pedido")[0]["estado"], "caducado")
+        with self.assertRaises(ValueError):
+            herramientas.marcar_pedido(sv, pid, "pagado")
+        self.assertEqual(panel.activos(sv), [])
+        r = self.crear(sv)  # caducado permite crear uno nuevo (no lo actualiza)
+        self.assertNotEqual((r["pedido_id"], r["actualizado"]), (pid, True))
+        sv.cfg["pedidos"]["caduca_min"] = 5  # configurable
+        sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 36, tzinfo=sv.tz)
+        self.assertEqual(herramientas.caducar_pedidos(sv), [r["pedido_id"]])
+
+    def test_caducar_no_toca_confirmados_ni_pedidos_viejos_sin_fecha(self):
+        sv = self.sv()
+        a, b = self.crear(sv, "A")["pedido_id"], self.crear(sv, "B")["pedido_id"]
+        self.e(sv, "confirmar_pedido", {"pedido_id": a})
+        sv.actualizar(b, {"creado_at": None}, tipo="pedido")
+        sv.ahora = lambda: dt.datetime(2026, 11, 3, 12, 0, tzinfo=sv.tz)
+        self.assertEqual(herramientas.caducar_pedidos(sv), [])
+
+    def test_el_modelo_no_ve_centavos(self):
+        sv = self.sv()
+        antes = self.e(sv, "crear_pedido", {"items": [SANC, {"id": "chicha", "cantidad": 2}], "modalidad": "entrega", "nombre": "Luis", "direccion": "Calle 53"})  # sin el ayudante crear(): respuesta tal cual
+        pid = antes["pedido_id"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            resps = [antes, self.e(sv, "buscar", {"tipo": "pedido"}), self.e(sv, "confirmar_pedido", {"pedido_id": pid}),
+                     self.e(sv, "reportar_pago", {"pedido_id": pid, "metodo": "yappy", "referencia": "1"}), self.e(sv, "buscar", {"tipo": "pedido"})]
+        def claves(x):
+            return [k for k, v in x.items()] + [c for v in x.values() for c in claves(v)] if isinstance(x, dict) else [c for v in x for c in claves(v)] if isinstance(x, list) else []
+        for r in resps:
+            self.assertEqual([k for k in claves(r) if k.endswith("_c")], [], r)
+            self.assertNotIn("1695", json.dumps(r))
+        p = resps[1][0]
+        self.assertEqual((p["total"], p["subtotal"], p["impuesto"], p["envio"]), ("B/. 16.95", "B/. 13.50", "B/. 0.95", "B/. 2.50"))
+        self.assertEqual((p["lineas"][0]["precio"], p["lineas"][0]["importe"]), ("B/. 5.00", "B/. 10.00"))
+
+    def test_datos_incompletos_no_crean_pedido(self):
+        sv = self.sv()
+        for nombre in ("", "  ", "L", "123456", "cliente 50760000001", "Cliente", "50760000001"):
+            with self.subTest(nombre=nombre):
+                with self.assertRaisesRegex(ValueError, "nombre"):
+                    herramientas.crear_pedido(sv, [SANC], "recogida", nombre, "50760000001")
+        with self.assertRaisesRegex(ValueError, "nombre"):
+            herramientas.crear_pedido(sv, [SANC], "recogida", "Luis 50760000001", "50760000001")
+        self.falla(sv, "Falta la dirección", direccion=" ")
+        self.falla(sv, "Modalidad", modalidad="")
+        sv.cfg["pedidos"] = {"envio": {"zonas": {"Chitré": 1}}}
+        self.falla(sv, "Falta la zona", zona="")
+        self.falla(sv, "ya pasó", hora_deseada="2026-11-02 11:00")
+        self.assertTrue(herramientas.crear_pedido(sv, [SANC], "recogida", "Luis", "50760000001")["ok"])
 
     def test_avisos_sin_saltos_de_linea(self):
         sv = self.sv()
@@ -197,8 +262,8 @@ class Horario(Base):
 
     def test_hora_deseada_valida_se_guarda_canonica_y_texto_libre_tal_cual(self):
         sv = self.sv()
-        self.crear(sv, hora_deseada="2026-11-3 12:00")
-        self.crear(sv, hora_deseada="lo antes posible")
+        self.crear(sv, "A", hora_deseada="2026-11-3 12:00")
+        self.crear(sv, "B", hora_deseada="lo antes posible")  # otro cliente: el mismo cliente actualizaría su pedido
         self.assertEqual([p["hora_deseada"] for p in sv.listar("pedido")], ["2026-11-03 12:00", "lo antes posible"])
 
 
@@ -453,13 +518,13 @@ class Bucle(Base):
     def test_entrada_malformada_no_rompe_el_bucle(self):
         for items in (["sancocho"], "sancocho", [None]):
             with self.subTest(items=items):
-                entrada = {"items": items, "modalidad": "recogida", "nombre": "L"}
+                entrada = {"items": items, "modalidad": "recogida", "nombre": "Luis"}
                 sv = self.sv(respuestas=[herramienta("crear_pedido", entrada), texto("ok")])
                 self.assertEqual(sv.responder("A", "hola"), "ok")
 
     def test_flujo_completo_por_el_bucle(self):
         # crear y confirmar ya no pueden ir en el mismo turno: el "sí" llega en un mensaje nuevo
-        sv = self.sv(respuestas=[herramienta("crear_pedido", {"items": [SANC, {"id": "chicha", "cantidad": 2}], "modalidad": "recogida", "nombre": "L"}), texto("¿confirma?"),
+        sv = self.sv(respuestas=[herramienta("crear_pedido", {"items": [SANC, {"id": "chicha", "cantidad": 2}], "modalidad": "recogida", "nombre": "Luis"}), texto("¿confirma?"),
                                  herramienta("confirmar_pedido", {"pedido_id": 1}), herramienta("reportar_pago", {"pedido_id": 1, "metodo": "yappy", "referencia": "77"}, "t2"), texto("listo")])
         with contextlib.redirect_stdout(io.StringIO()):
             sv.responder("A", "pedido")
@@ -495,7 +560,7 @@ class Validar(unittest.TestCase):
         """El id YAML numerico (id: 1) se guarda como texto: el modelo manda '1' y existe."""
         sv = Servicio(self.carpeta("- {id: 1, nombre: A, precio: 20}"), db=":memory:", cliente=ClienteFalso([]))
         sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
-        self.assertTrue(herramientas.ejecutar(sv, "crear_pedido", {"items": [{"id": "1", "cantidad": 1}], "modalidad": "recogida", "nombre": "L"}, "A")["ok"])
+        self.assertTrue(herramientas.ejecutar(sv, "crear_pedido", {"items": [{"id": "1", "cantidad": 1}], "modalidad": "recogida", "nombre": "Luis"}, "A")["ok"])
 
 
 class ComandoPedidos(unittest.TestCase):

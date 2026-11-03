@@ -8,13 +8,13 @@ from pathlib import Path
 from motor import herramientas
 from motor.nucleo import Servicio
 
-TERMINADOS = {"entregado", "cancelado"}
+TERMINADOS = {"entregado", "cancelado", "caducado"}
 SONDEO_MS = 3000
 ACCIONES = [("Pagado", "pagado"), ("En preparación", "en_preparacion"), ("Listo", "listo"), ("Entregado", "entregado")]
 
 
 def activos(sv):
-    """Pedidos que no están entregados ni cancelados, del más antiguo al más nuevo."""
+    """Pedidos que no están entregados, cancelados ni caducados, del más antiguo al más nuevo."""
     return sorted((p for p in sv.listar("pedido") if p["estado"] not in TERMINADOS), key=lambda p: p["id"])
 
 
@@ -89,6 +89,7 @@ def main(argv):
 
     def refrescar(sonar=True):
         try:
+            herramientas.caducar_pedidos(sv)
             peds = activos(sv)
             nuevos, estado["aviso"] = avisos_nuevos(sv, estado["aviso"])
         except Exception as e:  # base bloqueada un momento: reintentar en el próximo ciclo

@@ -13,7 +13,7 @@ from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .herramientas import dinero
+from .herramientas import caducar_pedidos, dinero
 
 PAGINA = Path(__file__).with_name("web_index.html")
 MAX_CUERPO = 8192

@@ -95,9 +95,18 @@ def actualizar_registro(sv, id, cambios):
     return {"ok": True}
 
 
+def _pedido_para_modelo(p):
+    """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c."""
+    out = {k: v for k, v in p.items() if not k.endswith("_c") and k != "lineas"}
+    out.update(total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
+               lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
+    return out
+
+
 def buscar(sv, tipo, texto="", telefono=None):
     t = texto.lower()
-    return [r for r in sv.listar(tipo) if r.get("telefono") == telefono and t in json.dumps(r, ensure_ascii=False).lower()][-20:]
+    r = [r for r in sv.listar(tipo) if r.get("telefono") == telefono and t in json.dumps(r, ensure_ascii=False).lower()][-20:]
+    return [_pedido_para_modelo(p) for p in r] if tipo == "pedido" else r
 
 
 def escalar_a_humano(sv, telefono, motivo):
@@ -175,7 +184,7 @@ def _turnos(sv, dia, cierre_min=0):
     return [(_hora(f"{dia:%Y-%m-%d} {a}", sv.tz), _hora(f"{dia:%Y-%m-%d} {b}", sv.tz) - dt.timedelta(minutes=cierre_min)) for a, b in pares]
 
 
-MAX_TEXTO, MAX_CANTIDAD, MAX_LINEAS, MAX_SIN_CONFIRMAR = 200, 50, 30, 3  # topes anti-abuso
+MAX_TEXTO, MAX_CANTIDAD, MAX_LINEAS = 200, 50, 30  # topes anti-abuso
 
 
 def _txt(v, campo):
@@ -197,6 +206,27 @@ def _sin_tildes(s):
     return "".join(c for c in unicodedata.normalize("NFD", str(s).casefold()) if not unicodedata.combining(c)).strip()
 
 
+def _nombre_real(nombre, telefono):
+    """El modelo a veces copia el teléfono del prefijo como nombre: exige un nombre de persona."""
+    n, dig = nombre.strip(), "".join(c for c in str(telefono) if c.isdigit())
+    if sum(c.isalpha() for c in n) < 2 or n.casefold().startswith("cliente") or (len(dig) >= 4 and dig in "".join(c for c in n if c.isdigit())):
+        raise ValueError("Falta el nombre real del cliente: pregúntaselo (no uses su teléfono ni 'cliente'); no inventes datos.")
+
+
+def caducar_pedidos(sv):
+    """Pasa a 'caducado' los por_confirmar con más de pedidos.caduca_min (30 por defecto) minutos; devuelve sus ids."""
+    limite = sv.ahora() - dt.timedelta(minutes=(sv.cfg.get("pedidos") or {}).get("caduca_min", 30))
+    ids = []
+    for p in sv.listar("pedido"):
+        if p["estado"] == "por_confirmar" and p.get("creado_at") and dt.datetime.fromisoformat(p["creado_at"]) <= limite:
+            try:
+                _transicion(sv, p["id"], {"por_confirmar"}, "caducado")
+                ids.append(p["id"])
+            except ValueError:  # otro proceso lo confirmó o canceló justo ahora
+                pass
+    return ids
+
+
 def _envio(cfg, zona):
     """Costo de envío en centavos: fijo, o por zona (lista = zonas permitidas a costo fijo, dict = zona -> costo)."""
     e = cfg.get("envio") or {}
@@ -204,7 +234,9 @@ def _envio(cfg, zona):
     if not zonas:
         return _c(e.get("costo", 0))
     por_zona = {_sin_tildes(z): e.get("costo", 0) for z in zonas} if isinstance(zonas, list) else {_sin_tildes(z): c for z, c in zonas.items()}
-    if _sin_tildes(zona or "") not in por_zona:
+    if not (zona or "").strip():
+        raise ValueError("Falta la zona de entrega: pregúntasela al cliente (" + ", ".join(por_zona) + "); no inventes datos.")
+    if _sin_tildes(zona) not in por_zona:
         raise ValueError("Zona sin entrega; ofrece recogida o escalar_a_humano.")
     return _c(por_zona[_sin_tildes(zona)])
 
@@ -215,10 +247,11 @@ def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_dese
     if len(items) > MAX_LINEAS:
         raise ValueError(f"Máximo {MAX_LINEAS} líneas por pedido.")
     nombre, direccion, hora_deseada, zona = _txt(nombre, "nombre"), _txt(direccion, "direccion"), _txt(hora_deseada, "hora_deseada"), _txt(zona, "zona")
+    _nombre_real(nombre, telefono)
     if modalidad not in ("entrega", "recogida"):
-        raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'.")
+        raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'; pregúntasela al cliente, no inventes datos.")
     if modalidad == "entrega" and not direccion.strip():
-        raise ValueError("Para entrega se necesita la dirección.")
+        raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     lineas, subtotal = [], 0
     for it in items:
         if not isinstance(it, dict):
@@ -246,13 +279,18 @@ def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_dese
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
     total = subtotal + itbms + envio
-    if sum(1 for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] == "por_confirmar") >= MAX_SIN_CONFIRMAR:
-        raise ValueError("Tiene pedidos sin confirmar; confirme o cancele antes.")
-    pid = sv.insertar("pedido", {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona,
-                                 "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": total, "estado": "por_confirmar"})
+    caducar_pedidos(sv)
+    previo = next((p for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] == "por_confirmar"), None)  # un solo pedido en construcción por cliente
+    datos = {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona,
+                                 "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": total, "estado": "por_confirmar", "creado_at": sv.ahora().isoformat()}
+    if previo:
+        pid = previo["id"]
+        sv.actualizar(pid, datos, tipo="pedido", desde={"por_confirmar"})
+    else:
+        pid = sv.insertar("pedido", datos)
     resumen = "\n".join([f"{l['cantidad']} x {l['nombre']}: {dinero(l['importe_c'])}" + (f" ({l['nota']})" if l["nota"] else "") for l in lineas]
                         + [f"Subtotal: {dinero(subtotal)}"] + ([f"ITBMS: {dinero(itbms)}"] if itbms else []) + ([f"Envío: {dinero(envio)}"] if modalidad == "entrega" else []) + [f"Total: {dinero(total)}"])
-    return {"ok": True, "pedido_id": pid, "resumen": resumen, "total": dinero(total), "total_c": total}
+    return {"ok": True, "pedido_id": pid, "resumen": resumen, "total": dinero(total), "actualizado": bool(previo)}
 
 
 def _aviso(sv, p, pedido_id, texto):
@@ -261,7 +299,13 @@ def _aviso(sv, p, pedido_id, texto):
 
 
 def confirmar_pedido(sv, pedido_id):
-    p = _transicion(sv, pedido_id, {"por_confirmar"}, "confirmado")
+    caducar_pedidos(sv)
+    try:
+        p = _transicion(sv, pedido_id, {"por_confirmar"}, "confirmado")
+    except ValueError:
+        if any(x["id"] == pedido_id and x["estado"] == "caducado" for x in sv.listar("pedido")):
+            raise ValueError("Su pedido caducó; cree uno nuevo.")
+        raise
     _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} confirmado de {_una_linea(p['nombre'])} ({p['modalidad']}), total {dinero(p['total_c'])}.")
     return {"ok": True, "estado": "confirmado", "total": dinero(p["total_c"]), "pago": {k: v for k, v in (sv.cfg.get("pago") or {}).items() if v is not None}}
 
@@ -274,6 +318,7 @@ def reportar_pago(sv, pedido_id, metodo, referencia):
 
 
 def cancelar_pedido(sv, pedido_id):
+    caducar_pedidos(sv)
     _transicion(sv, pedido_id, {"por_confirmar", "confirmado"}, "cancelado")
     return {"ok": True}
 
@@ -307,7 +352,7 @@ CATALOGO = {
     "actualizar_registro": (actualizar_registro, "Cambia campos de un registro existente (p. ej. estado de cita a 'confirmada', cobro a 'pagado').", _s({"id": {"type": "integer"}, "cambios": O}, ["id", "cambios"])),
     "buscar": (buscar, "Busca registros del cliente actual de un tipo (cita, lead, cobro...) que contengan un texto. Devuelve los 20 más recientes.", _s({"tipo": S, "texto": S}, ["tipo"])),
     "escalar_a_humano": (escalar_a_humano, "Pasa la conversación a una persona: el cliente lo pide, está molesto, es urgente o no sabes la respuesta.", _s({"motivo": S}, ["motivo"])),
-    "crear_pedido": (crear_pedido, "Crea un pedido con los ids del menú; el código calcula el total. Devuelve el resumen para leerlo al cliente tal cual.", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": S, "zona": S}, ["items", "modalidad", "nombre"])),
+    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente: para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": S, "zona": S}, ["items", "modalidad", "nombre"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "cancelar_pedido": (cancelar_pedido, "Cancela un pedido por_confirmar o confirmado.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),

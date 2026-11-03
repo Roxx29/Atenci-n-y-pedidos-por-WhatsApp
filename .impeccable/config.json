@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-11-03T01:20:32.824Z",
         "reason": "disenador: #cp-img es la vista previa del comprobante; JS le pone src (blob) al elegir foto y su contenedor está oculto hasta entonces"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "diseno/panel-web.html"
+        ],
+        "createdAt": "2026-11-03T04:52:50.173Z",
+        "reason": "disenador: #dlg-img del detalle recibe src por JS solo con pago pendiente; el diálogo está cerrado hasta entonces"
       }
     ]
   }

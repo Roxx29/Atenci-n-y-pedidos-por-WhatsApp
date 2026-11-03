@@ -132,7 +132,9 @@ class Servicio:
         modelo = os.environ.get("LLM_MODEL") or self.cfg.get("modelo", "claude-opus-5-5")
         base = os.environ.get("ANTHROPIC_BASE_URL", "")
         if base and "anthropic.com" not in base:  # servidor compatible (p. ej. Ollama): solo lo básico, sin betas ni tool_choice
-            return self.cliente.messages.create(model=modelo, max_tokens=16000, system=self.system, tools=self.tools, messages=msgs)
+            # thinking desactivado: con qwen3 el razonamiento hace cada vuelta ~40 s (sin él, ~1 s)
+            return self.cliente.messages.create(model=modelo, max_tokens=16000, system=self.system, tools=self.tools, messages=msgs,
+                                                thinking={"type": "disabled"})
         return self.cliente.beta.messages.create(
             model=modelo,
             max_tokens=16000,

@@ -233,8 +233,9 @@ class ModeloProveedor(Base):
                 sv.cfg["modelo"] = "claude-haiku-5-5"
                 self.assertEqual(sv.responder("A", "hi"), "hola")
                 if rama == "simple":
-                    self.assertEqual(sorted(sv.cliente.simple), ["max_tokens", "messages", "model", "system", "tools"])
+                    self.assertEqual(sorted(sv.cliente.simple), ["max_tokens", "messages", "model", "system", "thinking", "tools"])
                     self.assertEqual(sv.cliente.simple["model"], "qwen3:8b")
+                    self.assertEqual(sv.cliente.simple["thinking"], {"type": "disabled"})
                 else:
                     self.assertFalse(hasattr(sv.cliente, "simple"))
 

@@ -14,9 +14,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from . import panel_web
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
 
 PAGINA = Path(__file__).with_name("web_index.html")
+PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
@@ -94,6 +96,8 @@ class Limite:
 def crear_servidor(sv, puerto=8080, secreto=None):
     secreto = secreto or secreto_web(sv.dir)
     pagina = PAGINA.read_bytes()
+    acceso, bloqueo = panel_web.Acceso(secreto), panel_web.Bloqueo()
+    pagina_panel = PAGINA_PANEL.read_bytes() if PAGINA_PANEL.is_file() else b""
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
     menu = [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
              "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
@@ -148,7 +152,77 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(400, "JSON inválido")
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
 
+        def _panel(self, metodo, ruta):
+            """Rutas /panel*: solo LAN y solo con PIN configurado; el resto de peticiones ni lo ven."""
+            ip = self.client_address[0]
+            if not (acceso.activo and panel_web.es_lan(ip)):
+                return self._err(404, "No encontrado")
+            if ruta == "/panel" and metodo == "GET":
+                return self._enviar(200, pagina_panel, "text/html", [("Content-Security-Policy", CSP)])
+            if ruta == "/panel/entrar" and metodo == "POST":
+                if bloqueo.bloqueada(ip):
+                    return self._err(429, "Demasiados intentos; espere 5 minutos")
+                d = self._json()
+                if d is None:
+                    return
+                pin = d.get("pin")
+                rol = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                if not rol:
+                    bloqueo.fallo(ip)
+                    panel_web.auditar(sv, "?", "login_fallido")
+                    return self._err(401, "PIN incorrecto")
+                bloqueo.acierto(ip)
+                panel_web.auditar(sv, rol, "login")
+                return self._enviar(200, {"ok": True, "rol": rol}, extra=[("Set-Cookie", acceso.cookie(rol))])
+            ses = acceso.sesion(self.headers.get("Cookie"))
+            if not ses:
+                return self._err(401, "Sesión inválida")
+            rol, lim = ses
+            renovar = [("Set-Cookie", acceso.cookie(rol, lim))]
+            if ruta == "/panel/salir" and metodo == "POST":
+                panel_web.auditar(sv, rol, "salir")
+                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acceso.borrar_cookie())])
+            partes = ruta.split("/")  # ['', 'panel', 'estado'] ...
+            try:
+                if ruta == "/panel/estado" and metodo == "GET":
+                    desde = int((parse_qs(urlsplit(self.path).query).get("desde") or ["0"])[0])
+                    return self._enviar(200, panel_web.estado_panel(sv, desde), extra=renovar)
+                if len(partes) == 4 and partes[2] in ("pedido", "comprobante") and metodo == "GET":
+                    pid = int(partes[3])
+                    if partes[2] == "pedido":
+                        p = next((p for p in sv.listar("pedido") if p["id"] == pid), None)
+                        return self._enviar(200, {"pedido": panel_web.pedido_json(p, True)}, extra=renovar) if p else self._err(404, "No existe ese pedido")
+                    img = panel_web.comprobante(sv, pid)
+                    if not img:
+                        return self._err(404, "Sin comprobante")
+                    panel_web.auditar(sv, rol, "ver_comprobante", pid)
+                    return self._enviar(200, img[0], img[1], renovar)
+                if ruta == "/panel/marcar" and metodo == "POST":
+                    d = self._json()
+                    if d is None:
+                        return
+                    pid, est = d.get("pedido_id"), d.get("estado")
+                    if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(est, str)):
+                        return self._err(400, "Datos inválidos")
+                    try:
+                        p = panel_web.marcar(sv, pid, est, rol)
+                    except ValueError as e:
+                        return self._err(409, str(e))
+                    panel_web.auditar(sv, rol, est, pid)
+                    return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
+                if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
+                    try:
+                        panel_web.atender_escalado(sv, int(partes[3]))
+                    except ValueError as e:
+                        return self._err(409, str(e))
+                    return self._enviar(200, {"ok": True}, extra=renovar)
+            except ValueError:  # int() de la ruta
+                return self._err(400, "Datos inválidos")
+            self._err(404, "No encontrado")
+
         def do_GET(self):
+            if self.path.split("?")[0].startswith("/panel"):
+                return self._panel("GET", self.path.split("?")[0])
             if limite.excede(("ip", self.client_address[0]), 60):
                 return self._err(429, "Demasiadas peticiones")
             ruta = self.path.split("?")[0]
@@ -178,6 +252,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             self._err(404, "No encontrado")
 
         def do_POST(self):
+            if self.path.split("?")[0].startswith("/panel"):
+                return self._panel("POST", self.path.split("?")[0])
             ip = self.client_address[0]
             ruta = self.path.split("?")[0]
             if limite.excede(("ip", ip), 60) or (ruta == "/entrar" and limite.excede(("entrar", ip), 10)):

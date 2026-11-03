@@ -125,7 +125,7 @@ def acciones_de(p):
     if p["estado"] == "pago_reportado":
         a.append("pago_rechazado")
     if p["estado"] in ("por_confirmar", "confirmado"):
-        a.append("cancelar")
+        a.append("cancelado")
     return a
 
 

@@ -40,3 +40,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 
 - [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.
 - [devops] cloudflared: para enseñar la demo fuera de la red local y para el webhook de WhatsApp (pendiente).
+- [ ] 2026-11-02 — Web: en modo demo mostrar "el bot está pensando, puede tardar ~30 s" mientras responde el modelo local (capitan) (disenador)

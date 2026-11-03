@@ -61,6 +61,28 @@ def enviar_pendientes(sv, enviar=enviar):
             print(f"Error enviando mensaje {m['id']}: {e}")
 
 
+def ubicaciones_entrantes(payload):
+    """(teléfono, lat, lon) de cada mensaje de tipo location de un webhook de WhatsApp."""
+    for entry in payload.get("entry", []):
+        for ch in entry.get("changes", []):
+            for m in ch.get("value", {}).get("messages", []):
+                if m.get("type") == "location" and isinstance(m.get("location"), dict):
+                    yield m["from"], m["location"].get("latitude"), m["location"].get("longitude")
+
+
+def guardar_ubicacion_wa(sv, tel, lat, lon):
+    """Une la ubicación al pedido de entrega abierto del cliente (mismas validaciones que la web). True si se guardó."""
+    from . import herramientas
+    for p in reversed(sv.listar("pedido")):
+        if p["telefono"] == tel and p["modalidad"] == "entrega" and p["estado"] in herramientas.ABIERTOS:
+            try:
+                herramientas.poner_ubicacion(sv, p["id"], lat, lon, "whatsapp")
+            except ValueError:
+                return False
+            return True
+    return False
+
+
 def _atender(sv, msg_id, tel, texto):
     if not sv.primera_vez(msg_id):
         return
@@ -99,7 +121,10 @@ def servir(sv, puerto=8080):
                 return
             self.send_response(200)  # responder rápido; Meta reintenta si tardamos
             self.end_headers()
-            for msg_id, tel, texto in mensajes_entrantes(json.loads(cuerpo or b"{}")):
+            payload = json.loads(cuerpo or b"{}")
+            for tel, lat, lon in ubicaciones_entrantes(payload):
+                guardar_ubicacion_wa(sv, tel, lat, lon)
+            for msg_id, tel, texto in mensajes_entrantes(payload):
                 threading.Thread(target=_atender, args=(sv, msg_id, tel, texto), daemon=True).start()
 
     def recordatorios():

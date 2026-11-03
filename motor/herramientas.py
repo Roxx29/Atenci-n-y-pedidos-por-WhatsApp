@@ -14,6 +14,8 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import yaml
 
+from . import ubicacion
+
 DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
 FMT = "%Y-%m-%d %H:%M"
 
@@ -101,8 +103,8 @@ def actualizar_registro(sv, id, cambios):
 
 def _pedido_para_modelo(p):
     """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c."""
-    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at")}
-    out.update(total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
+    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at", "ubicacion")}
+    out.update(ubicacion_recibida=bool(p.get("ubicacion")), total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
                lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
     return out
 
@@ -119,7 +121,7 @@ def escalar_a_humano(sv, telefono, motivo):
 
 
 # --- pedidos: el dinero va en centavos enteros y lo calcula el código, nunca el modelo ---
-ESTADOS_PEDIDO = ["por_confirmar", "confirmado", "pago_reportado", "pagado", "en_preparacion", "listo", "entregado"]
+ESTADOS_PEDIDO = ["por_confirmar", "confirmado", "pago_reportado", "pagado", "en_preparacion", "listo", "en_camino", "entregado"]
 
 
 def _c(x):
@@ -224,7 +226,7 @@ def caducar_pedidos(sv):
     for p in sv.listar("pedido"):
         if p["estado"] == "por_confirmar" and p.get("creado_at") and dt.datetime.fromisoformat(p["creado_at"]) <= limite:
             try:
-                _transicion(sv, p["id"], {"por_confirmar"}, "caducado")
+                _transicion(sv, p["id"], {"por_confirmar"}, "caducado", {"ubicacion": None})
                 ids.append(p["id"])
             except ValueError:  # otro proceso lo confirmó o canceló justo ahora
                 pass
@@ -482,6 +484,10 @@ def purgar_comprobantes(sv):
     for p in sv.listar("pedido"):
         if p.get("comprobante") and dt.datetime.fromisoformat(p["comprobante_at"]) <= limite:
             borrar_comprobante(sv, p)
+    tope = sv.ahora() - dt.timedelta(hours=24)  # la ubicación no vive más de 24 h desde la creación del pedido
+    for p in sv.listar("pedido"):
+        if p.get("ubicacion") and p.get("creado_at") and dt.datetime.fromisoformat(p["creado_at"]) <= tope:
+            sv.actualizar(p["id"], {"ubicacion": None}, tipo="pedido")
     carpeta = sv.dir / "comprobantes"
     en_uso = {p.get("comprobante") for p in sv.listar("pedido")}
     for f in carpeta.iterdir() if carpeta.is_dir() else ():
@@ -509,11 +515,11 @@ def subir_comprobante(sv, p, ext, datos, referencia=""):
 
 def cancelar_pedido(sv, pedido_id):
     caducar_pedidos(sv)
-    borrar_comprobante(sv, _transicion(sv, pedido_id, {"por_confirmar", "confirmado"}, "cancelado"))
+    borrar_comprobante(sv, _transicion(sv, pedido_id, {"por_confirmar", "confirmado"}, "cancelado", {"ubicacion": None}))
     return {"ok": True}
 
 
-PREVIOS = {"pagado": {"pago_reportado", "confirmado"}, "en_preparacion": {"pagado"}, "listo": {"en_preparacion"}, "entregado": {"listo"}}
+PREVIOS = {"pagado": {"pago_reportado", "confirmado"}, "en_preparacion": {"pagado"}, "listo": {"en_preparacion"}, "en_camino": {"listo"}, "entregado": {"listo", "en_camino"}}
 
 
 def marcar_pedido(sv, pedido_id, estado):
@@ -525,13 +531,39 @@ def marcar_pedido(sv, pedido_id, estado):
         _aviso(sv, p, pedido_id, f"Pago no válido del pedido #{pedido_id}: avisado el cliente.")
         return {"ok": True, "estado": "confirmado"}
     if estado not in PREVIOS:
-        raise ValueError("Estado inválido: pagado, en_preparacion, listo, entregado o pago_rechazado.")
-    p = _transicion(sv, pedido_id, PREVIOS[estado], estado)  # el pago va antes de preparar; un cancelado no está en ningún conjunto
+        raise ValueError("Estado inválido: pagado, en_preparacion, listo, en_camino, entregado o pago_rechazado.")
+    p = _transicion(sv, pedido_id, PREVIOS[estado], estado, {"ubicacion": None} if estado == "entregado" else None)  # el pago va antes de preparar; un cancelado no está en ningún conjunto
     if (sv.cfg.get("comprobantes") or {}).get("borrar_al_marcar", True):
         borrar_comprobante(sv, p)
     if estado == "listo":
         programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} está listo.")
+    if estado == "en_camino":
+        programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} va en camino.")
     return {"ok": True, "estado": estado}
+
+
+ABIERTOS = {"por_confirmar", "confirmado", "pago_reportado", "pagado", "en_preparacion", "listo", "en_camino"}
+
+
+def poner_ubicacion(sv, pedido_id, lat, lon, fuente, enlace=None, precision=None):
+    """Guarda en el pedido abierto la ubicación ya validada (rango y cercanía). Nunca la imprime ni la audita."""
+    lat, lon = ubicacion.validar(lat, lon, **ubicacion.zona(sv.cfg))
+    u = {"lat": lat, "lon": lon, "fuente": fuente, "recibida_at": sv.ahora().isoformat()}
+    if enlace:
+        u["enlace"] = str(enlace)[:300]  # tal cual lo pegó el cliente
+    if isinstance(precision, (int, float)) and not isinstance(precision, bool) and 0 <= precision < 100000:
+        u["precision"] = round(precision)
+    return sv.actualizar(pedido_id, {"ubicacion": u}, tipo="pedido", desde=ABIERTOS)
+
+
+def guardar_ubicacion(sv, pedido_id, enlace):
+    """Herramienta del bot: solo acepta un enlace de Google Maps (o 'lat, lon') pegado por el cliente; las coordenadas las saca el código."""
+    p = next((p for p in sv.listar("pedido") if p["id"] == pedido_id), None)
+    if not p or p["modalidad"] != "entrega":
+        raise ValueError("La ubicación solo se guarda en pedidos de entrega.")
+    lat, lon = ubicacion.desde_enlace(enlace)
+    poner_ubicacion(sv, pedido_id, lat, lon, "enlace", enlace)
+    return {"ok": True, "nota": "Ubicación guardada para el repartidor. No muestres ni repitas coordenadas."}
 
 
 def _s(props, req):
@@ -554,6 +586,7 @@ CATALOGO = {
     "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": S, "notas": S}, ["pedido_id"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
+    "guardar_ubicacion": (guardar_ubicacion, "Guarda la ubicación de entrega cuando el cliente pega un enlace de Google Maps (o 'lat, lon'). Pasa el enlace EXACTO que escribió; nunca inventes ni calcules coordenadas.", _s({"pedido_id": {"type": "integer"}, "enlace": S}, ["pedido_id", "enlace"])),
     "cancelar_pedido": (cancelar_pedido, "Cancela un pedido por_confirmar o confirmado.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
 }
 
@@ -567,7 +600,7 @@ def esquemas(nombres):
 
 CON_TELEFONO = {"agendar_cita", "programar_mensaje", "escalar_a_humano", "registrar", "buscar", "crear_pedido"}
 CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
-          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
+          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 
@@ -591,6 +624,8 @@ def ejecutar(sv, nombre, entrada, cliente, turno=None):
     if turno is not None:
         if nombre == "confirmar_pedido" and entrada.get("pedido_id") in turno["creados"]:
             raise ValueError("Primero lee el resumen al cliente y espera su 'sí' en un mensaje nuevo.")
+        if nombre == "guardar_ubicacion" and "".join(str(entrada.get("enlace", "")).split()) not in "".join(turno["texto"].split()):
+            raise ValueError("Usa solo el enlace que el cliente escribió en este mensaje.")
         if nombre == "reportar_pago" and "".join(str(entrada.get("referencia", "")).split()).lower() not in "".join(turno["texto"].split()).lower():
             raise ValueError("Pide al cliente el número de referencia del pago; no lo inventes.")
     res = CATALOGO[nombre][0](sv, **entrada)

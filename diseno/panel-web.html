@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel · Fonda El Chitreano</title>
+<style>
+:root{
+  --papel:#FBF6EC; --carril:#F1E7D6; --superficie:#FFFFFF; --tinta:#2A1A12; --tinta-2:#6B5446; --linea:#E2D4C0;
+  --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE; --sobre-achiote:#FFFFFF;
+  --maiz:#E9B949; --maiz-suave:#FFF3D1; --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2;
+  --sombra:0 1px 2px rgba(42,26,18,.08),0 3px 10px rgba(42,26,18,.07);
+  --r:12px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.4 var(--texto)}
+::selection{background:var(--maiz);color:var(--tinta)}
+:focus-visible{outline:3px solid var(--maiz);outline-offset:2px}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:progress;opacity:.6}
+[hidden]{display:none!important}
+h1,h2,h3{margin:0;line-height:1.15}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+*{scrollbar-color:var(--linea) transparent}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 18px;border-radius:10px;border:0;font-weight:700;font-size:1.0625rem;background:var(--achiote);color:var(--sobre-achiote);transition:background .12s,transform .08s}
+.btn:hover{background:var(--achiote-osc)}
+.btn:active{transform:scale(.98)}
+.btn.ok{background:var(--hoja)} .btn.ok:hover{background:var(--hoja-osc)}
+.btn.sec{background:var(--superficie);color:var(--achiote);border:2px solid var(--achiote)}
+.btn.sec:hover{background:var(--achiote-suave)}
+.btn.suave{background:transparent;color:var(--tinta);border:1.5px solid var(--linea);font-weight:600}
+.btn.suave:hover{background:var(--carril)}
+
+/* ---------- Entrada (PIN) ---------- */
+#login{min-height:100%;display:grid;place-items:center;padding:24px}
+.caja-login{width:min(360px,100%);text-align:center}
+.caja-login h1{font-family:var(--display);font-size:2rem}
+.caja-login p{color:var(--tinta-2);margin:6px 0 20px}
+#pin{width:100%;min-height:60px;text-align:center;font-size:2rem;letter-spacing:.4em;border:2px solid var(--linea);border-radius:var(--r);background:var(--superficie);caret-color:var(--achiote)}
+#pin:focus{outline:none;border-color:var(--achiote)}
+.teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.teclado button{min-height:64px;border-radius:var(--r);border:1.5px solid var(--linea);background:var(--superficie);font-size:1.5rem;font-weight:600}
+.teclado button:hover{background:var(--carril)}
+.teclado button.btn{background:var(--achiote);color:var(--sobre-achiote);border:0}
+.teclado button.btn:hover{background:var(--achiote-osc)}
+#login.bloqueo{position:fixed;inset:0;z-index:30;background:rgba(251,246,236,.86);backdrop-filter:blur(3px)}
+#login.bloqueo .caja-login{background:var(--superficie);padding:24px;border-radius:16px;box-shadow:0 16px 48px rgba(42,26,18,.25)}
+.error{color:var(--achiote);font-weight:600;min-height:1.4em;margin:0}
+
+/* ---------- Panel ---------- */
+#panel{height:100%;display:flex;flex-direction:column}
+header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--tinta);color:var(--papel)}
+.barra h1{font-family:var(--display);font-size:1.375rem;margin-right:auto;white-space:nowrap}
+.barra h1 small{font:500 .875rem var(--texto);opacity:.75;margin-left:8px}
+.barra .btn.suave{color:var(--papel);border-color:rgba(251,246,236,.3);min-height:48px}
+.barra .btn.suave:hover{background:rgba(251,246,236,.1)}
+.barra .btn.suave[aria-pressed=true]{background:rgba(251,246,236,.16)}
+.cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--tinta);font-weight:800;font-size:.875rem}
+#btn-nuevos{background:var(--maiz);color:var(--tinta);min-height:48px}
+#btn-nuevos:hover{background:#F2C95E}
+.reloj{white-space:nowrap;font-weight:600;opacity:.85;min-width:3.5em;text-align:right}
+
+.banda{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--achiote);color:#fff;font-weight:700}
+.banda p{margin:0;flex:1}
+.banda button{min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,.6);background:none;color:#fff;font-weight:700}
+
+/* Tablero */
+.tablero{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(212px,1fr);gap:12px;padding:12px;overflow-x:auto;min-height:0;scroll-snap-type:x proximity}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--carril);border-radius:var(--r);scroll-snap-align:start}
+.col.estrecha{max-width:190px}
+.col>header{display:flex;align-items:center;gap:8px;padding:12px 14px 10px}
+.col h2{font-size:1.0625rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.col h2+.cuenta{background:var(--superficie);color:var(--tinta);border:1px solid var(--linea)}
+.col .pista{margin-left:auto;font-size:.8125rem;color:var(--tinta-2)}
+.lista{flex:1;overflow-y:auto;padding:0 10px 12px;display:flex;flex-direction:column;gap:10px}
+.vacia{color:var(--tinta-2);text-align:center;padding:24px 8px;font-size:.9375rem}
+
+/* Tarjeta */
+.tarjeta{grid-template-columns:minmax(0,1fr);min-width:0;background:var(--superficie);border-radius:var(--r);box-shadow:var(--sombra);padding:12px 14px;display:grid;gap:8px;border:2px solid transparent;transition:border-color .2s,box-shadow .2s}
+.tarjeta.nuevo{border-color:var(--maiz);box-shadow:0 0 0 4px var(--maiz-suave),var(--sombra);animation:llamar 1.2s ease-out 3}
+.tarjeta.foco{border-color:var(--achiote)}
+@keyframes llamar{0%{box-shadow:0 0 0 0 var(--maiz),var(--sombra)}100%{box-shadow:0 0 0 12px rgba(233,185,73,0),var(--sombra)}}
+.t-cab{display:flex;align-items:flex-start;gap:8px}
+.t-num{font-size:1.5rem;font-weight:800}
+.t-nombre{font-weight:700;font-size:1.0625rem;min-width:0;overflow-wrap:break-word;max-width:100%}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:.8125rem;font-weight:700;background:var(--carril);color:var(--tinta-2);white-space:nowrap}
+.chip.nuevo{background:var(--maiz);color:var(--tinta)}
+.chip.tarde{background:var(--achiote-suave);color:var(--achiote-osc)}
+.chip svg.i{width:15px;height:15px}
+.tarjeta{position:relative}
+.t-cab>.chip:last-child{position:absolute;top:14px;right:12px}
+.t-modo{display:flex;gap:8px;align-items:flex-start;color:var(--tinta);font-size:.9375rem}
+.t-modo svg{margin-top:1px;color:var(--tinta-2)}
+.t-modo b{font-weight:700}
+.t-items{list-style:none;margin:0;padding:8px 0;border-block:1px dashed var(--linea);font-size:.9375rem;display:grid;gap:2px}
+.t-items b{display:inline-block;min-width:2em;font-weight:800}
+.t-nota{font-size:.875rem;color:var(--achiote-osc);font-weight:600}
+.t-pie{display:flex;align-items:center;gap:8px}
+.t-total{font-size:1.25rem;font-weight:800;margin-left:auto;white-space:nowrap}
+.t-espera{font-size:.875rem;color:var(--tinta-2)}
+.acciones{display:grid;gap:8px}
+.acciones.dos{grid-template-columns:1fr auto}
+.miniatura{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:8px 12px;border-radius:10px;border:1.5px solid var(--linea);background:var(--maiz-suave);text-align:left;font-weight:700}
+.miniatura:hover{border-color:var(--achiote)}
+.miniatura small{display:block;color:var(--tinta-2);font-weight:500}
+.t-abrir{display:flex;flex-direction:column;align-items:flex-start;gap:8px;flex:1;min-width:0;min-height:44px;padding:0;border:0;background:none;text-align:left;border-radius:6px}
+.t-abrir:hover .t-nombre{text-decoration:underline;text-underline-offset:3px}
+.compacta{padding:10px 12px;gap:2px}
+.compacta .t-num{font-size:1.125rem}
+
+/* Bandeja de avisos */
+.bandeja{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--superficie);box-shadow:-8px 0 24px rgba(42,26,18,.18);display:flex;flex-direction:column;z-index:10;transform:translateX(105%);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.bandeja.abierta{transform:none}
+.bandeja>header{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--linea)}
+.bandeja h2{font-family:var(--display);font-size:1.375rem;margin-right:auto}
+.bandeja .lista{padding:12px 16px}
+.bandeja h3{font-size:.875rem;text-transform:uppercase;letter-spacing:.05em;color:var(--tinta-2);margin:4px 0 0}
+.aviso{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:12px;border-radius:10px;background:var(--papel)}
+.aviso.sin-leer{background:var(--maiz-suave)}
+.aviso.urgente{background:var(--achiote-suave)}
+.aviso svg.i{grid-row:span 2;margin-top:2px}
+.aviso p{margin:0}
+.aviso small{color:var(--tinta-2)}
+.aviso .fila{grid-column:2;display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.aviso .fila .btn{min-height:44px;font-size:.9375rem;padding:0 14px}
+.icono-btn{display:inline-grid;place-items:center;width:48px;height:48px;border-radius:10px;border:0;background:none}
+.icono-btn:hover{background:var(--carril)}
+
+/* Comprobante grande */
+dialog{border:0;padding:0;border-radius:16px;width:min(1000px,calc(100% - 32px));max-height:calc(100% - 32px);background:var(--superficie);color:var(--tinta);box-shadow:0 24px 64px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(42,26,18,.6)}
+.dlg{display:grid;grid-template-columns:1fr 340px;max-height:calc(100vh - 32px)}
+.dlg.sin-img{grid-template-columns:1fr}
+dialog.chico{width:min(480px,calc(100% - 32px))}
+.fila-btn{display:flex;gap:8px;flex-wrap:wrap}
+.fila-btn .btn{flex:1;min-height:48px}
+.dlg-img{background:#1A1310;display:grid;place-items:center;min-height:320px;overflow:auto}
+.dlg-img img{max-width:100%;max-height:calc(100vh - 32px);display:block}
+.dlg-lado{padding:20px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.dlg-lado h2{font-family:var(--display);font-size:1.75rem}
+.dlg-dato{display:grid;gap:2px}
+.dlg-dato span{font-size:.875rem;color:var(--tinta-2)}
+.dlg-dato b{font-size:1.125rem}
+.dlg-dato.grande b{font-size:2rem}
+.dlg-lado .acciones{margin-top:auto}
+.dlg-cerrar{position:absolute;top:10px;right:10px;background:var(--superficie);box-shadow:var(--sombra)}
+.confirmar{padding:12px;border-radius:10px;background:var(--achiote-suave)}
+.confirmar p{margin:0 0 10px;font-weight:600}
+
+/* Mensaje corto */
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,calc(100% + 40px));visibility:hidden;display:flex;align-items:center;gap:10px;padding:14px 18px;border-radius:12px;background:var(--tinta);color:var(--papel);font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:20;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.toast.ver{transform:translate(-50%,0);visibility:visible}
+.toast.mal{background:var(--achiote)}
+
+@media (max-width:1180px){.barra h1 small{display:none}}
+@media (max-width:900px){.dlg{grid-template-columns:1fr}.dlg-img img{max-height:55vh}}
+.lista .btn{font-size:1rem;padding:0 12px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
+  <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-sonido" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9a4 4 0 0 1 0 6"/></symbol>
+  <symbol id="i-mudo" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 4 6M21 9l-4 6"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+</svg>
+
+<!-- ============ Entrada ============ -->
+<main id="login">
+  <form class="caja-login" id="form-pin" novalidate>
+    <h1>Fonda El Chitreano</h1>
+    <p id="login-texto">Panel de pedidos. Escribe tu PIN de 6 números.</p>
+    <label class="sr" for="pin">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" aria-describedby="e-pin" required>
+    <div class="teclado" aria-label="Teclado numérico">
+      <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+      <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+      <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+      <button type="button" data-borrar aria-label="Borrar">⌫</button><button type="button">0</button>
+      <button type="submit" class="btn" style="min-height:64px;font-size:1.125rem">Entrar</button>
+    </div>
+    <p class="error" id="e-pin" role="alert"></p>
+  </form>
+</main>
+
+<!-- ============ Panel ============ -->
+<div id="panel" hidden>
+  <header class="barra">
+    <h1>El Chitreano <small id="modo">Pedidos de hoy</small></h1>
+    <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
+    <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
+    <button class="btn suave" id="btn-cerrados" aria-pressed="false">Cancelados</button>
+    <button class="btn suave" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg></button>
+    <span class="reloj num" id="reloj" aria-hidden="true"></span>
+    <button class="btn suave" id="btn-salir">Salir</button>
+  </header>
+  <div class="banda" id="banda" role="alert" hidden>
+    <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
+    <button id="banda-ok">Entendido</button>
+  </div>
+  <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
+</div>
+
+<aside class="bandeja" id="bandeja" aria-label="Avisos" hidden>
+  <header><h2>Avisos</h2><button class="icono-btn" id="bandeja-cerrar" aria-label="Cerrar avisos"><svg class="i"><use href="#i-cerrar"/></svg></button></header>
+  <div class="lista" id="lista-avisos"></div>
+</aside>
+
+<dialog id="dlg" aria-labelledby="dlg-titulo">
+  <div class="dlg" id="dlg-caja">
+    <div class="dlg-img" id="dlg-img-caja"><img id="dlg-img" alt="Comprobante de pago enviado por el cliente"></div>
+    <div class="dlg-lado">
+      <h2 id="dlg-titulo"></h2>
+      <div class="dlg-dato grande"><span>Total</span><b class="num" id="dlg-total"></b></div>
+      <div class="dlg-dato"><span>Cliente</span><b id="dlg-cliente"></b></div>
+      <div class="fila-btn" id="dlg-contacto"><a class="btn suave" id="dlg-llamar">Llamar</a><a class="btn suave" id="dlg-wa">WhatsApp</a></div>
+      <div class="dlg-dato"><span id="dlg-modo"></span><b id="dlg-lugar"></b></div>
+      <div class="dlg-dato" id="dlg-ref-caja"><span>Método y referencia</span><b id="dlg-ref"></b></div>
+      <ul class="t-items" id="dlg-items"></ul>
+      <p class="t-espera" id="dlg-pista">Compara el monto y la referencia con tu app de Yappy o del banco.</p>
+      <div class="acciones" id="dlg-acciones"></div>
+      <div class="confirmar" id="dlg-confirmar" hidden>
+        <p>¿Seguro? El pedido vuelve a "Nuevos" y se avisa al cliente para que pague de nuevo.</p>
+        <div class="acciones dos"><button class="btn" id="dlg-no-si">Sí, no es válido</button><button class="btn suave" id="dlg-no-volver">Volver</button></div>
+      </div>
+    </div>
+  </div>
+  <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const NS = document.querySelector("svg").namespaceURI; // sin URLs en el código
+function h(tag, attrs, ...hijos) { // crea nodos; el texto siempre va como texto
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === "class") e.className = v;
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of hijos.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+function icono(n) { const s = document.createElementNS(NS, "svg"); s.setAttribute("class", "i"); s.setAttribute("aria-hidden", "true"); const u = document.createElementNS(NS, "use"); u.setAttribute("href", "#i-" + n); s.append(u); return s; }
+const num = x => typeof x === "string" ? parseFloat(((x.match(/-?\d+(?:[.,]\d+)?/) || ["0"])[0]).replace(",", ".")) : Number(x);
+const dinero = n => { const v = num(n); return "B/. " + (isFinite(v) ? v : 0).toFixed(2); };
+const minutos = iso => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 60000));
+const hace = m => m < 1 ? "Ahora" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+const telLocal = t => { const d = String(t || "").replace(/\D/g, "").replace(/^507/, ""); return d.length === 8 ? d.slice(0, 4) + "-" + d.slice(4) : d; };
+const mascara = t => { if (/\*/.test(t)) return t; const l = telLocal(t); return l.length === 9 ? l[0] + "***-**" + l.slice(-2) : "***"; }; // listas: 6***-**67
+const CERRADOS = new Set(["entregado", "cancelado", "caducado"]);
+const hora = iso => new Date(iso).toLocaleTimeString("es-PA", {hour:"numeric", minute:"2-digit"});
+
+/* Columnas del tablero. `tarde`: minutos en ese estado a partir de los que la tarjeta pide atención. */
+const COLS = [
+  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"]},
+  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5},
+  {titulo:"Pagado", estados:["pagado"], tarde:5},
+  {titulo:"En cocina", estados:["en_preparacion"], tarde:25},
+  {titulo:"Listo", estados:["listo"], tarde:15},
+  {titulo:"Entregado", estados:["entregado"], estrecha:true},
+  {titulo:"Cancelados", estados:["cancelado", "caducado"], estrecha:true, filtro:true}
+];
+const SIGUIENTE = {pagado:["en_preparacion", "A cocina"], en_preparacion:["listo", "Listo"], listo:["entregado", "Entregado"]};
+const NOMBRE_ESTADO = {cancelado:"Cancelado", pagado:"Pagado", en_preparacion:"En cocina", listo:"Listo", entregado:"Entregado", confirmado:"Nuevos"};
+
+const st = {demo:location.protocol === "file:", pedidos:new Map(), avisos:[], escalados:[], ultimo:0, primera:true,
+            nuevos:new Set(), sinLeer:0, cerrados:false, sonido:true, sondeo:0, abierto:null};
+try { st.sonido = localStorage.getItem("panel-sonido") !== "no"; } catch (e) {}
+
+/* ---------- Entrada con PIN ---------- */
+const pin = $("#pin");
+$(".teclado").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || b.type === "submit") return;
+  if (b.hasAttribute("data-borrar")) pin.value = pin.value.slice(0, -1); else if (pin.value.length < 8) pin.value += b.textContent;
+  pin.focus();
+});
+$("#form-pin").addEventListener("submit", async ev => {
+  ev.preventDefault(); desbloquearSonido();
+  const v = pin.value.trim();
+  if (!/^\d{6}$/.test(v)) { $("#e-pin").textContent = "El PIN tiene 6 números."; return pin.focus(); }
+  $("#e-pin").textContent = "";
+  if (!st.demo) {
+    try {
+      const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
+      if (!r.ok) { const j = await r.json().catch(() => ({})); $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+    } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
+  }
+  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad();
+  if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
+  if (st.demo) { $("#modo").textContent = "Demostración con datos de ejemplo"; cargarDemo(); }
+  sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
+});
+$("#btn-salir").onclick = async () => {
+  clearInterval(st.sondeo);
+  if (!st.demo) await fetch("/panel/salir", {method:"POST"}).catch(() => {});
+  location.reload();
+};
+
+/* Bloqueo por inactividad (30 min): el tablero sigue a la vista, sin teléfonos ni direcciones. */
+const INACTIVO_MS = 30 * 60000;
+let ultimaActividad = Date.now();
+const actividad = () => { ultimaActividad = Date.now(); };
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, actividad, true));
+setInterval(() => {
+  if ($("#panel").hidden || st.bloqueado || Date.now() - ultimaActividad < INACTIVO_MS) return;
+  st.bloqueado = true;
+  if ($("#dlg").open) $("#dlg").close();
+  if (!$("#bandeja").hidden) abrirBandeja(false);
+  $("#panel").inert = true;
+  $("#login-texto").textContent = "Panel bloqueado por inactividad. Escribe tu PIN para seguir.";
+  $("#login").classList.add("bloqueo"); $("#login").hidden = false; pin.focus();
+}, 15000);
+
+/* ---------- Sonido (sin archivos: dos tonos con WebAudio) ---------- */
+let audio;
+function desbloquearSonido() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
+function sonar(urgente) {
+  if (!st.sonido || !audio) return;
+  const t = audio.currentTime;
+  (urgente ? [880, 660, 880] : [660, 880]).forEach((f, i) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = f; o.type = "sine"; g.gain.setValueAtTime(0.0001, t + i * .22);
+    g.gain.exponentialRampToValueAtTime(0.35, t + i * .22 + .02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * .22 + .2);
+    o.connect(g).connect(audio.destination); o.start(t + i * .22); o.stop(t + i * .22 + .22);
+  });
+}
+function pintarSonido() {
+  const b = $("#btn-sonido"); b.setAttribute("aria-pressed", st.sonido); b.setAttribute("aria-label", st.sonido ? "Sonido activado" : "Sonido apagado");
+  b.querySelector("use").setAttribute("href", st.sonido ? "#i-sonido" : "#i-mudo");
+}
+$("#btn-sonido").onclick = () => { st.sonido = !st.sonido; desbloquearSonido(); try { localStorage.setItem("panel-sonido", st.sonido ? "si" : "no"); } catch (e) {} pintarSonido(); if (st.sonido) sonar(); };
+pintarSonido();
+
+/* ---------- Datos ---------- */
+async function api(metodo, ruta, cuerpo) {
+  const r = await fetch(ruta, {method:metodo, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
+  if (r.status === 401) { location.reload(); throw new Error("401"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "No se pudo completar. Inténtalo de nuevo.");
+  return j;
+}
+async function sondear() {
+  if (st.demo) return pintar();
+  try { recibir(await api("GET", "/panel/estado?desde=" + st.ultimo)); }
+  catch (e) { /* sin conexión: reintenta en 3 s */ }
+}
+const ESPERA = new Set(["confirmado", "pago_reportado"]); // estados que piden al restaurante mirar el pedido
+function recibir(d) {
+  let sonido = 0;
+  for (const p of d.pedidos || []) {
+    const antes = st.pedidos.get(p.id);
+    if (!st.primera && ESPERA.has(p.estado) && (!antes || antes.estado !== p.estado)) { st.nuevos.add(p.id); sonido = Math.max(sonido, 1); }
+    st.pedidos.set(p.id, p);
+  }
+  for (const a of d.avisos || []) {
+    st.avisos.unshift({...a, leido:st.primera});
+    if (!st.primera) { st.sinLeer++; if (a.tipo === "escalado" || a.tipo === "sistema") sonido = 2; }
+    if (a.tipo === "sistema") mostrarBanda(a.texto);
+  }
+  if (d.escalados) st.escalados = d.escalados;
+  if (d.ultimo != null) st.ultimo = d.ultimo;
+  st.primera = false;
+  if (sonido) sonar(sonido === 2);
+  pintar();
+}
+
+/* ---------- Tablero ---------- */
+function pintar() {
+  const foco = document.activeElement && document.activeElement.dataset.clave; // conservar el foco al repintar
+  const tablero = $("#tablero"), cols = [];
+  for (const c of COLS) {
+    if (c.filtro && !st.cerrados) continue;
+    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
+    const lista = h("div", {class:"lista"}, ps.length ? ps.map(p => tarjeta(p, c)) : h("p", {class:"vacia"}, "Nada por aquí"));
+    const id = "col-" + c.estados[0];
+    cols.push(h("section", {class:"col" + (c.estrecha ? " estrecha" : ""), "aria-labelledby":id},
+      h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
+      lista));
+  }
+  tablero.replaceChildren(...cols);
+  if (foco) { const e = document.querySelector(`[data-clave="${foco}"]`); if (e) e.focus(); }
+  // contadores y título de la pestaña
+  const n = st.nuevos.size;
+  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n;
+  $("#n-avisos").hidden = !st.sinLeer; $("#n-avisos").textContent = st.sinLeer;
+  document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · Fonda El Chitreano";
+  if (!$("#bandeja").hidden) pintarAvisos();
+}
+
+function tarjeta(p, col) {
+  const nuevo = st.nuevos.has(p.id);
+  const m = minutos(p.estado_at || p.creado_at);
+  const tarde = col.tarde && m >= col.tarde;
+  const ver = () => { if (st.nuevos.delete(p.id)) pintar(); };
+  const abrir = h("button", {class:"t-abrir", "data-clave":"ab" + p.id, "aria-label":`Ver detalle del pedido ${p.id} de ${p.nombre}`, on:{click:() => abrirDetalle(p)}},
+    h("span", {class:"t-num num", id:"tn-" + p.id}, "#" + p.id), h("span", {class:"t-nombre"}, p.nombre));
+  if (col.estrecha) return h("article", {class:"tarjeta compacta", "aria-labelledby":"tn-" + p.id},
+    h("div", {class:"t-cab"}, abrir, h("span", {class:"chip num"}, p.estado === "caducado" ? "Caducó" : p.estado === "cancelado" ? "Cancelado" : hora(p.estado_at || p.creado_at))),
+    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, p.modalidad === "entrega" ? "Entrega" : "Recoger"), h("span", {class:"t-total num", style:"font-size:1rem"}, dinero(p.total))));
+
+  const entrega = p.modalidad === "entrega";
+  const lugar = entrega ? p.zona || "" : ""; // en la lista solo la zona; la dirección completa está en el detalle
+  return h("article", {class:"tarjeta" + (nuevo ? " nuevo" : "") + (st.abierto === p.id ? " foco" : ""), id:"pedido-" + p.id, "aria-labelledby":"tn-" + p.id, on:{click:ver, focusin:ver}},
+    h("div", {class:"t-cab"},
+      abrir,
+      nuevo ? h("span", {class:"chip nuevo"}, "Nuevo")
+            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), hace(m))),
+    h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
+      h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
+    h("ul", {class:"t-items"}, (p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre, i.nota ? ` (${i.nota})` : ""))),
+    p.notas && h("div", {class:"t-nota"}, "Nota: " + p.notas),
+    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, estadoCorto(p)), h("span", {class:"t-total num"}, dinero(p.total))),
+    acciones(p));
+}
+function estadoCorto(p) {
+  return {por_confirmar:"El cliente aún no confirma", confirmado:"Esperando pago", pago_reportado:p.metodo ? `Pagó por ${p.metodo}` : "Dice que pagó"}[p.estado] || "";
+}
+const permite = (p, e) => !p.acciones || p.acciones.includes(e); // el servidor dice qué botones tocan
+function acciones(p) {
+  const k = p.id;
+  if (p.estado === "pago_reportado") return h("div", {class:"acciones"},
+    p.comprobante ? h("button", {class:"miniatura", "data-clave":"ver" + k, on:{click:() => abrirDetalle(p)}},
+        icono("recibo"), h("span", {}, "Comprobante recibido", h("small", {}, (p.referencia ? "Ref. " + p.referencia + " · " : "") + "Toca para verlo")))
+      : h("p", {class:"t-espera", style:"margin:0"}, "Sin foto · Ref. " + (p.referencia || "—")),
+    h("div", {class:"acciones"},
+      permite(p, "pagado") && h("button", {class:"btn ok", "data-clave":"ok" + k, on:{click:() => marcar(p, "pagado")}}, icono("check"), "Pago correcto"),
+      permite(p, "pago_rechazado") && h("button", {class:"btn sec", "data-clave":"no" + k, on:{click:() => abrirDetalle(p, true)}}, "No válido")));
+  if (p.estado === "confirmado") return permite(p, "pagado") ? h("div", {class:"acciones"},
+    h("button", {class:"btn suave", "data-clave":"pc" + k, on:{click:() => marcar(p, "pagado")}}, "Ya pagó (efectivo o banco)")) : null;
+  const s = SIGUIENTE[p.estado];
+  return s && permite(p, s[0]) ? h("div", {class:"acciones"}, h("button", {class:"btn", "data-clave":"sg" + k, on:{click:() => marcar(p, s[0])}}, s[1])) : null;
+}
+
+async function marcar(p, estado) {
+  st.nuevos.delete(p.id);
+  try {
+    if (st.demo) Object.assign(p, {estado:estado === "pago_rechazado" ? "confirmado" : estado, estado_at:new Date().toISOString()});
+    else { const r = await api("POST", "/panel/marcar", {pedido_id:p.id, estado}); if (r.pedido) st.pedidos.set(p.id, r.pedido); }
+    aviso(estado === "pago_rechazado" ? `#${p.id}: pago no válido, avisamos al cliente` : `#${p.id} → ${NOMBRE_ESTADO[estado]}`);
+  } catch (e) { aviso(e.message, true); sondear(); }
+  pintar();
+}
+
+/* ---------- Comprobante en grande ---------- */
+const urlComprobante = p => st.demo ? DEMO_IMG : `/panel/comprobante/${p.id}`;
+async function abrirDetalle(p, rechazar) {
+  st.nuevos.delete(p.id); st.abierto = p.id;
+  if (!st.demo) { // teléfono completo y dirección solo en el detalle (legal)
+    try { p = {...p, ...(await api("GET", `/panel/pedido/${p.id}`)).pedido}; }
+    catch (e) { st.abierto = null; return aviso(e.message, true); }
+  }
+  const abierto = !CERRADOS.has(p.estado), conImg = p.estado === "pago_reportado" && p.comprobante; // comprobante solo con el pago pendiente
+  const img = $("#dlg-img"); if (conImg) img.src = urlComprobante(p); else img.removeAttribute("src");
+  $("#dlg-img-caja").hidden = !conImg; $("#dlg-caja").classList.toggle("sin-img", !conImg); $("#dlg").classList.toggle("chico", !conImg);
+  $("#dlg-titulo").textContent = `Pedido #${p.id}`;
+  $("#dlg-total").textContent = dinero(p.total);
+  $("#dlg-cliente").textContent = p.nombre + (p.telefono ? " · " + (abierto ? telLocal(p.telefono) : mascara(p.telefono)) : "");
+  $("#dlg-contacto").hidden = !(abierto && p.telefono);
+  if (p.telefono) { const d = String(p.telefono).replace(/\D/g, ""); $("#dlg-llamar").href = "tel:+" + d; $("#dlg-wa").href = "whatsapp://send?phone=" + d; }
+  const entrega = p.modalidad === "entrega";
+  $("#dlg-modo").textContent = entrega ? "Entrega" : "Recoger en el local";
+  $("#dlg-lugar").textContent = [p.hora_deseada, entrega && p.zona, entrega && abierto && p.direccion, p.notas && "Nota: " + p.notas].filter(Boolean).join(" · ") || "—";
+  $("#dlg-ref-caja").hidden = !(p.metodo || p.referencia);
+  $("#dlg-ref").textContent = [p.metodo, p.referencia && "Ref. " + p.referencia].filter(Boolean).join(" · ");
+  $("#dlg-items").replaceChildren(...(p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre)));
+  $("#dlg-pista").hidden = !conImg;
+  const acc = [];
+  const hacer = e => () => { $("#dlg").close(); marcar(p, e); };
+  if (p.estado === "pago_reportado") acc.push(
+    permite(p, "pagado") && h("button", {class:"btn ok", on:{click:hacer("pagado")}}, icono("check"), "Pago correcto"),
+    permite(p, "pago_rechazado") && h("button", {class:"btn sec", on:{click:() => mostrarConfirmar(true)}}, "Pago no válido"));
+  else if (p.estado === "confirmado") acc.push(permite(p, "pagado") && h("button", {class:"btn suave", on:{click:hacer("pagado")}}, "Ya pagó (efectivo o banco)"));
+  else if (SIGUIENTE[p.estado] && permite(p, SIGUIENTE[p.estado][0])) { const [e, t] = SIGUIENTE[p.estado]; acc.push(h("button", {class:"btn", on:{click:hacer(e)}}, t)); }
+  if (p.acciones && p.acciones.includes("cancelado")) acc.push(h("button", {class:"btn suave", on:{click:() => confirm(`¿Cancelar el pedido #${p.id}?`) && hacer("cancelado")()}}, "Cancelar pedido"));
+  const accs = acc.filter(Boolean);
+  $("#dlg-acciones").replaceChildren(...accs);
+  mostrarConfirmar(!!rechazar && p.estado === "pago_reportado");
+  $("#dlg").showModal();
+  (rechazar ? $("#dlg-no-volver") : accs[0] || $("#dlg-cerrar")).focus();
+}
+function mostrarConfirmar(on) { $("#dlg-acciones").hidden = on; $("#dlg-confirmar").hidden = !on; if (on) $("#dlg-no-volver").focus(); }
+$("#dlg").addEventListener("close", () => { st.abierto = null; $("#dlg-img").removeAttribute("src"); pintar(); });
+$("#dlg-cerrar").onclick = () => $("#dlg").close();
+$("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
+$("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
+$("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+/* ---------- Bandeja de avisos ---------- */
+function abrirBandeja(on) {
+  const b = $("#bandeja");
+  if (on) { b.hidden = false; requestAnimationFrame(() => b.classList.add("abierta")); pintarAvisos(); $("#bandeja-cerrar").focus(); }
+  else { b.classList.remove("abierta"); setTimeout(() => b.hidden = true, 250); st.avisos.forEach(a => a.leido = true); st.sinLeer = 0; pintar(); $("#btn-avisos").focus(); }
+  $("#btn-avisos").setAttribute("aria-expanded", on);
+}
+$("#btn-avisos").onclick = () => abrirBandeja($("#bandeja").hidden);
+$("#bandeja-cerrar").onclick = () => abrirBandeja(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#bandeja").hidden) abrirBandeja(false); });
+const ICONO_AVISO = {pedido:"recibo", pago:"recibo", escalado:"persona", sistema:"alerta"};
+function pintarAvisos() {
+  const irA = id => () => { abrirBandeja(false); verPedido(id); };
+  const esc = st.escalados.map(e => h("div", {class:"aviso urgente"}, icono("persona"),
+    h("p", {}, h("b", {}, "Necesita una persona: "), e.motivo),
+    h("small", {}, [e.nombre, e.telefono && mascara(e.telefono), e.creado_at && hora(e.creado_at)].filter(Boolean).join(" · ")),
+    h("div", {class:"fila"},
+      e.telefono && !/\*/.test(e.telefono) && h("a", {class:"btn suave", href:"tel:+" + String(e.telefono).replace(/\D/g, "")}, "Llamar"),
+      e.pedido_id && h("button", {class:"btn suave", on:{click:irA(e.pedido_id)}}, "Ver pedido #" + e.pedido_id),
+      h("button", {class:"btn ok", on:{click:() => atendido(e)}}, icono("check"), "Atendido"))));
+  const avs = st.avisos.slice(0, 50).map(a => h("div", {class:"aviso" + (a.leido ? "" : " sin-leer") + (a.tipo === "sistema" ? " urgente" : "")}, icono(ICONO_AVISO[a.tipo] || "campana"),
+    h("p", {}, a.texto), h("small", {}, a.creado_at ? hora(a.creado_at) : ""),
+    a.pedido_id && st.pedidos.has(a.pedido_id) && h("div", {class:"fila"}, h("button", {class:"btn suave", on:{click:irA(a.pedido_id)}}, "Ver pedido #" + a.pedido_id))));
+  $("#lista-avisos").replaceChildren(
+    ...(esc.length ? [h("h3", {}, "Para atender"), ...esc] : []),
+    h("h3", {}, "Últimos avisos"), ...(avs.length ? avs : [h("p", {class:"vacia"}, "Sin avisos")]));
+}
+async function atendido(e) {
+  try { if (!st.demo) await api("POST", `/panel/escalado/${e.id}/atendido`); st.escalados = st.escalados.filter(x => x !== e); pintarAvisos(); aviso("Marcado como atendido"); }
+  catch (err) { aviso(err.message, true); }
+}
+function verPedido(id) {
+  const t = $("#pedido-" + id); if (!t) return;
+  t.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); t.classList.add("foco");
+  const b = t.querySelector("button"); (b || t).focus({preventScroll:true});
+  setTimeout(() => t.classList.remove("foco"), 2500);
+}
+$("#btn-nuevos").onclick = () => { const id = Math.min(...st.nuevos); verPedido(id); };
+$("#btn-cerrados").onclick = () => { st.cerrados = !st.cerrados; $("#btn-cerrados").setAttribute("aria-pressed", st.cerrados); pintar(); };
+
+/* ---------- Banda roja (IA sin saldo, WhatsApp caído) y mensaje corto ---------- */
+function mostrarBanda(t) { $("#banda-texto").textContent = t; $("#banda").hidden = false; }
+$("#banda-ok").onclick = () => { $("#banda").hidden = true; };
+let tToast;
+function aviso(t, mal) { const e = $("#toast"); e.textContent = t; e.classList.toggle("mal", !!mal); e.classList.add("ver"); clearTimeout(tToast); tToast = setTimeout(() => e.classList.remove("ver"), mal ? 6000 : 3000); }
+
+/* Reloj y "hace X min" */
+setInterval(() => { $("#reloj").textContent = new Date().toLocaleTimeString("es-PA", {hour:"numeric", minute:"2-digit"}); }, 1000);
+setInterval(() => { if (!$("#panel").hidden && !document.activeElement.closest(".bandeja")) pintar(); }, 30000);
+
+/* ---------- Demostración (sin servidor) ---------- */
+// ponytail: datos de ejemplo para el prototipo; con servidor todo sale de /panel/estado.
+let DEMO_IMG = "";
+function cargarDemo() {
+  const c = document.createElement("canvas"); c.width = 540; c.height = 960; const g = c.getContext("2d");
+  g.fillStyle = "#F4F6F8"; g.fillRect(0, 0, 540, 960); g.fillStyle = "#0B6E4F"; g.fillRect(0, 0, 540, 180);
+  g.fillStyle = "#fff"; g.font = "bold 56px sans-serif"; g.fillText("¡Pago enviado!", 40, 115);
+  g.fillStyle = "#222"; g.font = "36px sans-serif"; g.fillText("Para: @elchitreano", 40, 290);
+  g.font = "bold 88px sans-serif"; g.fillText("B/. 12.57", 40, 420);
+  g.font = "32px sans-serif"; g.fillStyle = "#555"; g.fillText("Ref. 88412", 40, 520); g.fillText("Hoy, 12:41 p. m.", 40, 575);
+  DEMO_IMG = c.toDataURL("image/png");
+  const ahora = Date.now(), t = min => new Date(ahora - min * 60000).toISOString();
+  const P = (id, estado, nombre, modalidad, items, total, min, extra) => ({id, estado, nombre, telefono:"50761234567", modalidad, items, total, creado_at:t(min + 5), estado_at:t(min), ...extra});
+  const S = ["Sancocho de gallina", 5], T = ["Tasajo con arroz, ensalada y patacones", 7], C = ["Chicheme", 1.75], E = ["Empanadas de carne (3 u.)", 3], A = ["Arroz con guandú y cerdo", 5.5], CH = ["Chicha de saril", 1.5];
+  const it = (...xs) => xs.map(([n, q]) => ({nombre:n[0], cantidad:q, precio:n[1]}));
+  recibir({ultimo:3, pedidos:[
+    P(41, "por_confirmar", "Luis", "recogida", it([S, 1]), "B/. 5.35", 2),
+    P(40, "confirmado", "Marta", "entrega", it([T, 2], [CH, 2]), "B/. 20.19", 6, {zona:"Chitré", direccion:"Calle Melitón Martín, casa azul junto a la farmacia"}),
+    P(39, "pago_reportado", "Yaritza", "recogida", it([S, 2], [C, 1]), "B/. 12.57", 3, {metodo:"Yappy", referencia:"88412", comprobante:true, hora_deseada:"12:30"}),
+    P(38, "pagado", "Don Abdiel", "entrega", it([A, 1], [E, 1]), "B/. 11.09", 7, {zona:"La Villa de Los Santos", direccion:"Frente al parque, 2.º piso", notas:"Sin cebolla"}),
+    P(37, "en_preparacion", "Keila", "recogida", it([T, 1], [C, 2]), "B/. 11.24", 31, {hora_deseada:"12:45"}),
+    P(36, "en_preparacion", "Ricardo", "entrega", it([S, 3]), "B/. 18.05", 12, {zona:"Chitré", direccion:"Barrio San Juan, calle 3"}),
+    P(35, "listo", "Esther", "recogida", it([E, 2]), "B/. 6.42", 4),
+    P(34, "entregado", "Ana", "recogida", it([S, 1]), "B/. 5.35", 50),
+    P(33, "entregado", "José", "entrega", it([T, 1]), "B/. 9.49", 75, {zona:"Chitré"}),
+    P(32, "caducado", "Pedro", "recogida", it([C, 1]), "B/. 1.87", 90)],
+    avisos:[
+      {id:1, tipo:"pedido", texto:"Pedido #40 confirmado de Marta (entrega), total B/. 20.19.", pedido_id:40, creado_at:t(6)},
+      {id:2, tipo:"pago", texto:"Pago reportado en pedido #39: Yappy, ref 88412.", pedido_id:39, creado_at:t(3)},
+      {id:3, tipo:"pedido", texto:"Ricardo cambió la dirección del pedido #36 a Barrio San Juan, calle 3.", pedido_id:36, creado_at:t(10)}],
+    escalados:[{id:1, nombre:"Carmen", telefono:"50766554433", motivo:"Pregunta si el sancocho lleva maní (alergia).", creado_at:t(4)}]});
+  st.nuevos.add(39); st.nuevos.add(40); pintar();
+  setTimeout(() => recibir({ultimo:4, pedidos:[P(42, "pago_reportado", "Rosa", "entrega", it([A, 2], [CH, 2]), "B/. 15.94", 0, {zona:"Chitré", direccion:"Urb. Los Ángeles, casa 14", metodo:"Yappy", referencia:"77120", comprobante:true})],
+    avisos:[{id:4, tipo:"pago", texto:"Pago reportado en pedido #42: Yappy, ref 77120.", pedido_id:42, creado_at:t(0)}]}), 12000);
+  setTimeout(() => recibir({ultimo:5, avisos:[{id:5, tipo:"sistema", texto:"El asistente de IA se quedó sin saldo: los clientes no reciben respuesta. Recarga la cuenta o atiende por WhatsApp.", creado_at:t(0)}]}), 40000);
+}
+</script>
+</body>
+</html>

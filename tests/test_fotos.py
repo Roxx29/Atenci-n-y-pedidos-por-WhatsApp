@@ -91,6 +91,28 @@ class Fotos(Base):
         st, d = self.subir(b.getvalue(), "image/png")
         self.assertEqual(st, 400, d)
 
+    def test_bomba_sin_globales(self):
+        from PIL import Image as I
+        antes = I.MAX_IMAGE_PIXELS
+        self.test_imagen_bomba()
+        self.assertEqual(I.MAX_IMAGE_PIXELS, antes)
+
+    def test_limite_de_subidas(self):
+        ck = self.login()[1]
+        cods = [self.subir(imagen(size=(40, 40)), ck=ck)[0] for _ in range(11)]
+        self.assertEqual(cods[:10], [200] * 10)
+        self.assertEqual(cods[10], 429)
+
+    def test_cache_solo_con_version(self):
+        url = self.subir(imagen())[1]["foto"]
+        self.assertIn("immutable", self.req("GET", url)[0].getheader("Cache-Control"))
+        self.assertEqual(self.req("GET", url.split("?")[0])[0].getheader("Cache-Control"), "no-cache")
+
+    def test_csp_endurecida(self):
+        csp = self.req("GET", "/panel")[0].getheader("Content-Security-Policy")
+        for d in ("object-src 'none'", "base-uri 'none'", "frame-ancestors 'none'"):
+            self.assertIn(d, csp)
+
     def test_personal_403_plato_404_y_sin_sesion(self):
         ck = self.login("918273")[1]
         self.assertEqual(self.subir(imagen(), ck=ck)[0], 403)

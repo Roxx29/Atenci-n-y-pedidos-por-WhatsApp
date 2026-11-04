@@ -31,7 +31,7 @@ MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
 VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
-CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:"
+CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
 
 
@@ -294,6 +294,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 largo = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 return self._err(400, "Cuerpo inválido")
+            if limite.excede(("foto_up", quien), 10):  # decodificar cuesta CPU: tope propio por minuto
+                return self._err(429, "Demasiadas subidas, espere un minuto")
             if largo > panel_web.MAX_FOTO:  # antes de leer
                 return self._err(413, "La imagen supera 3 MB")
             if largo <= 0:
@@ -322,8 +324,9 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not img:
                 return self._err(404, "No encontrado")
             self.send_response(200)
+            versionada = "v" in parse_qs(urlsplit(self.path).query)
             for k, v in (("Content-Type", "image/webp"), ("Content-Length", str(len(img))), ("X-Content-Type-Options", "nosniff"),
-                         ("Cache-Control", "public, max-age=31536000, immutable")):
+                         ("Cache-Control", "public, max-age=31536000, immutable" if versionada else "no-cache")):
                 self.send_header(k, v)
             self.end_headers()
             self.wfile.write(img)

@@ -284,23 +284,19 @@ class TipoNoValido(ValueError):
 def procesar_foto(datos):
     """(webp 160, webp 320) cuadrados y centrados, sin metadatos. El formato se detecta con Pillow por contenido.
     TipoNoValido si no es JPEG/PNG/WebP; ValueError si está corrupta o es demasiado grande en píxeles."""
-    import warnings
     from PIL import Image, ImageOps
-    Image.MAX_IMAGE_PIXELS = MAX_PX  # Image.open lanza DecompressionBombError por encima de 2x
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            im = Image.open(io.BytesIO(datos), formats=list(TIPOS_FOTO.values()))
-            if im.width * im.height > MAX_PX:
-                raise ValueError("Imagen demasiado grande (máx. 40 Mpx)")
-            im.draft("RGB", (640, 640))  # JPEG: decodifica ya reducida
-            im = ImageOps.exif_transpose(im)  # gira según EXIF antes de descartarlo
-            if im.mode in ("RGBA", "LA", "P", "PA"):  # transparencia → fondo blanco
-                im = im.convert("RGBA")
-                fondo = Image.new("RGB", im.size, "white")
-                fondo.paste(im, mask=im.getchannel("A"))
-                im = fondo
-            im = ImageOps.fit(im.convert("RGB"), (320, 320), Image.Resampling.LANCZOS)
+        im = Image.open(io.BytesIO(datos), formats=list(TIPOS_FOTO.values()))
+        if im.width * im.height > MAX_PX:
+            raise ValueError("Imagen demasiado grande (máx. 40 Mpx)")
+        im.draft("RGB", (640, 640))  # JPEG: decodifica ya reducida
+        im = ImageOps.exif_transpose(im)  # gira según EXIF antes de descartarlo
+        if im.mode in ("RGBA", "LA", "P", "PA"):  # transparencia → fondo blanco
+            im = im.convert("RGBA")
+            fondo = Image.new("RGB", im.size, "white")
+            fondo.paste(im, mask=im.getchannel("A"))
+            im = fondo
+        im = ImageOps.fit(im.convert("RGB"), (320, 320), Image.Resampling.LANCZOS)
     except Image.UnidentifiedImageError:
         raise TipoNoValido("Solo se aceptan imágenes JPEG, PNG o WebP")
     except Exception:  # corrupta, bomba (DecompressionBombError/Warning) o > MAX_PX; Pillow lanza de todo

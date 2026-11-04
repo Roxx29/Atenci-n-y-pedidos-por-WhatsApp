@@ -2,6 +2,7 @@
 
 Lo último que se agregó, cambió o actualizó en el proyecto. Lo más reciente arriba. Formato: `- AAAA-MM-DD — qué cambió (autor)`.
 
+- 2026-11-04 — IDEAS: quitada la tarea de arranque automático al encender el PC (usuario)
 - 2026-11-04 — Reglas 7 y 8 en CLAUDE.md: este archivo y la orden "encender jarvis" (capitan)
 - 2026-11-04 — `Encender.cmd` / `Apagar.cmd` en la raíz y accesos directos en el Escritorio: todo el sistema con doble clic (capitan)
 - 2026-11-04 — `despliegue/vigilar.cmd`: web y túnel se reinician solos si se caen; registro en `despliegue/logs/`. `publicar.cmd` lo usa (capitan)

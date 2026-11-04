@@ -541,8 +541,23 @@ $("#carro-enviar").onclick = () => {
 };
 
 /* ---------- Chat ---------- */
+/* formato-bot: **negrita**, *negrita* y _cursiva_ del bot, solo con nodos (nunca innerHTML). Un * suelto ("2 * 3", "2*3*4") queda como texto. */
+function formato(texto) {
+  const f = document.createDocumentFragment(), re = /\*\*([^\s*](?:[^*\n]*[^\s*])?)\*\*|\*([^\s*](?:[^*\n]*[^\s*])?)\*|_([^\s_](?:[^_\n]*[^\s_])?)_/g, palabra = c => !!c && /\w/.test(c);
+  let pos = 0, m;
+  while ((m = re.exec(texto))) {
+    const simple = m[1] === undefined, antes = texto[m.index - 1], despues = texto[m.index + m[0].length];
+    if (simple && (palabra(antes) || palabra(despues) || antes === "*" || despues === "*")) { re.lastIndex = m.index + 1; continue; } // no es formato: sigue buscando
+    if (m.index > pos) f.append(document.createTextNode(texto.slice(pos, m.index)));
+    const e = document.createElement(m[3] !== undefined ? "em" : "strong"); e.textContent = m[1] ?? m[2] ?? m[3]; f.append(e);
+    pos = re.lastIndex;
+  }
+  if (pos < texto.length) f.append(document.createTextNode(texto.slice(pos)));
+  return f;
+}
 function burbuja(quien, texto) {
-  const d = document.createElement("div"); d.className = "burbuja " + quien; d.textContent = texto;
+  const d = document.createElement("div"); d.className = "burbuja " + quien;
+  if (quien === "bot") d.append(formato(String(texto))); else d.textContent = texto;
   if (quien === "sistema") d.className = "sistema";
   $("#mensajes").append(d); d.scrollIntoView({block:"end", behavior:"smooth"});
 }

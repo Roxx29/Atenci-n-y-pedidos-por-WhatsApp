@@ -269,5 +269,42 @@ class MenuYPedidos(Base):
         self.assertEqual(self._historial_filas(), [])
 
 
+class FormatoBot(unittest.TestCase):
+    """formato() de la web: **x** y *x* → <strong>, _x_ → <em>, solo con nodos DOM. Se prueba con node y un DOM de mentira (se omite sin node)."""
+
+    JS = r"""
+const document = {createDocumentFragment: () => mk("#f"), createTextNode: t => ({t}), createElement: n => mk(n)};
+function mk(n) { return {n, c: [], append(...x) { this.c.push(...x); }, set textContent(v) { this.c = [{t: v}]; }}; }
+const ser = x => x.t !== undefined ? x.t : (x.n === "#f" ? "" : `<${x.n}>`) + x.c.map(ser).join("") + (x.n === "#f" ? "" : `</${x.n}>`);
+%s
+const casos = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(casos.map(c => ser(formato(c)))));
+"""
+
+    def test_formato(self):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node")
+        h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
+        fn = h[h.index("function formato("):h.index("function burbuja(")]
+        casos = {
+            "Hola **Ana**, quieres *tasajo*": "Hola <strong>Ana</strong>, quieres <strong>tasajo</strong>",
+            "Total: *B/. 7.00* (con ITBMS)": "Total: <strong>B/. 7.00</strong> (con ITBMS)",
+            "_nota_ final": "<em>nota</em> final",
+            "2 * 3 * 4": "2 * 3 * 4",
+            "2*3*4": "2*3*4",
+            "snake_case_name": "snake_case_name",
+            "*sin cerrar": "*sin cerrar",
+            "- uno\n\u2022 dos": "- uno\n\u2022 dos",
+            "<b>x</b> *y*": "<b>x</b> <strong>y</strong>",
+            "": "",
+        }
+        r = subprocess.run([node, "-e", self.JS % fn, json.dumps(list(casos))], capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), list(casos.values()))
+
+
 if __name__ == "__main__":
     unittest.main()

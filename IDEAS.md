@@ -26,3 +26,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
 - [ ] 2026-11-02 — Revisión de abogado de legal/2026-11-02-web-pedidos.md (6 pendientes al final del archivo) (legal-datos)
 - [ ] 2026-11-02 — Panel web antes de producción (legal §2.8): un PIN por persona, ARCO exportar/borrar para el dueno, PIN solo con hash, teléfono enmascarado en pedidos cerrados, auditoría solo para el dueno, retención de 12 meses (agentedeprogramacion)
+- [ ] 2026-11-03 — [ABOGADO] ARCO: confirmar que pago_ref puede quedar en el pedido anonimizado, el plazo de 24 meses del registro ARCO y los 5 años del pedido anonimizado (legal §2.4)

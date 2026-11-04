@@ -30,34 +30,25 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Web de pedidos: completar los [corchetes] del aviso de privacidad (RUC, dirección, proveedor IA, plazo, contacto) y revisión de abogado.
 - [ ] 2026-11-02 — Canal alternativo mientras no hay Meta: Telegram (long polling, recomendado por agenteinvestigacion) o web de pedidos con chat (recomendado por agenteservicios). Decide el usuario (capitan)
 - [x] 2026-11-02 — Pasar `enviar` como parámetro a `enviar_pendientes` (whatsapp.py:60) para compartirlo entre canales (agenteservicios)
-- [ ] 2026-11-02 — Token permanente (usuario del sistema) antes de un restaurante real (usuario)
-- [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
-- [ ] 2026-11-02 — Legal §2.3-2.4 (legal/2026-11-02-web-pedidos.md, rama AgenteLegal): tarea al arrancar que borre chats a los 90 días, anonimice pedidos y borre clientes a los 12 meses; en el panel buscar por teléfono, exportar y borrar (ARCO) con registro de la solicitud y secure_delete; texto del aviso con datos del restaurante en servicios/<slug>/aviso.md (agentedeprogramacion + legal-datos)
-- [ ] 2026-11-02 — Canal web: verificar el teléfono (WhatsApp/SMS) para que nadie entre con un número ajeno; HTTPS obligatorio en producción (devops) (agentedeprogramacion)
-- [ ] 2026-11-02 — Canal web: verificar el teléfono (WhatsApp/SMS); en v1 quien escribe un teléfono ajeno entra con ese cid y ve/usa sus datos (agentedeprogramacion)
-- [ ] 2026-11-02 — Canal web: retención/borrado/ARCO de consentimientos y datos, y redactar aviso.md con legal-datos (legal-datos)
+- [ ] 2026-11-02 — Legal §2.3-2.4 (legal/2026-11-02-web-pedidos.md, rama AgenteLegal): tarea al arrancar que borre chats a los 90 días, anonimice pedidos y borre clientes a los 12 meses; en el panel buscar por teléfono, exportar y borrar (ARCO) con registro de la solicitud y secure_delete; texto del aviso con datos del restaurante en servicios/<slug>/aviso.md (agentedeprogramacion + legal-datos) — incluye retención/ARCO de consentimientos
+- [ ] 2026-11-02 — Canal web: verificar el teléfono (WhatsApp/SMS) para que nadie entre con un número ajeno (hoy quien escribe un teléfono ajeno entra con ese cid y ve/usa sus datos); HTTPS obligatorio en producción (devops) (agentedeprogramacion)
 
 - [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.
 - [devops] cloudflared: ver despliegue/cloudflare.md (túnel con nombre listo; falta que el usuario cree túnel y token). Webhook de WhatsApp pendiente.
 - [ ] 2026-11-02 — Web: en modo demo mostrar "el bot está pensando, puede tardar ~30 s" mientras responde el modelo local (capitan) (disenador)
 - [ ] Web: probar en un móvil real la subida del comprobante (galería, cámara y fotos HEIC de iPhone).
 - [ ] 2026-11-02 — Medir qwen3:4b como respaldo Ollama (tiempo + acierto crear_pedido) cuando haya memoria libre; ver investigacion/2026-11-02-modelo-rapido.md (agenteinvestigacion)
-- Panel web: avisos tipo 'sistema' (IA sin saldo / WhatsApp caído), PIN por persona, rol dueno (buscar/exportar/ARCO), auditoría visible 12 meses, estado_at al caducar, HTTPS.
 - BLOQUEANTE PARA PRODUCCIÓN (legal, revisión de e48b732): (1) un PIN por persona: tabla usuarios(nombre, rol, pin_hash) y nombre en auditoria/_por; (2) vía ARCO de borrado/exportación para dueno (mientras tanto, procedimiento manual SQL documentado); (3) PIN solo con hash (quitar PANEL_PIN en texto o convertirlo al arrancar). No urgente: retención de 12 meses de auditoría y registro de cambio de PIN. La auditoría hoy no se expone por ninguna ruta (punto 5 cumplido).
-- [ ] Panel web: pantallas del rol dueño (buscar cliente por teléfono, exportar/borrar datos, gestionar PINs, registro de acciones) — legal 2.8.
 - [ ] Panel web: probar en la tablet real del local (sonido tras el PIN, tamaño de botones, luz de día).
-- [ ] 2026-11-02 — Panel web antes de producción (legal §2.8): un PIN por persona, ARCO exportar/borrar para el dueno, PIN solo con hash, teléfono enmascarado en pedidos cerrados, auditoría solo para el dueno, retención de 12 meses (agentedeprogramacion)
 - Ubicación/repartidor: seguimiento GPS del repartidor, ubicación por WhatsApp ya enchufada (probar con Meta), PIN de repartidor solo hash en producción, campo externo sí/no (NDA, legal §2.9), página /repartidor y botón de ubicación de disenador.
 - [ ] Repartidor: probar en un móvil real al sol (contraste, botones) e instalar la PWA (necesita HTTPS).
 - [ ] Ubicación: probar el GPS por HTTPS y el pegado de enlaces maps.app.goo.gl reales.
 
-- [ ] Panel web: crear/editar repartidores (con su PIN), configurar el menú y demás ajustes sin tocar .env ni YAML. (usuario, 2026-11-03)
 - [ ] Arreglar test_recordatorio_y_cancelacion (test_motor): depende del día; falla si el próximo miércoles 10:00 está a menos de 24 h. (capitán, 2026-11-03)
 - [x] 2026-11-03 — Panel responsive móvil (≤700px) hecho; falta probar en vivo tras integrar y revisar pantalla Ajustes a 375px (disenador)
 - [ ] Antes del primer cliente: pasar a la nube (Render/Railway/Fly.io, auto-deploy desde GitHub, un servidor por restaurante, dominio vía Cloudflare). Túnel solo para demos. Revisar con legal-datos Ley 81 (ubicación de datos) y con comercial el precio que cubra 5-7 USD/mes de servidor. (usuario/capitán, 2026-11-03)
 - [ ] Web: el chat conserva la conversación del pedido anterior al reabrir la página; empezar limpio tras cerrar pedido o visita nueva (usuario, 2026-11-03) (agentedeprogramacion)
-- [ ] Panel adaptado a teléfono (usuario, 2026-11-03) (disenador)
 - [ ] APARCADO (usuario, 2026-11-03) — Panel dueño ARCO + auditoría visible (legal-datos, legal/2026-11-02-web-pedidos.md §2.3-2.4, 2.8): buscar cliente por teléfono; EXPORTAR JSON descargable (no se guarda): cliente (nombre, teléfono, consentimiento_at, version_aviso), pedidos (fecha, ítems y notas, total, estado, entrega, dirección, método, pago_ref, monto), mensajes vivos, ubicación/comprobante solo como existe/fecha, solicitudes ARCO previas; NO auditoría, _por ni hashes. BORRAR: cliente, mensajes, capturas, ubicación, notas de ítems; ANONIMIZAR pedidos (nombre, teléfono, dirección → NULL; quedan cifras, estado, método, pago_ref, _por/_at); con pedido abierto no borrar ("cierra o cancela el pedido primero"); PRAGMA secure_delete=ON. Tabla arco_solicitud(id, tipo acceso|rectificacion|cancelacion|oposicion|portabilidad, canal, recibida_at, respondida_at, estado pendiente|hecha|rechazada, usuario, telefono_hmac = HMAC-SHA256 con clave secreta), 24 meses; auditoría arco_exportar|arco_borrar con solicitud_id. RETENCIÓN (constantes en un sitio, tarea diaria al arrancar): auditoría 12 meses, mensajes 90 días, cliente 12 meses desde último pedido (borrar + anonimizar), pedido anonimizado 5 años, ARCO 24 meses. Auditoría visible solo para el dueño, no editable.
 - [ ] APARCADO (usuario, 2026-11-03) — Avisos tipo 'sistema' en el panel (IA sin saldo, WhatsApp caído): banda roja ya existe en panel_web.html; falta que estado_panel marque tipo "sistema" a los avisos sin pedido_id del motor.
 - [ ] Web: al recargar, el teléfono sale prellenado como 50760000001; comprobar que al reentrar no se duplique el prefijo +507 (tester, 2026-11-03) (agentedeprogramacion)
@@ -81,4 +72,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-04 — Pasar el motor (bot + web + panel) a un servidor en la nube (USD 5–6/mes) en vez del PC del restaurante (devops)
 - [ ] 2026-11-04 — Copia continua de datos.sqlite y comprobantes/ a la nube (Litestream → Cloudflare R2) con prueba de restauración (devops)
 - [ ] 2026-11-04 — Con muchos restaurantes: PostgreSQL gestionado (Supabase/Neon) + fotos en R2, datos separados por restaurante (arquitecto)
-- [ ] 2026-11-04 — Ley 81: dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)
+- [ ] 2026-11-04 — Ley 81: elegir región de Turso y del servidor (Render/Fly) — dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)
+- [ ] 2026-11-04 — Ajustes profesionales: identidad del restaurante (logo, nombre, colores, datos de contacto/horario) editable desde el panel, y rediseñar Ajustes (menú, repartidores con PIN, demás configuración sin tocar .env ni YAML); decidir entre agentes si separarlo en secciones/páginas (usuario) (disenador + agentedeprogramacion + comercial)

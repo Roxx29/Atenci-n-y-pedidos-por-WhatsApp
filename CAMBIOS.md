@@ -2,6 +2,8 @@
 
 Lo último que se agregó, cambió o actualizó en el proyecto. Lo más reciente arriba. Formato: `- AAAA-MM-DD — qué cambió (autor)`.
 
+- 2026-11-04 — IDEAS: quitadas 9 tareas repetidas (panel, web, token, campo) y añadida "Ajustes profesionales" (logo, nombre, menú, repartidores) (capitan)
+- 2026-11-04 — En curso: código listo para la nube sin conectar (Turso opcional, comprobantes en BD, migrar, /salud, Dockerfile/render.yaml/fly.toml). El PC sigue igual (capitan)
 - 2026-11-04 — IDEAS: quitada la tarea de arranque automático al encender el PC (usuario)
 - 2026-11-04 — Reglas 7 y 8 en CLAUDE.md: este archivo y la orden "encender jarvis" (capitan)
 - 2026-11-04 — `Encender.cmd` / `Apagar.cmd` en la raíz y accesos directos en el Escritorio: todo el sistema con doble clic (capitan)

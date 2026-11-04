@@ -238,6 +238,10 @@ html,body{overflow-x:hidden}
 .aj-fila{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--linea)}
 .aj-fila span{flex:1;min-width:0;overflow-wrap:anywhere}
 .aj-fila .btn{min-height:44px;font-size:.9375rem}
+.aj-fila{flex-wrap:wrap}
+.aj-acc{display:flex;gap:8px;flex-wrap:wrap}
+.aj-fila .aj-foto{flex:none;width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--maiz-suave)}
+.aj-fila .aj-foto.ini{display:grid;place-items:center;font:700 1.25rem var(--display);color:var(--tinta-2)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -670,12 +674,63 @@ async function pintarAjustes() {
       h("span", {}, h("b", {}, x.nombre), ` · ${NOMBRE_ROL[x.rol] || x.rol}${x.activo ? "" : " · inactivo"}`),
       h("button", {class:"btn suave", type:"button", on:{click:() => { fu.nombre.value = x.nombre; fu.rol.value = x.rol; fu.activo.checked = x.activo; fu.pin.value = ""; fu.pin.focus(); }}}, "Editar"))));
     $("#aj-menu").replaceChildren(...m.menu.map(x => h("div", {class:"aj-fila"},
+      miniatura(x),
       h("span", {}, h("b", {}, x.nombre), ` · ${dinero(x.precio)}${x.disponible ? "" : " · agotado"}`),
-      h("button", {class:"btn suave", type:"button", on:{click:() => { fp.elements.id.value = x.id; fp.nombre.value = x.nombre; fp.precio.value = x.precio; fp.categoria.value = x.categoria || ""; fp.disponible.checked = x.disponible; fp.nombre.focus(); }}}, "Editar"))));
+      h("div", {class:"aj-acc"},
+        h("button", {class:"btn suave", type:"button", on:{click:() => { fp.elements.id.value = x.id; fp.nombre.value = x.nombre; fp.precio.value = x.precio; fp.categoria.value = x.categoria || ""; fp.disponible.checked = x.disponible; fp.nombre.focus(); }}}, "Editar"),
+        botonesFoto(x)))));
   } catch (e) { aviso(e.message, true); }
 }
 $("#btn-ajustes").onclick = () => { $("#dlg-aj").showModal(); pintarAjustes(); };
 $("#aj-cerrar").onclick = () => $("#dlg-aj").close();
+/* ---- Fotos de platos (bloque propio): miniatura, subir/cambiar y quitar ---- */
+function miniatura(x) {
+  if (!x.foto) return h("span", {class:"aj-foto ini", "aria-hidden":"true"}, (x.nombre.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/) || ["?"])[0].toUpperCase());
+  const i = h("img", {class:"aj-foto", alt:"", width:48, height:48, loading:"lazy", src:x.foto});
+  if (x.foto2x) i.srcset = x.foto + " 1x, " + x.foto2x + " 2x";
+  return i;
+}
+// Reduce la foto en el teléfono (la del celular pesa más de 3 MB): recorte cuadrado de 640 px, WebP o JPEG.
+async function reducirFoto(archivo) {
+  const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), lado = Math.min(bmp.width, bmp.height), T = 640;
+  const c = document.createElement("canvas"); c.width = c.height = T;
+  c.getContext("2d").drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, T, T);
+  bmp.close && bmp.close();
+  for (const tipo of ["image/webp", "image/jpeg"]) { // Safari viejo no sabe WebP y devuelve PNG: se pide JPEG
+    const b = await new Promise(ok => c.toBlob(ok, tipo, .85));
+    if (b && b.type === tipo) return b;
+  }
+  throw new Error("No se pudo preparar la foto. Prueba con otra.");
+}
+async function subirFoto(x, archivo, boton) {
+  const texto = boton.textContent; boton.disabled = true; boton.textContent = "Subiendo…";
+  try {
+    const b = await reducirFoto(archivo);
+    const r = await fetch("/panel/dueno/foto?plato=" + encodeURIComponent(x.id), {method:"POST", headers:{"Content-Type":b.type}, body:b});
+    if (r.status === 401) return location.reload();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "No se pudo subir la foto.");
+    aviso("Foto guardada"); await pintarAjustes();
+  } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; boton.textContent = texto; }
+}
+function botonesFoto(x) {
+  const sel = h("input", {type:"file", accept:"image/jpeg,image/png,image/webp", hidden:true});
+  const b = h("button", {class:"btn suave", type:"button", "aria-label":(x.foto ? "Cambiar foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}}, x.foto ? "Cambiar foto" : "Subir foto");
+  sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], b); };
+  const fila = [sel, b];
+  if (x.foto) {
+    const q = h("button", {class:"btn suave", type:"button", "aria-label":"Quitar la foto de " + x.nombre}, "Quitar");
+    let espera = 0;
+    q.onclick = async () => { // doble toque: el primero pide confirmar
+      if (!espera) { q.textContent = "¿Seguro?"; espera = setTimeout(() => { q.textContent = "Quitar"; espera = 0; }, 3000); return; }
+      clearTimeout(espera); q.disabled = true;
+      try { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); pintarAjustes(); }
+      catch (e) { aviso(e.message, true); q.disabled = false; q.textContent = "Quitar"; espera = 0; }
+    };
+    fila.push(q);
+  }
+  return fila;
+}
 function enviarAjuste(form, ruta, datos) {
   form.onsubmit = async ev => {
     ev.preventDefault();

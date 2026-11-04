@@ -175,6 +175,17 @@ dialog.hoja::backdrop{background:rgba(42,26,18,.5)}
   #menu{display:block!important;border-right:1px solid var(--linea)}
   #btn-menu{display:none}
 }
+/* Entradas suaves, puntos de "escribiendo" y paso actual que pulsa (solo transform/opacity) */
+@keyframes entra{from{opacity:0;transform:translateY(8px)}}
+@keyframes punto{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes pulso{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--achiote) 40%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+.burbuja,.sistema,.escribiendo,.resumen{animation:entra .22s cubic-bezier(.16,1,.3,1)}
+.puntos{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
+.puntos i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:punto 1.1s infinite}
+.puntos i:nth-child(2){animation-delay:.15s}.puntos i:nth-child(3){animation-delay:.3s}
+.actual .marca-paso{animation:pulso 1.8s ease-out infinite}
+.pestanas button,.btn,.pedir,.enviar{transition:transform .12s,background-color .15s,color .15s}
+.pestanas button:active,.pedir:active,.enviar:active{transform:scale(.95)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -495,7 +506,7 @@ $("#componer").addEventListener("submit", async ev => {
   if (!texto || st.ocupado) return;
   t.value = ""; t.style.height = "auto"; burbuja("yo", texto);
   st.ocupado = true; $(".enviar").disabled = true;
-  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.setAttribute("role", "status"); esc.textContent = "El Chitreano está escribiendo…"; $("#mensajes").append(esc);
+  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.setAttribute("role", "status"); esc.textContent = "El Chitreano está escribiendo"; const pt = document.createElement("span"); pt.className = "puntos"; pt.setAttribute("aria-hidden", "true"); pt.append(...[0,1,2].map(() => document.createElement("i"))); esc.append(pt); $("#mensajes").append(esc);
   const tEspera = setTimeout(() => { const e = document.createElement("span"); e.className = "espera"; e.textContent = "Es una demostración: la respuesta puede tardar unos 30 s."; esc.append(e); }, 3000);
   let r;
   try { r = st.demo ? demoBot(texto) : await api("POST", "/chat", {texto}); }

@@ -10,13 +10,21 @@
   --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE; --sobre-achiote:#FFFFFF;
   --maiz:#E9B949; --maiz-suave:#FFF3D1; --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2;
   --sombra:0 1px 2px rgba(42,26,18,.08),0 3px 10px rgba(42,26,18,.07);
+  --barra:#2A1A12; --sobre-barra:#FBF6EC; --sobre-maiz:#2A1A12; --velo:rgba(251,246,236,.86);
+  color-scheme:light dark;
   --r:12px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
+@media (prefers-color-scheme:dark){:root{
+  --papel:#15100D; --carril:#1F1713; --superficie:#2A201A; --tinta:#F5EBDD; --tinta-2:#C9B6A4; --linea:#3D2E25;
+  --achiote:#DE6550; --achiote-osc:#E5735E; --achiote-suave:#3E1E19; --sobre-achiote:#1A1310;
+  --maiz-suave:#3A2E14; --hoja:#7DC48A; --hoja-osc:#93D09E; --hoja-suave:#1E2E20;
+  --sombra:0 1px 2px rgba(0,0,0,.5); --barra:#0D0907; --velo:rgba(21,16,13,.86);
+}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.4 var(--texto)}
-::selection{background:var(--maiz);color:var(--tinta)}
+::selection{background:var(--maiz);color:var(--sobre-maiz)}
 :focus-visible{outline:3px solid var(--maiz);outline-offset:2px}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -50,26 +58,26 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .teclado button:hover{background:var(--carril)}
 .teclado button.btn{background:var(--achiote);color:var(--sobre-achiote);border:0}
 .teclado button.btn:hover{background:var(--achiote-osc)}
-#login.bloqueo{position:fixed;inset:0;z-index:30;background:rgba(251,246,236,.86);backdrop-filter:blur(3px)}
+#login.bloqueo{position:fixed;inset:0;z-index:30;background:var(--velo);backdrop-filter:blur(3px)}
 #login.bloqueo .caja-login{background:var(--superficie);padding:24px;border-radius:16px;box-shadow:0 16px 48px rgba(42,26,18,.25)}
 .error{color:var(--achiote);font-weight:600;min-height:1.4em;margin:0}
 
 /* ---------- Panel ---------- */
 #panel{height:100%;display:flex;flex-direction:column}
-header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--tinta);color:var(--papel)}
+header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--barra);color:var(--sobre-barra)}
 .barra h1{font-family:var(--display);font-size:1.375rem;margin-right:auto;white-space:nowrap}
 .barra h1 small{font:500 .875rem var(--texto);opacity:.75;margin-left:8px}
-.barra .btn.suave{color:var(--papel);border-color:rgba(251,246,236,.3);min-height:48px}
+.barra .btn.suave{color:var(--sobre-barra);border-color:rgba(251,246,236,.3);min-height:48px}
 .barra .btn.suave:hover{background:rgba(251,246,236,.1)}
 .barra .btn.suave[aria-pressed=true]{background:rgba(251,246,236,.16)}
-.cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--tinta);font-weight:800;font-size:.875rem}
-#btn-nuevos{background:var(--maiz);color:var(--tinta);min-height:48px}
+.cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--sobre-maiz);font-weight:800;font-size:.875rem}
+#btn-nuevos{background:var(--maiz);color:var(--sobre-maiz);min-height:48px}
 #btn-nuevos:hover{background:#F2C95E}
 .reloj{white-space:nowrap;font-weight:600;opacity:.85;min-width:3.5em;text-align:right}
 
-.banda{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--achiote);color:#fff;font-weight:700}
+.banda{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--achiote);color:var(--sobre-achiote);font-weight:700}
 .banda p{margin:0;flex:1}
-.banda button{min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,.6);background:none;color:#fff;font-weight:700}
+.banda button{min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid currentColor;background:none;color:var(--sobre-achiote);font-weight:700}
 
 /* Tablero */
 .tablero{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(212px,1fr);gap:12px;padding:12px;overflow-x:auto;min-height:0;scroll-snap-type:x proximity}
@@ -91,11 +99,20 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 .t-num{font-size:1.5rem;font-weight:800}
 .t-nombre{font-weight:700;font-size:1.0625rem;min-width:0;overflow-wrap:break-word;max-width:100%}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:.8125rem;font-weight:700;background:var(--carril);color:var(--tinta-2);white-space:nowrap}
-.chip.nuevo{background:var(--maiz);color:var(--tinta)}
+.chip.nuevo{background:var(--maiz);color:var(--sobre-maiz)}
 .chip.tarde{background:var(--achiote-suave);color:var(--achiote-osc)}
 .chip svg.i{width:15px;height:15px}
 .tarjeta{position:relative}
 .t-cab>.chip:last-child{position:absolute;top:14px;right:12px}
+/* Barra de urgencia: se llena hasta el límite de la columna; hoja → maíz → achiote. El texto "Tarde" va en la etiqueta de tiempo. */
+.t-urg{height:6px;border-radius:3px;background:var(--carril);overflow:hidden}
+.t-urg i{display:block;height:100%;background:var(--hoja);transform:scaleX(var(--p));transform-origin:left;transition:transform .6s ease-out,background-color .3s}
+.t-urg.atento i{background:var(--maiz)} .t-urg.tarde i{background:var(--achiote)}
+.tarjeta:has(.t-urg.tarde){border-color:var(--achiote)}
+/* "Tarde · N min" es largo: va en su propia línea sobre el número para no pisar el nombre */
+.t-cab:has(.chip.tarde){flex-wrap:wrap}
+.t-cab:has(.chip.tarde)>.t-abrir{flex-basis:100%}
+.t-cab>.chip.tarde:last-child{position:static;order:-1;margin-left:auto}
 .t-modo{display:flex;gap:8px;align-items:flex-start;color:var(--tinta);font-size:.9375rem}
 .t-modo svg{margin-top:1px;color:var(--tinta-2)}
 .t-modo b{font-weight:700}
@@ -403,7 +420,7 @@ $("#form-pin").addEventListener("submit", async ev => {
       $("#btn-ajustes").hidden = j.rol !== "dueno";
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
-  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad();
+  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
   if (st.demo) { $("#modo").textContent = "Demostración con datos de ejemplo"; cargarDemo(); }
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
@@ -428,6 +445,20 @@ setInterval(() => {
   $("#login-texto").textContent = "Panel bloqueado por inactividad. Escribe tu PIN para seguir.";
   $("#login").classList.add("bloqueo"); $("#login").hidden = false; pin.focus();
 }, 15000);
+
+/* ---------- Pantalla encendida y globo en el icono (mejora progresiva: sin la API no hace nada) ---------- */
+let bloqueoPantalla = null, quierePantalla = false;
+async function mantenerPantalla(on) {
+  quierePantalla = on;
+  try {
+    if (on && !bloqueoPantalla && "wakeLock" in navigator && document.visibilityState === "visible") {
+      bloqueoPantalla = await navigator.wakeLock.request("screen");
+      bloqueoPantalla.addEventListener("release", () => { bloqueoPantalla = null; });
+    } else if (!on && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+  } catch (e) { /* sin permiso o sin soporte: se ignora */ }
+}
+document.addEventListener("visibilitychange", () => { if (quierePantalla && document.visibilityState === "visible") mantenerPantalla(true); });
+const globo = n => { try { Promise.resolve(n > 0 ? navigator.setAppBadge && navigator.setAppBadge(n) : navigator.clearAppBadge && navigator.clearAppBadge()).catch(() => {}); } catch (e) {} };
 
 /* ---------- Sonido (sin archivos: dos tonos con WebAudio) ---------- */
 let audio;
@@ -500,7 +531,7 @@ function pintar() {
   if (foco) { const e = document.querySelector(`[data-clave="${foco}"]`); if (e) e.focus(); }
   // contadores y título de la pestaña
   const n = st.nuevos.size;
-  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n;
+  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n; globo(n);
   $("#n-avisos").hidden = !st.sinLeer; $("#n-avisos").textContent = st.sinLeer;
   document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · Fonda El Chitreano";
   if (!$("#bandeja").hidden) pintarAvisos();
@@ -523,7 +554,8 @@ function tarjeta(p, col) {
     h("div", {class:"t-cab"},
       abrir,
       nuevo ? h("span", {class:"chip nuevo"}, "Nuevo")
-            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), hace(m))),
+            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m))),
+    col.tarde && h("div", {class:"t-urg " + (tarde ? "tarde" : m >= col.tarde * .6 ? "atento" : "ok"), "aria-hidden":"true", style:"--p:" + Math.min(1, m / col.tarde).toFixed(2)}, h("i")),
     h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
       h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
     entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, icono("persona"),

@@ -157,7 +157,7 @@ class Acceso(Base):
 
     def test_pagina_segura_y_casilla_no_premarcada(self):
         h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
-        self.assertEqual(h.count("innerHTML"), 2)  # solo plantillas fijas (fila del menú y pasos); el texto del servidor va con textContent
+        self.assertEqual(h.count("innerHTML"), 1)  # solo la plantilla fija de los pasos; el menú se arma con nodos y el texto del servidor va con textContent
         self.assertNotIn("${p.nombre", h)
         self.assertNotRegex(h, r'<input type="checkbox"[^>]*checked')
         self.assertRegex(h, r'<input type="checkbox" name="privacidad" required')

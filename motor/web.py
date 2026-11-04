@@ -1,4 +1,5 @@
 """Canal web: página de pedidos con chat (solo stdlib). Cookie firmada = identidad del cliente (cid = teléfono)."""
+import datetime as dt
 import hashlib
 import hmac
 import ipaddress
@@ -24,19 +25,22 @@ PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
 PAGINA_REP = Path(__file__).with_name("repartidor.html")
 MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "/repartidor/", "scope": "/repartidor/", "display": "standalone",
                 "background_color": "#ffffff", "theme_color": "#1f6f43", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
-FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")  # lista blanca de /estatico/ (motor/estatico/)
+FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")
+LEAFLET = {"leaflet-1.9.4.js": "text/javascript", "leaflet-1.9.4.css": "text/css",
+           **{f"images/{f}": "image/png" for f in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png", "layers.png", "layers-2x.png")}}
+ESTATICOS = {**{f: "font/woff2" for f in FUENTES}, **LEAFLET}  # lista blanca de /estatico/ (motor/estatico/) -> Content-Type
 ESTATICO = Path(__file__).with_name("estatico")
-# sin caché de pedidos (no se guardan en el móvil); solo se guardan las fuentes de /estatico/
+# sin caché de pedidos (no se guardan en el móvil); solo se guardan las fuentes (Leaflet no)
 SW_REP = ("const C='fuentes-v1',F=%s.map(f=>'/estatico/'+f);self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(F)).catch(()=>{}))});"
           "self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));"
-          "self.addEventListener('fetch',e=>{if(new URL(e.request.url).pathname.startsWith('/estatico/'))e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});" % list(FUENTES)).encode()
+          "self.addEventListener('fetch',e=>{if(F.includes(new URL(e.request.url).pathname))e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});" % list(FUENTES)).encode()
 ICONO_REP = Path(__file__).with_name("repartidor_icono.svg")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
 VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
-CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
 
 
@@ -116,6 +120,43 @@ def crear_servidor(sv, puerto=8080, secreto=None):
     acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
+    pos = ubicacion.Posiciones()  # última posición de cada repartidor en camino (solo memoria)
+
+    def aviso_rep(nombre):
+        """{version, texto, aceptado} del aviso de ubicación del repartidor (servicio.yaml repartidor: {aviso_ubicacion_version, aviso_ubicacion})."""
+        r = sv.cfg.get("repartidor") or {}
+        v = str(r.get("aviso_ubicacion_version", ubicacion.REP_AVISO_VERSION))
+        fila = sv._q("SELECT version FROM aviso_repartidor WHERE nombre=?", (nombre,))
+        return {"version": v, "texto": r.get("aviso_ubicacion", ubicacion.REP_AVISO).replace("{Restaurante}", sv.cfg.get("nombre") or "el restaurante"),
+                "aceptado": bool(fila) and fila[0][0] == v}
+
+    def en_ruta():
+        """(repartidor -> pedidos en_camino vigentes, el siguiente primero; posiciones que quedan; ahora). Borra (y audita) las que ya no tocan."""
+        rutas, ahora = {}, sv.ahora()
+        for p in sv.listar("pedido"):
+            desde = p.get("en_camino_at") or p.get("estado_at")
+            if p["estado"] == "en_camino" and p.get("repartidor") and not (desde and (ahora - dt.datetime.fromisoformat(desde)).total_seconds() > ubicacion.REP_CADUCIDAD_S):
+                rutas.setdefault(p["repartidor"], []).append(p)
+        for ps in rutas.values():
+            ps.sort(key=lambda p: (p.get("en_camino_at") or "", p["id"]))  # ponytail: sin orden de paradas, el más antiguo en_camino es el siguiente
+        quedan, fuera = pos.purgar(set(rutas), time.time())
+        for n in fuera:
+            panel_web.auditar(sv, n, "ubicacion_off")
+        return rutas, quedan, time.time()
+
+    def mapa_panel():
+        rutas, quedan, t = en_ruta()
+        return {"repartidores": [{"repartidor": n, "pedido_id": p["id"], **ubicacion.vista_posicion(quedan[n], t)} for n, ps in rutas.items() if n in quedan for p in ps]}
+
+    def mapa_cliente(p, rutas, quedan, t):
+        """Campos extra del pedido en_camino del cliente: nombre de pila; posición solo si es la siguiente parada (si no, mensaje)."""
+        n, ps = p.get("repartidor"), rutas.get(p.get("repartidor"), [])
+        d = {"repartidor": re.match(r"[A-Za-z0-9]*", n or "").group() or None, "repartidor_pos": None, "mensaje": None}
+        if ps and ps[0]["id"] != p["id"]:
+            d["mensaje"] = ubicacion.REP_OTRA_PARADA
+        elif ps and n in quedan:
+            d["repartidor_pos"] = ubicacion.vista_posicion(quedan[n], t)
+        return d
 
     corte = {}  # cid -> id de pedido hasta el que (inclusive) ya no se muestra si está cerrado  # ponytail: en memoria; tras reiniciar reaparece el último cerrado
 
@@ -253,6 +294,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     except ValueError as e:
                         return self._err(409, str(e))
                     panel_web.auditar(sv, quien, est, pid)
+                    en_ruta()  # entregado/cancelado: borra la posición si ya no le quedan en camino
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
                 if ruta == "/panel/asignar" and metodo == "POST":
                     d = self._json()
@@ -266,7 +308,10 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     except ValueError as e:
                         return self._err(409, str(e))
                     panel_web.auditar(sv, quien, "asignar", pid)
+                    en_ruta()  # reasignado
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
+                if ruta == "/panel/repartidores_mapa" and metodo == "GET":
+                    return self._enviar(200, mapa_panel(), extra=renovar)
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
                     try:
                         panel_web.atender_escalado(sv, int(partes[3]))
@@ -323,16 +368,16 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             return self._enviar(200, r, extra=renovar)
 
         def _estatico(self, ruta):
-            """GET /estatico/<fuente>.woff2: público, sin sesión; solo los nombres de FUENTES (sin rutas)."""
+            """GET /estatico/<nombre>: público, sin sesión; solo los nombres de ESTATICOS (fuentes y Leaflet autoalojado)."""
             nombre = ruta[len("/estatico/"):]
             if limite.excede(("foto", self._ip()), 300):
                 return self._err(429, "Demasiadas peticiones")
             f = ESTATICO / nombre
-            if nombre not in FUENTES or not f.is_file():
+            if nombre not in ESTATICOS or not f.is_file():
                 return self._err(404, "No encontrado")
             datos = f.read_bytes()
             self.send_response(200)
-            for k, v in (("Content-Type", "font/woff2"), ("Content-Length", str(len(datos))), ("X-Content-Type-Options", "nosniff"),
+            for k, v in (("Content-Type", ESTATICOS[nombre]), ("Content-Length", str(len(datos))), ("X-Content-Type-Options", "nosniff"),
                          ("Cache-Control", "public, max-age=31536000, immutable")):
                 self.send_header(k, v)
             self.end_headers()
@@ -379,7 +424,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     return self._err(401, "PIN incorrecto")
                 bloqueo_rep.acierto(ip)
                 panel_web.auditar(sv, nombre, "repartidor_login")
-                return self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", acc_rep.cookie(nombre, seguro=self._seguro()))])
+                return self._enviar(200, {"ok": True, "nombre": nombre, "aviso_ubicacion": aviso_rep(nombre)}, extra=[("Set-Cookie", acc_rep.cookie(nombre, seguro=self._seguro()))])
             ses = acc_rep.sesion(self.headers.get("Cookie"))
             if not ses:
                 return self._err(401, "Sesión inválida")
@@ -387,9 +432,21 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             renovar = [("Set-Cookie", acc_rep.cookie(nombre, lim, self._seguro()))]
             if ruta == "/repartidor/salir" and metodo == "POST":
                 panel_web.auditar(sv, nombre, "repartidor_salir")
+                if pos.quitar(nombre):
+                    panel_web.auditar(sv, nombre, "ubicacion_off")
                 return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acc_rep.borrar_cookie(self._seguro()))])
             if ruta == "/repartidor/pedidos" and metodo == "GET":
-                return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre)}, extra=renovar)
+                return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre), "aviso_ubicacion": aviso_rep(nombre)}, extra=renovar)
+            if ruta == "/repartidor/aviso_ubicacion" and metodo == "POST":
+                d = self._json()
+                if d is None:
+                    return
+                if d.get("version") != aviso_rep(nombre)["version"]:
+                    return self._err(409, "El aviso cambió; vuelva a leerlo")
+                sv._q("INSERT OR REPLACE INTO aviso_repartidor(nombre, version, at) VALUES (?,?,?)", (nombre, d["version"], sv.ahora().isoformat()))
+                return self._enviar(200, {"ok": True}, extra=renovar)
+            if ruta == "/repartidor/posicion" and metodo == "POST":
+                return self._posicion(nombre, renovar)
             if ruta == "/repartidor/marcar" and metodo == "POST":
                 d = self._json()
                 if d is None:
@@ -402,8 +459,28 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 except ValueError as e:
                     return self._err(409, str(e))
                 panel_web.auditar(sv, nombre, est, pid)
+                en_ruta()
                 return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_repartidor(p) if p["estado"] in panel_web.EN_RUTA else None}, extra=renovar)
             self._err(404, "No encontrado")
+
+        def _posicion(self, nombre, renovar):
+            """POST /repartidor/posicion {lat, lon, precision}: guarda solo la última; nunca a logs ni auditoría (solo ubicacion_on/off)."""
+            if pos.demasiado_pronto(nombre, time.time()):
+                return self._err(429, "Demasiado seguido")
+            d = self._json()
+            if d is None:
+                return
+            try:
+                lat, lon, precision = ubicacion.validar_posicion(d, sv.cfg)
+            except ValueError as e:
+                return self._err(400, str(e))
+            if not aviso_rep(nombre)["aceptado"]:
+                return self._err(403, "Acepte primero el aviso de ubicación")
+            if nombre not in en_ruta()[0]:
+                return self._err(409, "No tiene pedidos en camino")
+            if pos.poner(nombre, lat, lon, precision, time.time()):
+                panel_web.auditar(sv, nombre, "ubicacion_on")
+            return self._enviar(200, {"ok": True}, extra=renovar)
 
         def do_GET(self):
             if self.path.split("?")[0].startswith("/estatico/"):
@@ -430,7 +507,9 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     return self._err(401, "Sesión inválida")
                 if ruta == "/pedidos":
                     self._visita_nueva(cid)
-                    return self._enviar(200, {"pedidos": [formato_pedido(p) for p in reversed(pedidos_de(cid)) if p["id"] > corte.get(cid, 0) or p["estado"] in herramientas.ABIERTOS]})
+                    mios = [p for p in reversed(pedidos_de(cid)) if p["id"] > corte.get(cid, 0) or p["estado"] in herramientas.ABIERTOS]
+                    vivo = en_ruta() if any(p["estado"] == "en_camino" for p in mios) else None
+                    return self._enviar(200, {"pedidos": [{**formato_pedido(p), **(mapa_cliente(p, *vivo) if p["estado"] == "en_camino" else {})} for p in mios]})
                 textos = []
                 for m in sv.pendientes():
                     if m["telefono"] != cid:

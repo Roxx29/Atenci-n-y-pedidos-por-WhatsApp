@@ -7,3 +7,4 @@ comprobantes/
 despliegue/logs/
 datos-nube.db*
 *.whl
+.claude/worktrees/

@@ -541,7 +541,7 @@ $("#carro-enviar").onclick = () => {
 };
 
 /* ---------- Chat ---------- */
-/* formato-bot: **negrita**, *negrita* y _cursiva_ del bot, solo con nodos (nunca innerHTML). Un * suelto ("2 * 3", "2*3*4") queda como texto. */
+/* formato-bot: **negrita**, *negrita* y _cursiva_ del bot, solo con nodos DOM (nunca se interpreta HTML). Un * suelto ("2 * 3", "2*3*4") queda como texto. */
 function formato(texto) {
   const f = document.createDocumentFragment(), re = /\*\*([^\s*](?:[^*\n]*[^\s*])?)\*\*|\*([^\s*](?:[^*\n]*[^\s*])?)\*|_([^\s_](?:[^_\n]*[^\s_])?)_/g, palabra = c => !!c && /\w/.test(c);
   let pos = 0, m;

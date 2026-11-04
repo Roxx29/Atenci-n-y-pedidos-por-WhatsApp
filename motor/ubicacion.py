@@ -1,6 +1,7 @@
 """Ubicación del cliente: coordenadas del navegador o enlace de Google Maps. Las coordenadas salen siempre de código, nunca del modelo."""
 import math
 import re
+import threading
 import urllib.parse
 import urllib.request
 
@@ -73,6 +74,75 @@ def validar(lat, lon):
 def fuera_de_zona(lat, lon, centro=CENTRO, radio_km=RADIO_KM):
     """True si las coordenadas quedan a más de radio_km del centro de entrega (solo aviso; la zona y el envío los decide crear_pedido)."""
     return distancia_km((lat, lon), centro) > radio_km
+
+
+# --- posición en vivo del repartidor (dato personal): solo la última, en memoria; sin histórico, logs, IA ni coordenadas en auditoría ---
+# Criterios legales: legal/2026-11-02-web-pedidos.md §2.10. Todo configurable aquí.
+REP_INTERVALO_S = 5          # mínimo entre envíos de un mismo repartidor (si no, 429); el cliente envía cada 10-15 s y solo si se movió >20 m
+REP_VIEJO_S = 120            # más antigua: viejo=True
+REP_CADUCIDAD_S = 2 * 3600   # desde en_camino_at: pasado esto ni se guarda ni se sirve
+REP_MARGEN_KM = 20           # se acepta hasta radio_km de la zona + este margen; más lejos es absurdo (400)
+REP_MAX_PRECISION = 5000     # metros
+REP_AVISO_VERSION = "v1"     # servicio.yaml repartidor: {aviso_ubicacion_version, aviso_ubicacion} lo sobrescribe
+REP_AVISO = ("Mientras tengas un pedido en camino, esta app envía tu ubicación cada pocos segundos a {Restaurante}. La ven el personal del restaurante "
+             "y el cliente de ese pedido, para saber cuándo llegas. Se apaga sola al entregar o cancelar, o al salir de la app. No guardamos tu recorrido: "
+             "solo la última posición, que se borra al terminar. Fuera de un pedido en camino no se envía nada.")
+REP_OTRA_PARADA = "Tu pedido va en camino; el repartidor tiene otra entrega antes"
+
+
+class Posiciones:
+    """{repartidor: (lat, lon, precision, t)}. Se borra al no quedarle pedidos en_camino vigentes (purgar) o al salir (quitar)."""
+
+    def __init__(self):
+        self.d, self.intento, self.lock = {}, {}, threading.Lock()
+
+    def demasiado_pronto(self, nombre, ahora):
+        with self.lock:
+            if ahora - self.intento.get(nombre, -1e9) < REP_INTERVALO_S:
+                return True
+            self.intento[nombre] = ahora
+            return False
+
+    def poner(self, nombre, lat, lon, precision, ahora):
+        """True si es la primera (ubicacion_on)."""
+        with self.lock:
+            nuevo = nombre not in self.d
+            self.d[nombre] = (lat, lon, precision, ahora)
+            return nuevo
+
+    def quitar(self, nombre):
+        """True si había posición (ubicacion_off)."""
+        with self.lock:
+            self.intento.pop(nombre, None)
+            return self.d.pop(nombre, None) is not None
+
+    def purgar(self, en_camino, ahora):
+        """en_camino: repartidores con algún pedido en_camino vigente. (copia de lo que queda, nombres borrados)."""
+        with self.lock:
+            fuera = [n for n in self.d if n not in en_camino]
+            for n in fuera:
+                del self.d[n]
+            for n in [n for n, t in self.intento.items() if ahora - t > REP_INTERVALO_S]:
+                del self.intento[n]
+            return dict(self.d), fuera
+
+
+def vista_posicion(v, ahora):
+    lat, lon, precision, t = v
+    edad = max(0, int(ahora - t))
+    return {"lat": lat, "lon": lon, "precision": precision, "edad_s": edad, "viejo": edad > REP_VIEJO_S}
+
+
+def validar_posicion(d, cfg):
+    """(lat, lon, precision) o ValueError: rango, precision 0..REP_MAX_PRECISION y a menos de radio_km + REP_MARGEN_KM del centro."""
+    lat, lon = validar(d.get("lat"), d.get("lon"))
+    pr = d.get("precision")
+    if not (isinstance(pr, (int, float)) and not isinstance(pr, bool) and math.isfinite(pr) and 0 <= pr <= REP_MAX_PRECISION):
+        raise ValueError("Precisión no válida.")
+    z = zona(cfg)
+    if distancia_km((lat, lon), z["centro"]) > z["radio_km"] + REP_MARGEN_KM:
+        raise ValueError("Ubicación fuera de la zona de servicio.")
+    return lat, lon, round(float(pr), 1)
 
 
 def desde_enlace(enlace, resolver=None):

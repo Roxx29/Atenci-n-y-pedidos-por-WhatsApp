@@ -25,3 +25,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Confirmar en campo: horario y día de cierre del restaurante demo, tarifa de envío Chitré↔La Villa, y si PedidosYa cubre Chitré (agenteinvestigacion)
 - [x] 2026-11-02 — Motor: modelo por env LLM_MODEL + ANTHROPIC_BASE_URL para usar Ollama en demo; quitar tool_choice (agentedeprogramacion)
 - [ ] 2026-11-02 — Medir qwen3:4b como respaldo Ollama (tiempo + acierto crear_pedido) cuando haya memoria libre; ver investigacion/2026-11-02-modelo-rapido.md (agenteinvestigacion)
+- [ ] 2026-11-03 — Completar referentes de investigacion/2026-11-03-paginas-premium.md: Rappi, PedidosYa, Fresh KDS, Toast Online Ordering, Mobbin/Awwwards y "deslizar para confirmar"; verificar en caniuse las cifras marcadas * (agenteinvestigacion)

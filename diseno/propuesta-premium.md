@@ -8,7 +8,9 @@ Marca actual (no cambia): papel crema, tinta café, achiote `#A8321F`, maíz `#E
 Soporte de las técnicas (a nov. 2026):
 - Seguras en cualquier móvil actual: `@starting-style`, `:has()`, container queries, `<dialog>`, popover, `color-mix()`, `text-wrap`, `content-visibility`.
 - Mejora progresiva (envolver en `@supports` o comprobar con `if (document.startViewTransition)`): View Transitions de mismo documento y animaciones guiadas por scroll (`animation-timeline`).
-- Solo Chrome/Android: `field-sizing:content` y `navigator.vibrate`. En iOS no hay `vibrate`.
+- Solo Chrome/Android: `field-sizing:content` y `navigator.vibrate`. **iOS no tiene `vibrate`** (77 % global): en iPhone usar sonido y aviso visual.
+- `wakeLock` (iOS 16.4+), `setAppBadge` y Push en iOS **exigen PWA instalada**: el repartidor debe instalarla ("Añadir a pantalla de inicio").
+- Cifras de soporte de memoria (View Transitions ≈ 90 %, scroll-driven ≈ 82 %): verificar en caniuse antes de depender de ellas. Por eso todo lleva fallback.
 
 ---
 
@@ -124,3 +126,22 @@ Después, lo de mayor impacto y mayor esfuerzo: **W5/W6** (menú con fotos y min
 4. P1 + R4 (View Transitions): refactor del repintado del panel (programación revisa).
 
 Conviene medir antes y después con Lighthouse móvil (perfil "Slow 4G", CPU ×4) y revisar a 375 px.
+
+## 6. Referentes y ajustes tras la investigación
+
+Fuente: `investigacion/2026-11-03-paginas-premium.md` (rama Roxx29/AgenteInvestigacion, de1a00e). "Se siente premium" es interpretación de blogs y casos de estudio, no dato medido.
+
+| Referente | Qué aprender | Se añade |
+|---|---|---|
+| Sweetgreen | Pocas pestañas, "repetir pedido" en el home, fotos mandan, avisa cuando sube el precio | **W13** (M, ★★★): botón "Repetir mi último pedido" en la entrada y en el chat (usa `GET /pedidos`; escribe la frase en el chat como W6) |
+| Chipotle / Domino's | Elegir paso a paso y tracker por etapas que reduce la incertidumbre | Ya cubierto por W7 (pasos vivos). Añadir una barra de progreso fina sobre el resumen: "3 de 5 pasos" |
+| Toast / Square KDS | Temporizador verde → amarillo → rojo; borde de color por tipo de pedido | **P3** pasa a tres colores (hoja → maíz → achiote). **P11** (S, ★★): borde izquierdo de la tarjeta por modalidad (recoger / entrega) con texto, no solo color |
+| DoorDash / Uber Driver | Home simple, botones grandes, se mira el teléfono ~9 veces por entrega, confirmar deslizando | Respalda **R1** (hay reportes de fallos del deslizar: mantener el botón de respaldo) y **R3** (modo oscuro) |
+| Uber Eats | Consistencia por sistema de diseño | Extraer los tokens comunes a un `<style>` compartido que sirva el servidor (queda como idea, L) |
+
+Ajustes por soporte:
+- **R2, R6, R8 y P6** (wakeLock, vibración, globo): en iPhone solo con PWA instalada, y sin vibración. Alternativa en R6: tono corto y flash de color en el botón.
+- **P7** (notificaciones): en iOS solo con PWA instalada; si no, el sonido de la página abierta.
+- **Librerías:** ninguna de base. Opcionales si algún día hacen falta: Alpine (~17 kB, solo si el estado de la web de pedidos crece) y confeti (~4 kB) para "pedido entregado". Sortable (~15 kB) solo si programación permite arrastrar tarjetas.
+- **Presupuesto:** la investigación fija JS + CSS < 100 KB gzip por página (los 60 KB de la sección 3 siguen vigentes como meta). Evitar `backdrop-filter`, sombras grandes y animar layout.
+- **Huecos sin fuente:** Rappi, PedidosYa, Fresh KDS y el patrón "deslizar para confirmar" en el reparto local. Probar R1 con un repartidor real antes de generalizar.

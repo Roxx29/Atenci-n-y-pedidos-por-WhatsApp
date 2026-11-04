@@ -66,6 +66,8 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS registros(id INTEGER PRIMARY KEY, tipo TEXT, datos TEXT, creado TEXT);"
             "CREATE TABLE IF NOT EXISTS conversaciones(id TEXT PRIMARY KEY, mensajes TEXT, actualizado REAL);"
             "CREATE TABLE IF NOT EXISTS vistos(id TEXT PRIMARY KEY);"
+            "CREATE TABLE IF NOT EXISTS platos(orden INTEGER PRIMARY KEY, id TEXT UNIQUE, datos TEXT);"
+            "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
         )
         self._db_lock = threading.Lock()
         self.citas_lock = threading.Lock()
@@ -76,15 +78,33 @@ class Servicio:
         self._principal_caido_hasta = 0.0
         self._avisado = False
         self._reloj = time.monotonic
-        self.menu = herramientas.cargar_menu(self.dir, self.cfg["menu"]) if self.cfg.get("menu") else {}
+        self._menu_yaml = herramientas.cargar_menu(self.dir, self.cfg["menu"]) if self.cfg.get("menu") else {}
+        if self._menu_yaml and not self._q("SELECT 1 FROM platos LIMIT 1"):  # semilla: menu.yaml solo la primera vez; luego manda la BD (panel)
+            for it in self._menu_yaml.values():
+                self.guardar_plato(it["id"], {k: v for k, v in it.items() if k not in ("id", "precio")})
         kb = self.dir / self.cfg.get("conocimiento", "conocimiento.md")
-        self.system = PROMPT.format(
+        self._prompt = PROMPT.format(
             negocio=self.cfg.get("negocio", self.cfg.get("nombre", "el negocio")),
             objetivo=self.cfg.get("objetivo", ""),
             horario=json.dumps(self.cfg.get("horario", "no aplica"), ensure_ascii=False),
             instrucciones=self.cfg.get("instrucciones", ""),
-            conocimiento=(kb.read_text(encoding="utf-8") if kb.exists() else "") + (f"\n\nMenú (id | nombre | precio | categoría):\n{herramientas.texto_menu(self.menu)}" if self.menu else ""),
-        )
+            conocimiento=kb.read_text(encoding="utf-8") if kb.exists() else "",
+        )  # el menú va al final (tras el conocimiento), leído en cada turno
+
+    @property
+    def menu(self):
+        """{id: plato} de la BD (editable desde el panel); sin platos en la BD, el de menu.yaml."""
+        bd = {i: {**json.loads(d), "id": i} for i, d in self._q("SELECT id, datos FROM platos ORDER BY orden")}
+        return bd or self._menu_yaml
+
+    def guardar_plato(self, iid, datos):
+        """Inserta o reemplaza un plato (tabla platos; el orden de alta se conserva)."""
+        self._q("INSERT INTO platos(id, datos) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET datos=excluded.datos", (iid, json.dumps(datos, ensure_ascii=False)))
+
+    @property
+    def system(self):
+        m = self.menu
+        return self._prompt + (f"\n\nMenú (id | nombre | precio | categoría):\n{herramientas.texto_menu(m)}" if m else "")
 
     # --- almacenamiento ---
     def ahora(self):

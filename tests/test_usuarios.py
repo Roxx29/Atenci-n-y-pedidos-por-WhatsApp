@@ -40,13 +40,13 @@ class Usuarios(BaseSv):
         self.rep = panel_web.Usuarios(self.sv, panel_web.REPARTO)
 
     def test_semilla_solo_hash_y_no_pisa(self):
-        us = {u["nombre"]: u for u in self.sv.listar("usuario")}
+        us = {u["nombre"]: u for u in panel_web._todos(self.sv)}
         self.assertEqual({n: u["rol"] for n, u in us.items()}, {"Dueno": "dueno", "Personal": "personal", "Juan": "repartidor"})
         self.assertNotIn("483920", str(us))
         self.assertTrue(us["Dueno"]["pin_hash"].startswith("pbkdf2$"))
         self.api("POST", "usuario", {"nombre": "Juan", "pin": "739104"})
         panel_web.sembrar_usuarios(self.sv)  # reinicio: el .env no pisa lo cambiado en la BD
-        self.assertEqual(len(self.sv.listar("usuario")), 3)
+        self.assertEqual(len(panel_web.lista_usuarios(self.sv)), 3)
         self.assertEqual(panel_web.Acceso("x", self.rep).rol_de_pin("739104"), "Juan")
 
     def test_login_por_persona_y_rol(self):
@@ -108,6 +108,31 @@ class Usuarios(BaseSv):
             self.api("POST", "usuario", {"nombre": "Dueno", "activo": False})
         with self.assertRaises(ValueError):
             self.api("POST", "usuario", {"nombre": "Dueno", "rol": "personal"})
+
+
+class Menu(BaseSv):
+    def test_semilla_y_bd_manda(self):
+        self.assertEqual(list(self.sv.menu), list(self.sv._menu_yaml))
+        self.assertEqual(self.sv.listar("pedido"), [])  # la semilla no ocupa ids de registros
+        self.api("POST", "plato", {"id": "sancocho", "precio": "6.25", "disponible": False})
+        self.assertEqual(self.sv.menu["sancocho"]["precio_c"], 625)
+        self.assertIn("B/. 6.25", self.sv.system)
+        self.assertIn("AGOTADO", self.sv.system)
+        sv2 = Servicio(self.dir, db=":memory:")  # BD nueva: vuelve a sembrar del yaml
+        self.addCleanup(sv2.cerrar)
+        self.assertNotEqual(sv2.menu["sancocho"]["precio_c"], 625)
+
+    def test_crear_validar_y_auditar(self):
+        self.api("POST", "plato", {"id": "flan", "nombre": " Flan ", "precio": 2, "categoria": "postres"})
+        self.assertEqual(next(m for m in self.api("GET", "menu")["menu"] if m["id"] == "flan")["nombre"], "Flan")
+        for d in ({"id": "flan", "precio": -1}, {"id": "flan", "nombre": " "}, {"id": "flan", "nombre": "x" * 81},
+                  {"id": "flan", "precio": "1.001"}, {"id": "flan", "precio": True}, {"id": "Flan X"}, {"id": "nuevo", "nombre": "Sin precio"},
+                  {"id": "flan", "disponible": "no"}, {"id": "flan", "categoria": "c" * 31}):
+            with self.assertRaises(ValueError, msg=d):
+                self.api("POST", "plato", d)
+        self.assertIn(("Dueno", "plato_crear:flan"), [(x["usuario"], x["accion"]) for x in self.sv.listar("auditoria")])
+        with self.assertRaises(PermissionError):
+            self.api("POST", "plato", {"id": "flan", "precio": 0}, quien="Personal", rol="personal")
 
 
 if __name__ == "__main__":

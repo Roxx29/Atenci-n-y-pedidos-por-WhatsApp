@@ -105,14 +105,13 @@ class Limite:
 def crear_servidor(sv, puerto=8080, secreto=None):
     secreto = secreto or secreto_web(sv.dir)
     pagina = PAGINA.read_bytes()
-    acceso, bloqueo = panel_web.Acceso(secreto), panel_web.Bloqueo()
+    usuarios = panel_web.Usuarios(sv, panel_web.PANEL)  # un PIN por persona (tabla usuarios; semilla PANEL_PIN*)
+    acceso, bloqueo = panel_web.Acceso(secreto, usuarios), panel_web.Bloqueo()
     pagina_panel = PAGINA_PANEL.read_bytes() if PAGINA_PANEL.is_file() else b""
-    repartidores = panel_web.env_repartidores()
+    repartidores = panel_web.Usuarios(sv, panel_web.REPARTO)  # semilla REPARTIDORES; se gestionan desde el panel
     acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
-    menu = [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
-             "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
 
     corte = {}  # cid -> id de pedido hasta el que (inclusive) ya no se muestra si está cerrado  # ponytail: en memoria; tras reiniciar reaparece el último cerrado
 
@@ -206,21 +205,22 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if d is None:
                     return
                 pin = d.get("pin")
-                rol = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
-                if not rol:
+                quien = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                if not quien:
                     bloqueo.fallo(ip)
                     panel_web.auditar(sv, "?", "login_fallido")
                     return self._err(401, "PIN incorrecto")
                 bloqueo.acierto(ip)
-                panel_web.auditar(sv, rol, "login")
-                return self._enviar(200, {"ok": True, "rol": rol}, extra=[("Set-Cookie", acceso.cookie(rol, seguro=self._seguro()))])
+                panel_web.auditar(sv, quien, "login")
+                return self._enviar(200, {"ok": True, "nombre": quien, "rol": usuarios.rol(quien)}, extra=[("Set-Cookie", acceso.cookie(quien, seguro=self._seguro()))])
             ses = acceso.sesion(self.headers.get("Cookie"))
             if not ses:
                 return self._err(401, "Sesión inválida")
-            rol, lim = ses
-            renovar = [("Set-Cookie", acceso.cookie(rol, lim, self._seguro()))]
+            quien, lim = ses
+            rol = usuarios.rol(quien)
+            renovar = [("Set-Cookie", acceso.cookie(quien, lim, self._seguro()))]
             if ruta == "/panel/salir" and metodo == "POST":
-                panel_web.auditar(sv, rol, "salir")
+                panel_web.auditar(sv, quien, "salir")
                 return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acceso.borrar_cookie(self._seguro()))])
             partes = ruta.split("/")  # ['', 'panel', 'estado'] ...
             try:
@@ -235,7 +235,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     img = panel_web.comprobante(sv, pid)
                     if not img:
                         return self._err(404, "Sin comprobante")
-                    panel_web.auditar(sv, rol, "ver_comprobante", pid)
+                    panel_web.auditar(sv, quien, "ver_comprobante", pid)
                     return self._enviar(200, img[0], img[1], renovar)
                 if ruta == "/panel/marcar" and metodo == "POST":
                     d = self._json()
@@ -245,23 +245,23 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(est, str)):
                         return self._err(400, "Datos inválidos")
                     try:
-                        p = panel_web.marcar(sv, pid, est, rol)
+                        p = panel_web.marcar(sv, pid, est, quien)
                     except ValueError as e:
                         return self._err(409, str(e))
-                    panel_web.auditar(sv, rol, est, pid)
+                    panel_web.auditar(sv, quien, est, pid)
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
                 if ruta == "/panel/asignar" and metodo == "POST":
                     d = self._json()
                     if d is None:
                         return
-                    pid, quien = d.get("pedido_id"), d.get("repartidor", "")
-                    if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(quien, str)):
+                    pid, rep = d.get("pedido_id"), d.get("repartidor", "")
+                    if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(rep, str)):
                         return self._err(400, "Datos inválidos")
                     try:
-                        p = panel_web.asignar(sv, pid, quien, repartidores)
+                        p = panel_web.asignar(sv, pid, rep, repartidores)
                     except ValueError as e:
                         return self._err(409, str(e))
-                    panel_web.auditar(sv, rol, "asignar", pid)
+                    panel_web.auditar(sv, quien, "asignar", pid)
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
                     try:
@@ -269,6 +269,18 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     except ValueError as e:
                         return self._err(409, str(e))
                     return self._enviar(200, {"ok": True}, extra=renovar)
+                if len(partes) == 4 and partes[2] == "dueno":  # ajustes: usuarios y menú (solo rol dueno)
+                    if rol != "dueno":
+                        return self._err(403, "Solo el dueño puede hacer esto")
+                    d = self._json() if metodo == "POST" else {}
+                    if d is None:
+                        return
+                    try:
+                        return self._enviar(200, panel_web.api_dueno(sv, quien, rol, metodo, partes[3], d), extra=renovar)
+                    except LookupError:
+                        return self._err(404, "No encontrado")
+                    except ValueError as e:
+                        return self._err(409, str(e))
             except ValueError:  # int() de la ruta
                 return self._err(400, "Datos inválidos")
             self._err(404, "No encontrado")
@@ -337,7 +349,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if ruta == "/":
                 return self._enviar(200, pagina, "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/menu":
-                return self._enviar(200, menu)
+                return self._enviar(200, panel_web.menu_json(sv))
             if ruta == "/aviso":
                 v, t = aviso_de(sv)
                 return self._enviar(200, {"version": v, "texto": t})

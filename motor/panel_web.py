@@ -138,14 +138,14 @@ NOMBRE = re.compile(r"[A-Za-z0-9_-]{1,30}")  # va en la cookie (sin puntos)
 
 
 class Usuarios(Mapping):
-    """Usuarios activos de esos roles en la BD (registros tipo usuario: nombre, rol, pin_hash, activo), leídos en vivo: {nombre: (None, pin_hash)}."""
+    """Usuarios activos de esos roles (tabla usuarios: nombre, rol, pin_hash, activo), leídos en vivo: {nombre: (None, pin_hash)}."""
 
     def __init__(self, sv, roles):
         self.sv, self.de = sv, set(roles)
         sembrar_usuarios(sv)
 
     def _d(self):
-        return {u["nombre"]: (None, u["pin_hash"]) for u in self.sv.listar("usuario") if u.get("activo") and u["rol"] in self.de}
+        return {u["nombre"]: (None, u["pin_hash"]) for u in _todos(self.sv) if u["activo"] and u["rol"] in self.de}
 
     def __getitem__(self, k):
         return self._d()[k]
@@ -160,27 +160,35 @@ class Usuarios(Mapping):
         return self._d().items()
 
     def rol(self, nombre):
-        return next((u["rol"] for u in self.sv.listar("usuario") if u["nombre"] == nombre and u.get("activo")), None)
+        return next((u["rol"] for u in _todos(self.sv) if u["nombre"] == nombre and u["activo"]), None)
+
+
+def _todos(sv):
+    return [{"nombre": n, "rol": r, "pin_hash": h, "activo": bool(a)} for n, r, h, a in sv._q("SELECT nombre, rol, pin_hash, activo FROM usuarios ORDER BY rowid")]
+
+
+def _poner(sv, u):
+    sv._q("INSERT OR REPLACE INTO usuarios(nombre, rol, pin_hash, activo) VALUES (?,?,?,?)", (u["nombre"], u["rol"], u["pin_hash"], int(u["activo"])))
 
 
 def _pin_en_uso(sv, pin, excepto=None):
     """¿Algún otro usuario activo tiene ese PIN? (se comprueban todos, sin cortar)."""
-    return any([_coincide(pin, None, u["pin_hash"]) for u in sv.listar("usuario") if u.get("activo") and u["nombre"] != excepto])
+    return any([_coincide(pin, None, u["pin_hash"]) for u in _todos(sv) if u["activo"] and u["nombre"] != excepto])
 
 
 def sembrar_usuarios(sv):
     """Importa PANEL_PIN* (usuarios Dueno / Personal) y REPARTIDORES del .env si ese nombre aún no está en la BD; nunca pisa la BD. Solo guarda el hash."""
     semillas = [(n, r, *env_panel().get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
     semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores().items()]
-    with sv.pedidos_lock:  # ponytail: lock del proceso; dos procesos sembrando a la vez podrían duplicar (no ocurre: siembra el servidor web)
-        existentes = {u["nombre"] for u in sv.listar("usuario")}
+    with sv.pedidos_lock:
+        existentes = {u["nombre"] for u in _todos(sv)}
         for nombre, rol, texto, hash_ in semillas:
             if nombre in existentes or not (texto or hash_):
                 continue
             if texto and _pin_en_uso(sv, texto):
                 print(f"[panel] usuario {nombre!r} no importado: PIN repetido")
                 continue
-            sv.insertar("usuario", {"nombre": nombre, "rol": rol, "pin_hash": hash_ or hash_pin(texto), "activo": True})
+            _poner(sv, {"nombre": nombre, "rol": rol, "pin_hash": hash_ or hash_pin(texto), "activo": True})
 
 
 def guardar_usuario(sv, d, quien):
@@ -195,32 +203,64 @@ def guardar_usuario(sv, d, quien):
     if activo is not None and not isinstance(activo, bool):
         raise ValueError("Activo debe ser sí o no")
     with sv.pedidos_lock:
-        u = next((u for u in sv.listar("usuario") if u["nombre"] == nombre), None)
+        u = next((u for u in _todos(sv) if u["nombre"] == nombre), None)
         if not u and not (rol and pin):
             raise ValueError("Para crear un usuario hacen falta rol y PIN")
-        if u and activo and not u.get("activo") and not pin:
+        if u and activo and not u["activo"] and not pin:
             raise ValueError("Para reactivar a un usuario ponga un PIN nuevo")
         if pin and _pin_en_uso(sv, pin, excepto=nombre):
             raise ValueError("Ese PIN ya lo usa otra persona")
         nuevo = {**(u or {"nombre": nombre, "activo": True}), **({"rol": rol} if rol else {}), **({"activo": activo} if activo is not None else {}),
                  **({"pin_hash": hash_pin(pin)} if pin else {})}
-        nuevo.pop("id", None)
-        if u and u["rol"] == "dueno" and u.get("activo") and not (nuevo["rol"] == "dueno" and nuevo["activo"]) and \
-                not any(x["rol"] == "dueno" and x.get("activo") and x["nombre"] != nombre for x in sv.listar("usuario")):
+        if u and u["rol"] == "dueno" and u["activo"] and not (nuevo["rol"] == "dueno" and nuevo["activo"]) and \
+                not any(x["rol"] == "dueno" and x["activo"] and x["nombre"] != nombre for x in _todos(sv)):
             raise ValueError("Debe quedar al menos un dueño activo")
-        if u:
-            sv.actualizar(u["id"], nuevo, tipo="usuario")
-        else:
-            sv.insertar("usuario", nuevo)
+        _poner(sv, nuevo)
     cambios = ["usuario_crear"] if not u else [a for a, si in (("usuario_pin", pin), ("usuario_rol", rol and rol != u["rol"]),
-                                                               ("usuario_activo" if activo else "usuario_desactivar", activo is not None and activo != u.get("activo"))) if si]
+                                                               ("usuario_activo" if activo else "usuario_desactivar", activo is not None and activo != u["activo"])) if si]
     for a in cambios:
         auditar(sv, quien, f"{a}:{nombre}")
     return {"nombre": nombre, "rol": nuevo["rol"], "activo": nuevo["activo"]}
 
 
+ID_PLATO = re.compile(r"[a-z0-9-]{1,40}")
+
+
+def guardar_plato(sv, d, quien):
+    """Crea o edita (por id) un plato: {id, nombre?, precio?, categoria?, disponible?}. Precio >= 0 en B/. sin fracción de centavo."""
+    iid, nombre, precio, cat, disp = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible")
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
+        raise ValueError("Id inválido: 1 a 40 minúsculas, números o -")
+    if nombre is not None and not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 80):
+        raise ValueError("El nombre no puede estar vacío (máx. 80)")
+    if cat is not None and not (isinstance(cat, str) and len(cat) <= 30):
+        raise ValueError("Categoría demasiado larga (máx. 30)")
+    if disp is not None and not isinstance(disp, bool):
+        raise ValueError("Disponible debe ser sí o no")
+    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp)) if v is not None}
+    if precio is not None:
+        if isinstance(precio, bool) or not isinstance(precio, (int, float, str)):
+            raise ValueError("Precio inválido")
+        cambios["precio_c"] = herramientas._c(precio)
+        if not 0 <= cambios["precio_c"] <= 99_999:
+            raise ValueError("El precio debe estar entre 0 y 999.99")
+    with sv.pedidos_lock:
+        p = sv.menu.get(iid)
+        if not p and not ("nombre" in cambios and "precio_c" in cambios):
+            raise ValueError("Para crear un plato hacen falta nombre y precio")
+        sv.guardar_plato(iid, {**{k: v for k, v in (p or {"categoria": "", "disponible": True}).items() if k not in ("id", "precio")}, **cambios})
+    auditar(sv, quien, f"plato_{'editar' if p else 'crear'}:{iid}")
+    return {"ok": True, "plato": next(x for x in menu_json(sv) if x["id"] == iid)}
+
+
+def menu_json(sv):
+    """Menú para la web pública y el panel (precio en B/. como número)."""
+    return [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
+             "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
+
+
 def lista_usuarios(sv):
-    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": bool(u.get("activo"))} for u in sv.listar("usuario")]
+    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": u["activo"]} for u in _todos(sv)]
 
 
 class Bloqueo:
@@ -365,6 +405,10 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return {"usuarios": lista_usuarios(sv)}
     if (metodo, ruta) == ("POST", "usuario"):
         return {"ok": True, "usuario": guardar_usuario(sv, d or {}, quien)}
+    if (metodo, ruta) == ("GET", "menu"):
+        return {"menu": menu_json(sv)}
+    if (metodo, ruta) == ("POST", "plato"):
+        return guardar_plato(sv, d or {}, quien)
     raise LookupError(ruta)
 
 

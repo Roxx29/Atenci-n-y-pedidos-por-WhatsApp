@@ -11,19 +11,25 @@
 <link rel="icon" href="/repartidor/icono.svg" type="image/svg+xml">
 <title>Repartos · Fonda El Chitreano</title>
 <style>
-/* Pensado para el sol: fondo blanco, tinta casi negra y botones enormes. Sin modo oscuro a propósito. */
+/* Pensado para el sol: fondo blanco, tinta casi negra y botones enormes. Modo oscuro solo si el teléfono lo pide (de noche). */
 :root{
   --fondo:#FFFFFF; --papel:#F6F0E4; --tinta:#1E120C; --tinta-2:#5A4537; --linea:#DCCDB6;
   --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE;
   --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2; --maiz:#E9B949; --maiz-suave:#FFF3D1;
   --r:14px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
   --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  color-scheme:light;
+  --sobre-achiote:#FFFFFF;
+  color-scheme:light dark;
 }
+@media (prefers-color-scheme:dark){:root{
+  --fondo:#1A1310; --papel:#251B16; --tinta:#F5EBDD; --tinta-2:#C9B6A4; --linea:#3D2E25;
+  --achiote:#DE6550; --achiote-osc:#E5735E; --achiote-suave:#3E1E19; --sobre-achiote:#1A1310;
+  --hoja:#7DC48A; --hoja-osc:#93D09E; --hoja-suave:#1E2E20; --maiz-suave:#3A2E14;
+}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--fondo);color:var(--tinta);font:18px/1.4 var(--texto);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
-::selection{background:var(--maiz);color:var(--tinta)}
+::selection{background:var(--maiz);color:#1E120C}
 :focus-visible{outline:4px solid var(--maiz);outline-offset:2px}
 button,input,a{font:inherit;color:inherit}
 button{cursor:pointer}
@@ -33,7 +39,7 @@ h1,h2{margin:0;line-height:1.15}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;padding:0 18px;border-radius:var(--r);border:0;font-weight:800;font-size:1.25rem;text-decoration:none;background:var(--achiote);color:#fff;transition:transform .08s,background .12s}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;padding:0 18px;border-radius:var(--r);border:0;font-weight:800;font-size:1.25rem;text-decoration:none;background:var(--achiote);color:var(--sobre-achiote);transition:transform .08s,background .12s}
 .btn:active{transform:scale(.98)}
 .btn:hover{background:var(--achiote-osc)}
 .btn.ok{background:var(--hoja)} .btn.ok:hover{background:var(--hoja-osc)}
@@ -56,10 +62,14 @@ svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 .error{color:var(--achiote);font-weight:700;min-height:1.4em;margin:0}
 
 /* Barra */
-.barra{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 12px 10px 16px;background:var(--achiote);color:#fff}
+.barra{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) 12px 10px 16px;background:var(--achiote);color:var(--sobre-achiote)}
 .barra h1{flex:1;min-width:0;font-family:var(--display);font-size:1.375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.barra button{display:inline-flex;align-items:center;gap:6px;min-height:52px;min-width:52px;padding:0 14px;border:2px solid rgba(255,255,255,.55);border-radius:12px;background:none;color:#fff;font-weight:700}
-.barra button:active{background:rgba(255,255,255,.15)}
+.con{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.875rem;font-weight:800;background:color-mix(in srgb,var(--sobre-achiote) 20%,transparent);color:var(--sobre-achiote);white-space:nowrap}
+.con::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
+.con.off{background:var(--maiz);color:#1E120C}
+.con.off::before{border-radius:2px}
+.barra button{display:inline-flex;align-items:center;gap:6px;min-height:52px;min-width:52px;padding:0 14px;border:2px solid color-mix(in srgb,currentColor 55%,transparent);border-radius:12px;background:none;color:var(--sobre-achiote);font-weight:700}
+.barra button:active{background:color-mix(in srgb,currentColor 18%,transparent)}
 
 /* Lista */
 main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
@@ -73,8 +83,8 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:1rem;font-weight:800;white-space:nowrap;background:var(--papel);color:var(--tinta)}
 .chip.pagado{background:var(--hoja-suave);color:var(--hoja-osc)}
-.chip.cobrar{background:var(--achiote);color:#fff}
-.chip.camino{background:var(--maiz);color:var(--tinta)}
+.chip.cobrar{background:var(--achiote);color:var(--sobre-achiote)}
+.chip.camino{background:var(--maiz);color:#1E120C}
 .vacio{text-align:center;color:var(--tinta-2);padding:48px 16px}
 .vacio b{display:block;color:var(--tinta);font-size:1.375rem;margin-bottom:6px}
 
@@ -100,7 +110,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .pie p{margin:0;text-align:center;font-weight:700}
 .espera{color:var(--tinta-2);font-weight:700;text-align:center;min-height:56px;display:grid;place-items:center}
 
-.toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:5;padding:16px;border-radius:var(--r);background:var(--tinta);color:#fff;font-weight:700;text-align:center;transform:translateY(-150%);visibility:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:5;padding:16px;border-radius:var(--r);background:var(--tinta);color:var(--fondo);font-weight:700;text-align:center;transform:translateY(-150%);visibility:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1)}
 .toast.ver{transform:none;visibility:visible}
 .toast.mal{background:var(--achiote)}
 @media (min-width:640px){main,.pie{max-width:560px;margin-inline:auto}.pie{left:50%;right:auto;width:560px;transform:translateX(-50%)}}
@@ -138,7 +148,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 
 <!-- ============ Mis pedidos ============ -->
 <div id="vista-lista" hidden>
-  <header class="barra"><h1 id="hola">Mis pedidos</h1><button id="btn-salir">Salir</button></header>
+  <header class="barra"><h1 id="hola">Mis pedidos</h1><span class="con" role="status">En línea</span><button id="btn-salir">Salir</button></header>
   <main>
     <ul class="lista" id="lista" aria-live="polite"></ul>
     <div class="vacio" id="vacio" hidden><b>Sin pedidos por ahora</b>Cuando te asignen uno aparece aquí y el teléfono vibra.</div>
@@ -147,7 +157,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 
 <!-- ============ Un pedido ============ -->
 <div id="detalle" hidden>
-  <header class="barra"><button id="btn-atras" aria-label="Volver a mis pedidos"><svg class="i" aria-hidden="true"><use href="#i-atras"/></svg>Pedidos</button><h1 id="d-num"></h1></header>
+  <header class="barra"><button id="btn-atras" aria-label="Volver a mis pedidos"><svg class="i" aria-hidden="true"><use href="#i-atras"/></svg>Pedidos</button><h1 id="d-num"></h1><span class="con" role="status">En línea</span></header>
   <main>
     <p class="cliente" id="d-nombre"></p>
     <div class="cobro" id="d-cobro"></div>
@@ -190,6 +200,34 @@ const st = {demo:location.protocol === "file:", pedidos:[], conocidos:null, nuev
 /* ---------- PWA ---------- */
 if ("serviceWorker" in navigator && !st.demo) navigator.serviceWorker.register("/repartidor/sw.js", {scope:"/repartidor/"}).catch(() => {});
 
+/* ---------- Pantalla encendida y globo en el icono (mejora progresiva: sin la API no hace nada) ---------- */
+let bloqueoPantalla = null, quierePantalla = false;
+async function mantenerPantalla(on) {
+  quierePantalla = on;
+  try {
+    if (on && !bloqueoPantalla && "wakeLock" in navigator && document.visibilityState === "visible") {
+      bloqueoPantalla = await navigator.wakeLock.request("screen");
+      bloqueoPantalla.addEventListener("release", () => { bloqueoPantalla = null; });
+    } else if (!on && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+  } catch (e) { /* sin permiso o sin soporte: se ignora */ }
+}
+document.addEventListener("visibilitychange", () => { if (quierePantalla && document.visibilityState === "visible") mantenerPantalla(true); });
+const globo = n => { try { Promise.resolve(n > 0 ? navigator.setAppBadge && navigator.setAppBadge(n) : navigator.clearAppBadge && navigator.clearAppBadge()).catch(() => {}); } catch (e) {} };
+
+/* ---------- Conexión: píldora "En línea" / "Sin señal · hace X" ---------- */
+let ultimoOk = 0, falloRed = false;
+const haceDe = t => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? `hace ${s} s` : s < 3600 ? `hace ${Math.round(s / 60)} min` : `hace ${Math.round(s / 3600)} h`; };
+function pintarCon() {
+  if ($("#login").hidden === false) return;
+  const sinRed = !navigator.onLine || falloRed || (ultimoOk && Date.now() - ultimoOk > 20000);
+  for (const e of document.querySelectorAll(".con")) {
+    e.classList.toggle("off", !!sinRed);
+    e.textContent = sinRed ? "Sin señal" + (ultimoOk ? " · " + haceDe(ultimoOk) : "") : "En línea";
+  }
+}
+window.addEventListener("online", pintarCon); window.addEventListener("offline", pintarCon);
+setInterval(pintarCon, 5000);
+
 /* ---------- Entrada ---------- */
 const pin = $("#pin");
 $(".teclado").addEventListener("click", e => {
@@ -226,8 +264,10 @@ async function cargar() {
       if (!r.ok) throw new Error();
       lista = (await r.json()).pedidos || [];
     }
+    ultimoOk = Date.now(); falloRed = false; pintarCon();
     // Solo activos: lo entregado desaparece (legal).
     st.pedidos = lista.filter(p => p.estado in ORDEN).sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || a.id - b.id);
+    globo(st.pedidos.length); mantenerPantalla(st.pedidos.some(p => p.estado === "en_camino"));
     const ids = new Set(st.pedidos.map(p => p.id));
     if (st.conocidos) {
       const llegan = [...ids].filter(id => !st.conocidos.has(id));
@@ -236,7 +276,7 @@ async function cargar() {
     st.conocidos = ids;
     pintarLista();
     if (st.abierto) { const p = st.pedidos.find(x => x.id === st.abierto); if (p) pintarDetalle(p); else ver("lista"); }
-  } catch (e) { /* sin señal: reintenta solo */ }
+  } catch (e) { falloRed = true; pintarCon(); /* sin señal: reintenta solo */ }
 }
 
 /* ---------- Vistas ---------- */

@@ -65,5 +65,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 
 - [ ] Páginas más interactivas y premium (web pedidos, panel, repartidor): investigación en curso → diseno/propuesta-premium.md (2026-11-03)
 - [ ] 2026-11-03 — Completar referentes de investigacion/2026-11-03-paginas-premium.md: Rappi, PedidosYa, Fresh KDS, Toast Online Ordering, Mobbin/Awwwards y "deslizar para confirmar"; verificar en caniuse las cifras marcadas * (agenteinvestigacion)
-- [ ] 2026-11-03 — Implementar propuesta premium (diseno/propuesta-premium.md): quick wins W1/W2/W7, P3, P6, R2, R3/P4, R5 (disenador; capitán decide)
+- [x] 2026-11-03 — Quick wins de propuesta-premium implementados (W1 W2 W7 P3 P6 R2 R3 P4 R5). Falta W5/W6 menú con fotos + mini-carrito (disenador + programación)
 - [ ] 2026-11-03 — W13 Repetir último pedido y P11 borde por modalidad (propuesta premium, disenador)

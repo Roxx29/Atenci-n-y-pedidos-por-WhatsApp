@@ -44,6 +44,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - Ubicación/repartidor: seguimiento GPS del repartidor, ubicación por WhatsApp ya enchufada (probar con Meta), PIN de repartidor solo hash en producción, campo externo sí/no (NDA, legal §2.9), página /repartidor y botón de ubicación de disenador.
 - [ ] Repartidor: probar en un móvil real al sol (contraste, botones) e instalar la PWA (necesita HTTPS).
 - [ ] Ubicación: probar el GPS por HTTPS y el pegado de enlaces maps.app.goo.gl reales.
+- [ ] 2026-11-03 — Guion de demo comercial sobre https://restaurantes.nubiksoft.com (web, /panel, /repartidor) (comercial)
 
 - [ ] Arreglar test_recordatorio_y_cancelacion (test_motor): depende del día; falla si el próximo miércoles 10:00 está a menos de 24 h. (capitán, 2026-11-03)
 - [x] 2026-11-03 — Panel responsive móvil (≤700px) hecho; falta probar en vivo tras integrar y revisar pantalla Ajustes a 375px (disenador)

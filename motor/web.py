@@ -24,7 +24,12 @@ PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
 PAGINA_REP = Path(__file__).with_name("repartidor.html")
 MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "/repartidor/", "scope": "/repartidor/", "display": "standalone",
                 "background_color": "#ffffff", "theme_color": "#1f6f43", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
-SW_REP = b"self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));self.addEventListener('fetch',()=>{});"  # sin caché: los pedidos no se guardan en el móvil
+FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")  # lista blanca de /estatico/ (motor/estatico/)
+ESTATICO = Path(__file__).with_name("estatico")
+# sin caché de pedidos (no se guardan en el móvil); solo se guardan las fuentes de /estatico/
+SW_REP = ("const C='fuentes-v1',F=%s.map(f=>'/estatico/'+f);self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(F)).catch(()=>{}))});"
+          "self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));"
+          "self.addEventListener('fetch',e=>{if(new URL(e.request.url).pathname.startsWith('/estatico/'))e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});" % list(FUENTES)).encode()
 ICONO_REP = Path(__file__).with_name("repartidor_icono.svg")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
@@ -317,6 +322,22 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._err(400, str(e))
             return self._enviar(200, r, extra=renovar)
 
+        def _estatico(self, ruta):
+            """GET /estatico/<fuente>.woff2: público, sin sesión; solo los nombres de FUENTES (sin rutas)."""
+            nombre = ruta[len("/estatico/"):]
+            if limite.excede(("foto", self._ip()), 300):
+                return self._err(429, "Demasiadas peticiones")
+            f = ESTATICO / nombre
+            if nombre not in FUENTES or not f.is_file():
+                return self._err(404, "No encontrado")
+            datos = f.read_bytes()
+            self.send_response(200)
+            for k, v in (("Content-Type", "font/woff2"), ("Content-Length", str(len(datos))), ("X-Content-Type-Options", "nosniff"),
+                         ("Cache-Control", "public, max-age=31536000, immutable")):
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(datos)
+
         def _foto(self, ruta):
             """GET /menu/foto/<id>.webp[?s=2]: público; la URL lleva ?v=<hash>, así que se cachea para siempre."""
             iid = ruta[len("/menu/foto/"):].removesuffix(".webp")
@@ -385,6 +406,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             self._err(404, "No encontrado")
 
         def do_GET(self):
+            if self.path.split("?")[0].startswith("/estatico/"):
+                return self._estatico(self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/repartidor"):
                 return self._repartidor("GET", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):

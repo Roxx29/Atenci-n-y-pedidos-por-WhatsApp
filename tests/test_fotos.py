@@ -157,3 +157,23 @@ class Migracion(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Estatico(Base):
+    def setUp(self):
+        self.arrancar()
+
+    def test_fuentes_lista_blanca_y_sw(self):
+        from motor import web
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "mono-v1.woff2").write_bytes(b"wOF2datos")
+            (Path(d) / "otro.woff2").write_bytes(b"x")
+            with unittest.mock.patch.object(web, "ESTATICO", Path(d)):
+                r, raw = self.req("GET", "/estatico/mono-v1.woff2")
+                self.assertEqual((r.status, raw), (200, b"wOF2datos"))
+                self.assertEqual(r.getheader("Content-Type"), "font/woff2")
+                self.assertIn("immutable", r.getheader("Cache-Control"))
+                for u in ("/estatico/otro.woff2", "/estatico/epilogue-v1.woff2", "/estatico/..%2Fweb.py", "/estatico/"):
+                    self.assertEqual(self.req("GET", u)[0].status, 404, u)
+        self.assertIn(b"/estatico/", web.SW_REP)
+        self.assertIn(b"jakarta-v1.woff2", web.SW_REP)

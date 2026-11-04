@@ -68,6 +68,7 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS vistos(id TEXT PRIMARY KEY);"
             "CREATE TABLE IF NOT EXISTS platos(orden INTEGER PRIMARY KEY, id TEXT UNIQUE, datos TEXT);"
             "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
+            "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
         )
         if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)")}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
             self.db.executescript("ALTER TABLE platos ADD COLUMN foto BLOB; ALTER TABLE platos ADD COLUMN foto2x BLOB; ALTER TABLE platos ADD COLUMN foto_v TEXT;")

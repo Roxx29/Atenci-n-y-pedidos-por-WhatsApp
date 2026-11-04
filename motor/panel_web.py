@@ -14,6 +14,7 @@ import re
 import secrets
 import sys
 import time
+from collections.abc import Mapping
 
 from . import herramientas
 from . import ubicacion
@@ -106,7 +107,8 @@ class Acceso:
         return hallado
 
     def _firma(self, rol, exp, lim):
-        return hmac.new(self.clave, f"{rol}.{exp}.{lim}".encode(), hashlib.sha256).hexdigest()
+        # incluye el PIN (hash) vigente: cambiarlo o desactivar al usuario invalida sus sesiones
+        return hmac.new(self.clave, f"{rol}.{exp}.{lim}.{self.roles.get(rol)}".encode(), hashlib.sha256).hexdigest()
 
     def cookie(self, rol, lim=None, seguro=False):
         """Cookie con inactividad de 30 min (exp) y tope absoluto de 12 h (lim)."""
@@ -129,6 +131,96 @@ class Acceso:
                 except ValueError:
                     pass
         return None
+
+
+PANEL, REPARTO = ("dueno", "personal"), ("repartidor",)
+NOMBRE = re.compile(r"[A-Za-z0-9_-]{1,30}")  # va en la cookie (sin puntos)
+
+
+class Usuarios(Mapping):
+    """Usuarios activos de esos roles en la BD (registros tipo usuario: nombre, rol, pin_hash, activo), leídos en vivo: {nombre: (None, pin_hash)}."""
+
+    def __init__(self, sv, roles):
+        self.sv, self.de = sv, set(roles)
+        sembrar_usuarios(sv)
+
+    def _d(self):
+        return {u["nombre"]: (None, u["pin_hash"]) for u in self.sv.listar("usuario") if u.get("activo") and u["rol"] in self.de}
+
+    def __getitem__(self, k):
+        return self._d()[k]
+
+    def __iter__(self):
+        return iter(self._d())
+
+    def __len__(self):
+        return len(self._d())
+
+    def items(self):
+        return self._d().items()
+
+    def rol(self, nombre):
+        return next((u["rol"] for u in self.sv.listar("usuario") if u["nombre"] == nombre and u.get("activo")), None)
+
+
+def _pin_en_uso(sv, pin, excepto=None):
+    """¿Algún otro usuario activo tiene ese PIN? (se comprueban todos, sin cortar)."""
+    return any([_coincide(pin, None, u["pin_hash"]) for u in sv.listar("usuario") if u.get("activo") and u["nombre"] != excepto])
+
+
+def sembrar_usuarios(sv):
+    """Importa PANEL_PIN* (usuarios Dueno / Personal) y REPARTIDORES del .env si ese nombre aún no está en la BD; nunca pisa la BD. Solo guarda el hash."""
+    semillas = [(n, r, *env_panel().get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
+    semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores().items()]
+    with sv.pedidos_lock:  # ponytail: lock del proceso; dos procesos sembrando a la vez podrían duplicar (no ocurre: siembra el servidor web)
+        existentes = {u["nombre"] for u in sv.listar("usuario")}
+        for nombre, rol, texto, hash_ in semillas:
+            if nombre in existentes or not (texto or hash_):
+                continue
+            if texto and _pin_en_uso(sv, texto):
+                print(f"[panel] usuario {nombre!r} no importado: PIN repetido")
+                continue
+            sv.insertar("usuario", {"nombre": nombre, "rol": rol, "pin_hash": hash_ or hash_pin(texto), "activo": True})
+
+
+def guardar_usuario(sv, d, quien):
+    """Crea o edita (por nombre) un usuario: {nombre, rol?, pin?, activo?}. PIN de 6 dígitos no trivial y único entre activos. Audita sin PIN."""
+    nombre, rol, pin, activo = d.get("nombre"), d.get("rol"), d.get("pin"), d.get("activo")
+    if not (isinstance(nombre, str) and NOMBRE.fullmatch(nombre)):
+        raise ValueError("Nombre inválido: 1 a 30 letras sin tildes, números, - o _")
+    if rol is not None and rol not in PANEL + REPARTO:
+        raise ValueError("Rol inválido")
+    if pin is not None and not (isinstance(pin, str) and pin.isascii() and pin.isdigit() and len(pin) == 6 and pin not in PIN_DEBILES):
+        raise ValueError("El PIN debe tener 6 números y no ser trivial")
+    if activo is not None and not isinstance(activo, bool):
+        raise ValueError("Activo debe ser sí o no")
+    with sv.pedidos_lock:
+        u = next((u for u in sv.listar("usuario") if u["nombre"] == nombre), None)
+        if not u and not (rol and pin):
+            raise ValueError("Para crear un usuario hacen falta rol y PIN")
+        if u and activo and not u.get("activo") and not pin:
+            raise ValueError("Para reactivar a un usuario ponga un PIN nuevo")
+        if pin and _pin_en_uso(sv, pin, excepto=nombre):
+            raise ValueError("Ese PIN ya lo usa otra persona")
+        nuevo = {**(u or {"nombre": nombre, "activo": True}), **({"rol": rol} if rol else {}), **({"activo": activo} if activo is not None else {}),
+                 **({"pin_hash": hash_pin(pin)} if pin else {})}
+        nuevo.pop("id", None)
+        if u and u["rol"] == "dueno" and u.get("activo") and not (nuevo["rol"] == "dueno" and nuevo["activo"]) and \
+                not any(x["rol"] == "dueno" and x.get("activo") and x["nombre"] != nombre for x in sv.listar("usuario")):
+            raise ValueError("Debe quedar al menos un dueño activo")
+        if u:
+            sv.actualizar(u["id"], nuevo, tipo="usuario")
+        else:
+            sv.insertar("usuario", nuevo)
+    cambios = ["usuario_crear"] if not u else [a for a, si in (("usuario_pin", pin), ("usuario_rol", rol and rol != u["rol"]),
+                                                               ("usuario_activo" if activo else "usuario_desactivar", activo is not None and activo != u.get("activo"))) if si]
+    for a in cambios:
+        auditar(sv, quien, f"{a}:{nombre}")
+    return {"nombre": nombre, "rol": nuevo["rol"], "activo": nuevo["activo"]}
+
+
+def lista_usuarios(sv):
+    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": bool(u.get("activo"))} for u in sv.listar("usuario")]
 
 
 class Bloqueo:
@@ -261,8 +353,19 @@ def comprobante(sv, pedido_id):
 
 
 def auditar(sv, usuario, accion, pedido_id=None):
-    """Tabla auditoria (usuario=rol, accion, pedido_id, at): sin datos personales ni IP."""
+    """Tabla auditoria (usuario=nombre de la persona, accion, pedido_id, at): sin datos de clientes ni IP."""
     sv.insertar("auditoria", {"usuario": usuario, "accion": accion, "pedido_id": pedido_id, "at": sv.ahora().isoformat()})
+
+
+def api_dueno(sv, quien, rol, metodo, ruta, d=None):
+    """Rutas /panel/dueno/<ruta>, solo rol dueno. PermissionError → 403, LookupError → 404, ValueError → 409."""
+    if rol != "dueno":
+        raise PermissionError("Solo el dueño puede hacer esto")
+    if (metodo, ruta) == ("GET", "usuarios"):
+        return {"usuarios": lista_usuarios(sv)}
+    if (metodo, ruta) == ("POST", "usuario"):
+        return {"ok": True, "usuario": guardar_usuario(sv, d or {}, quien)}
+    raise LookupError(ruta)
 
 
 if __name__ == "__main__":

@@ -9,33 +9,55 @@
 <meta name="apple-mobile-web-app-title" content="Repartos">
 <link rel="manifest" href="/repartidor/manifest.webmanifest">
 <link rel="icon" href="/repartidor/icono.svg" type="image/svg+xml">
+<link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
 <title>Repartos · Fonda El Chitreano</title>
 <style>
 /* Pensado para el sol: fondo blanco, tinta casi negra y botones enormes. Modo oscuro solo si el teléfono lo pide (de noche). */
+@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  --fondo:#FFFFFF; --papel:#F6F0E4; --tinta:#1E120C; --tinta-2:#5A4537; --linea:#DCCDB6;
-  --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE;
-  --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2; --maiz:#E9B949; --maiz-suave:#FFF3D1;
-  --r:14px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-  --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --sobre-achiote:#FFFFFF;
+  /* Tokens "brasa" (estilo Material 3); los mismos de la web de pedidos y el panel */
+  --surface:#f9f9fc; --sc-lowest:#ffffff; --sc-low:#f3f3f6; --sc:#eeeef0; --sc-high:#e8e8ea; --sc-highest:#e2e2e5;
+  --on-surface:#1a1c1e; --on-variant:#5a4139; --outline:#8e7068; --outline-variant:#e2bfb5;
+  --inverse:#2f3133; --on-inverse:#f0f0f3;
+  --primary:#aa3000; --primary-container:#d04411; --on-primary:#ffffff; --primary-fixed:#ffdbd0;
+  --secondary:#7e5700; --secondary-container:#feb300; --secondary-fixed:#ffdeac;
+  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#a3f69c;
+  --error:#ba1a1a; --error-container:#ffdad6;
+  --sombra:0 1px 2px rgba(26,28,30,.06),0 2px 10px rgba(26,28,30,.07);
+  /* nombres anteriores */
+  --fondo:var(--sc-lowest); --papel:var(--sc-low); --tinta:var(--on-surface); --tinta-2:var(--on-variant); --linea:var(--outline-variant);
+  --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
+  --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed); --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed);
+  --r:12px; --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   color-scheme:light dark;
 }
 @media (prefers-color-scheme:dark){:root{
-  --fondo:#1A1310; --papel:#251B16; --tinta:#F5EBDD; --tinta-2:#C9B6A4; --linea:#3D2E25;
-  --achiote:#DE6550; --achiote-osc:#E5735E; --achiote-suave:#3E1E19; --sobre-achiote:#1A1310;
-  --hoja:#7DC48A; --hoja-osc:#93D09E; --hoja-suave:#1E2E20; --maiz-suave:#3A2E14;
+  --surface:#141211; --sc-lowest:#1d1a19; --sc-low:#221f1d; --sc:#292523; --sc-high:#332e2c; --sc-highest:#3e3835;
+  --on-surface:#ece0dc; --on-variant:#d8c2ba; --outline:#a08c85; --outline-variant:#4f3f39;
+  --inverse:#0f0d0c;
+  --primary:#ffb59f; --primary-container:#d04411; --on-primary:#5f1500; --primary-fixed:#4a1a0b;
+  --secondary:#ffba38; --secondary-fixed:#3a2b0b;
+  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21;
+  --error:#ffb4ab; --error-container:#5c1a14;
+  --sombra:0 1px 2px rgba(0,0,0,.5);
 }}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--fondo);color:var(--tinta);font:18px/1.4 var(--texto);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--surface);color:var(--tinta);font:17px/1.4 var(--texto);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 ::selection{background:var(--maiz);color:#1E120C}
-:focus-visible{outline:4px solid var(--maiz);outline-offset:2px}
+:focus-visible{outline:4px solid var(--primary);outline-offset:2px}
+.barra :focus-visible{outline-color:#fff}
 button,input,a{font:inherit;color:inherit}
 button{cursor:pointer}
 [hidden]{display:none!important}
 h1,h2{margin:0;line-height:1.15}
-.num{font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+h1,h2{font-family:var(--display);letter-spacing:-.01em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
@@ -113,6 +135,73 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:5;padding:16px;border-radius:var(--r);background:var(--tinta);color:var(--fondo);font-weight:700;text-align:center;transform:translateY(-150%);visibility:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1)}
 .toast.ver{transform:none;visibility:visible}
 .toast.mal{background:var(--achiote)}
+/* ---------- Rediseño brasa ---------- */
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;flex:none}
+.logo svg{width:22px;height:22px;fill:currentColor;stroke:none}
+.barra{background:var(--inverse);color:var(--on-inverse);min-height:64px}
+.barra h1{font-size:1.125rem;font-weight:700}
+.barra button{color:var(--on-inverse);border-color:rgba(240,240,243,.3)}
+.barra button:active{background:rgba(255,255,255,.14)}
+.con{background:rgba(163,246,156,.16);color:#a3f69c}
+.con.off{background:var(--secondary-container);color:#1a1c1e}
+.btn{border-radius:10px;font-size:1.0625rem;background:var(--primary);color:var(--on-primary)}
+.btn.sec{background:transparent;color:var(--primary);border:2px solid var(--primary)}
+.btn.sec:hover{background:var(--primary-fixed)}
+.etq{font-size:.6875rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--on-variant)}
+.turno{margin:0 0 16px;padding:14px 16px;border-radius:var(--r);background:var(--sc-lowest);box-shadow:var(--sombra)}
+.turno-cab{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.turno-cab b{font:700 1.125rem var(--display);margin-right:auto}
+.turno-cab span.en-serv{display:inline-flex;align-items:center;gap:8px;padding:4px 12px;border-radius:999px;background:var(--tertiary-fixed);color:var(--tertiary);font-size:.6875rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.turno-cab span.en-serv::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;animation:latir 2s ease-in-out infinite}
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.met{display:grid;gap:2px;padding:8px 10px;border-radius:8px;background:var(--sc-low)}
+.met b{font:500 1.25rem var(--mono)}
+.met .etq{font-size:.625rem}
+h2.sec-tit{font-size:1.25rem;font-weight:700;margin:4px 0 10px}
+.pedido{position:relative;border:0;border-left:6px solid var(--outline-variant);border-radius:var(--r);background:var(--sc-lowest);box-shadow:var(--sombra);padding:16px}
+.pedido.en-camino{border-left-color:var(--primary);box-shadow:0 0 0 2px var(--primary),var(--sombra)}
+.pedido .n{font-size:1.75rem}
+.pedido.nuevo{box-shadow:0 0 0 3px var(--secondary-fixed),var(--sombra)}
+.chip{background:var(--sc-high);color:var(--on-variant);font-size:.8125rem;letter-spacing:.02em}
+.chip.pagado{background:var(--tertiary-fixed);color:var(--tertiary)}
+.chip.cobrar{background:var(--primary);color:var(--on-primary);font-family:var(--mono)}
+.chip.camino{background:var(--secondary-container);color:#1a1c1e}
+.chip.fuera{background:var(--error-container);color:var(--error)}
+#detalle main{background:none}
+.tarjeta-ped{display:grid;gap:12px;padding:16px;border-radius:var(--r);background:var(--sc-lowest);box-shadow:var(--sombra);border-left:6px solid var(--primary)}
+.tarjeta-ped .cab{display:flex;align-items:center;gap:10px}
+.tarjeta-ped .n{font:500 1.75rem var(--mono)}
+.tarjeta-ped .chip{margin-left:auto}
+.dest{display:flex;align-items:center;gap:12px}
+.dest .cliente{flex:1;min-width:0}
+.btn.llamar{width:auto;min-height:52px;padding:0 18px;background:var(--tertiary);color:var(--on-primary)}
+.btn.llamar:hover{background:var(--tertiary-container)}
+.wa{font-weight:700;color:var(--primary);min-height:44px;display:inline-flex;align-items:center;gap:6px}
+.cobro{border-radius:var(--r)}
+.cobro.cobrar{color:var(--primary)}
+.cobro.pagado{color:var(--tertiary)}
+.nota,.fuera{color:var(--error)}
+.cobro.cobrar b{font:500 2rem var(--mono)}
+.bloque{background:var(--sc-lowest);box-shadow:var(--sombra)}
+.total{font-family:var(--mono)}
+.pie{background:var(--sc-lowest);box-shadow:0 -6px 18px rgba(26,28,30,.14)}
+.acc-fila{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.acc-fila .btn{min-height:52px;font-size:1rem}
+#detalle main{padding-bottom:calc(190px + env(safe-area-inset-bottom))}
+.comparte{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--tertiary-fixed);color:var(--tertiary);font-weight:700;font-size:.9375rem}
+.comparte.pausa{background:var(--secondary-fixed);color:var(--on-surface)}
+.comparte.err{background:var(--error-container);color:var(--error)}
+.comparte svg{width:20px;height:20px}
+.comparte span{flex:1;min-width:0}
+.comparte button{flex:none;min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid currentColor;background:none;color:inherit;font-weight:700}
+dialog.aviso-ub{width:min(520px,calc(100% - 24px));border:0;border-radius:16px;padding:20px;background:var(--sc-lowest);color:var(--on-surface);box-shadow:0 24px 64px rgba(0,0,0,.4)}
+dialog.aviso-ub::backdrop{background:rgba(26,28,30,.6)}
+dialog.aviso-ub h2{font-size:1.5rem;margin-bottom:10px}
+dialog.aviso-ub p.texto{white-space:pre-wrap;font-size:1rem;margin:0 0 14px;max-height:50vh;overflow-y:auto}
+dialog.aviso-ub label{display:flex;gap:12px;align-items:center;font-weight:700;min-height:48px;margin-bottom:12px}
+dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
+@keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+@media (max-width:380px){.mets{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:640px){main,.pie{max-width:560px;margin-inline:auto}.pie{left:50%;right:auto;width:560px;transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -120,6 +209,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-fuego" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2 0-3-1-5 1-8z"/></symbol>
   <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
   <symbol id="i-tel" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 20l1.5-4A8 8 0 1 1 9 19.5z"/></symbol>
@@ -148,8 +238,19 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 
 <!-- ============ Mis pedidos ============ -->
 <div id="vista-lista" hidden>
-  <header class="barra"><h1 id="hola">Mis pedidos</h1><span class="con" role="status">En línea</span><button id="btn-salir">Salir</button></header>
+  <header class="barra"><span class="logo" aria-hidden="true"><svg class="i"><use href="#i-fuego"/></svg></span><h1 id="hola">Mis pedidos</h1><span class="con" role="status">En línea</span><button id="btn-salir">Salir</button></header>
+  <div class="comparte" id="comparte" role="status" hidden><svg class="i" aria-hidden="true"><use href="#i-mapa"/></svg><span id="comparte-txt"></span><button type="button" id="btn-comparte"></button></div>
   <main>
+    <section class="turno" aria-label="Resumen de tu turno">
+      <div class="turno-cab"><b>Tu turno</b><span class="en-serv">En servicio</span></div>
+      <div class="mets">
+        <div class="met"><span class="etq">Asignados</span><b id="t-asig">0</b></div>
+        <div class="met"><span class="etq">Para salir</span><b id="t-listos">0</b></div>
+        <div class="met"><span class="etq">En camino</span><b id="t-camino">0</b></div>
+        <div class="met"><span class="etq">Por cobrar</span><b id="t-cobrar">B/. 0.00</b></div>
+      </div>
+    </section>
+    <h2 class="sec-tit">Mis entregas</h2>
     <ul class="lista" id="lista" aria-live="polite"></ul>
     <div class="vacio" id="vacio" hidden><b>Sin pedidos por ahora</b>Cuando te asignen uno aparece aquí y el teléfono vibra.</div>
   </main>
@@ -159,18 +260,25 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 <div id="detalle" hidden>
   <header class="barra"><button id="btn-atras" aria-label="Volver a mis pedidos"><svg class="i" aria-hidden="true"><use href="#i-atras"/></svg>Pedidos</button><h1 id="d-num"></h1><span class="con" role="status">En línea</span></header>
   <main>
-    <p class="cliente" id="d-nombre"></p>
+    <section class="tarjeta-ped" aria-label="Pedido">
+      <div class="cab"><span class="n" id="d-id"></span><span class="chip" id="d-estado"></span></div>
+      <div class="dest" id="d-contacto"><div class="cliente-caja" style="flex:1;min-width:0"><span class="etq">Destinatario</span><p class="cliente" id="d-nombre"></p></div><a class="btn llamar" id="d-llamar"><svg class="i" aria-hidden="true"><use href="#i-tel"/></svg>Llamar</a></div>
+      <a class="wa" id="d-wa"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>Escribir por WhatsApp</a>
+    </section>
     <div class="cobro" id="d-cobro"></div>
-    <a class="btn" id="d-mapa" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-mapa"/></svg>Abrir ruta en Google Maps</a>
-    <div class="fila">
-      <a class="btn sec" id="d-llamar"><svg class="i" aria-hidden="true"><use href="#i-tel"/></svg>Llamar</a>
-      <a class="btn sec" id="d-wa"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>WhatsApp</a>
-    </div>
     <section class="bloque"><h2>Dirección</h2><p class="dir" id="d-dir"></p><p id="d-zona"></p><p class="nota" id="d-notas"></p><p class="fuera" id="d-fuera" hidden>Ubicación fuera de la zona de entrega: confirma con el cliente.</p></section>
     <section class="bloque"><h2>Lleva</h2><ul class="items" id="d-items"></ul><div class="total"><span>Total</span><span class="num" id="d-total"></span></div></section>
   </main>
   <div class="pie" id="d-pie"></div>
 </div>
+
+<dialog class="aviso-ub" id="dlg-aviso" aria-labelledby="aviso-tit">
+  <h2 id="aviso-tit">Antes de empezar</h2>
+  <p class="texto" id="aviso-texto"></p>
+  <label><input type="checkbox" id="aviso-ok"> Entendido</label>
+  <button class="btn" id="aviso-seguir" disabled>Continuar</button>
+  <p class="error" id="aviso-error" role="alert"></p>
+</dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -239,17 +347,18 @@ $("#form-pin").addEventListener("submit", async ev => {
   ev.preventDefault();
   if (!/^\d{6}$/.test(pin.value)) { $("#e-pin").textContent = "El PIN tiene 6 números."; return pin.focus(); }
   $("#e-pin").textContent = ""; let nombre = "Juan";
+  if (st.demo) st.aviso = {version:"demo", aceptado:false, texto:"Mientras tengas un pedido en camino, esta app envía tu ubicación cada pocos segundos a Fonda El Chitreano. La ven el personal del restaurante y el cliente de ese pedido, para saber cuándo llegas. Se apaga sola al entregar o cancelar, o al salir de la app. No guardamos tu recorrido: solo la última posición, que se borra al terminar. Fuera de un pedido en camino no se envía nada. (Demostración: no se envía nada de verdad.)"};
   if (!st.demo) {
     try {
       const r = await fetch("/repartidor/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:pin.value})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); }
-      nombre = j.nombre || "";
+      nombre = j.nombre || ""; if (j.aviso_ubicacion) st.aviso = j.aviso_ubicacion;
     } catch (e) { $("#e-pin").textContent = "Sin conexión. Revisa tu internet e inténtalo otra vez."; return; }
   }
   pin.value = ""; $("#login").hidden = true;
   $("#hola").textContent = nombre ? "Hola, " + nombre : "Mis pedidos";
-  ver("lista"); cargar(); clearInterval(st.sondeo); st.sondeo = setInterval(cargar, 6000);
+  ver("lista"); mostrarAviso(); cargar(); clearInterval(st.sondeo); st.sondeo = setInterval(cargar, 6000);
 });
 $("#btn-salir").onclick = async () => { clearInterval(st.sondeo); if (!st.demo) await fetch("/repartidor/salir", {method:"POST"}).catch(() => {}); location.reload(); };
 
@@ -262,7 +371,7 @@ async function cargar() {
       const r = await fetch("/repartidor/pedidos");
       if (r.status === 401) return location.reload();
       if (!r.ok) throw new Error();
-      lista = (await r.json()).pedidos || [];
+      const j = await r.json(); lista = j.pedidos || []; if (j.aviso_ubicacion) { st.aviso = j.aviso_ubicacion; mostrarAviso(); }
     }
     ultimoOk = Date.now(); falloRed = false; pintarCon();
     // Solo activos: lo entregado desaparece (legal).
@@ -274,7 +383,7 @@ async function cargar() {
       if (llegan.length) { llegan.forEach(id => st.nuevos.add(id)); avisar(llegan.length === 1 ? `Nuevo pedido #${llegan[0]}` : `${llegan.length} pedidos nuevos`); }
     }
     st.conocidos = ids;
-    pintarLista();
+    pintarLista(); actualizarTransmision();
     if (st.abierto) { const p = st.pedidos.find(x => x.id === st.abierto); if (p) pintarDetalle(p); else ver("lista"); }
   } catch (e) { falloRed = true; pintarCon(); /* sin señal: reintenta solo */ }
 }
@@ -288,10 +397,19 @@ function ver(cual) {
 $("#btn-atras").onclick = () => { ver("lista"); pintarLista(); };
 window.addEventListener("popstate", () => { if (!$("#detalle").hidden) { ver("lista"); pintarLista(); } });
 
+function pintarTurno() {
+  let cobrar = 0;
+  for (const p of st.pedidos) if (!pagado(p)) cobrar += Math.round(num(aCobrar(p)) * 100); // en centavos
+  $("#t-asig").textContent = st.pedidos.length;
+  $("#t-listos").textContent = st.pedidos.filter(p => p.estado === "listo").length;
+  $("#t-camino").textContent = st.pedidos.filter(p => p.estado === "en_camino").length;
+  $("#t-cobrar").textContent = dinero(cobrar / 100);
+}
 function pintarLista() {
+  pintarTurno();
   $("#vacio").hidden = st.pedidos.length > 0;
   $("#lista").replaceChildren(...st.pedidos.map(p => h("li", {},
-    h("button", {class:"pedido" + (st.nuevos.has(p.id) ? " nuevo" : ""), on:{click:() => abrir(p.id)}, "aria-label":`Pedido ${p.id}, ${p.nombre}, ${p.zona || ""}, ${pagado(p) ? "pagado" : "cobrar " + dinero(aCobrar(p))}, ${ESTADO[p.estado]}`},
+    h("button", {class:"pedido" + (st.nuevos.has(p.id) ? " nuevo" : "") + (p.estado === "en_camino" ? " en-camino" : ""), on:{click:() => abrir(p.id)}, "aria-label":`Pedido ${p.id}, ${p.nombre}, ${p.zona || ""}, ${pagado(p) ? "pagado" : "cobrar " + dinero(aCobrar(p))}, ${ESTADO[p.estado]}`},
       h("span", {class:"n num"}, "#" + p.id),
       h("span", {class:"nombre"}, p.nombre),
       h("span", {class:"zona"}, [p.zona, p.hora_deseada].filter(Boolean).join(" · ") || "Entrega"),
@@ -305,19 +423,19 @@ function abrir(id) {
   const p = st.pedidos.find(x => x.id === id); if (!p) return;
   st.nuevos.delete(id); st.abierto = id;
   history.pushState({pedido:id}, "");
-  pintarDetalle(p); ver("detalle"); st.abierto = id; $("#d-mapa").focus();
+  pintarDetalle(p); ver("detalle"); st.abierto = id; const f = $("#d-pie button, #d-pie a"); if (f) f.focus();
 }
 function pintarDetalle(p) {
   $("#d-num").textContent = "Pedido #" + p.id;
+  $("#d-id").textContent = "#" + p.id; $("#d-estado").textContent = ESTADO[p.estado] || p.estado; $("#d-estado").className = "chip" + (p.estado === "en_camino" ? " camino" : "");
   $("#d-nombre").textContent = p.nombre;
   const c = $("#d-cobro");
   if (pagado(p)) { c.className = "cobro pagado"; c.replaceChildren(icono("check"), "Ya pagado. No cobres nada."); }
   else { c.className = "cobro cobrar"; c.replaceChildren("Cobrar en efectivo", h("b", {class:"num"}, dinero(aCobrar(p)))); }
-  const mapa = p.mapa || p.mapa_url;
-  $("#d-mapa").hidden = !mapa; if (mapa) $("#d-mapa").href = mapa;
+  st.mapaUrl = p.mapa || p.mapa_url || "";
   const tel = String(p.telefono || "").replace(/\D/g, "");
   $("#d-llamar").href = "tel:+" + tel; $("#d-wa").href = "whatsapp://send?phone=" + tel;
-  $("#d-llamar").parentElement.hidden = !tel;
+  $("#d-contacto").hidden = !tel; $("#d-wa").hidden = !tel;
   $("#d-dir").textContent = p.direccion || "Sin dirección escrita: usa el mapa o llama al cliente.";
   $("#d-zona").textContent = [p.zona, p.hora_deseada && "Hora: " + p.hora_deseada].filter(Boolean).join(" · ");
   $("#d-notas").textContent = p.notas ? "Nota: " + p.notas : ""; $("#d-notas").hidden = !p.notas;
@@ -327,14 +445,20 @@ function pintarDetalle(p) {
   pintarPie(p);
 }
 const puede = (p, e) => p.acciones ? p.acciones.includes(e) : (e === "en_camino" ? p.estado === "listo" : p.estado === "en_camino");
+const ponerPie = (p, ...x) => $("#d-pie").replaceChildren(accesos(p), ...x); // Navegar y Contactar + la acción de cada estado
+function accesos(p) {
+  const tel = String(p.telefono || "").replace(/\D/g, "");
+  return h("div", {class:"acc-fila"},
+    st.mapaUrl ? h("a", {class:"btn sec", href:st.mapaUrl, target:"_blank", rel:"noopener"}, icono("mapa"), "Navegar") : null,
+    tel ? h("a", {class:"btn sec", href:"tel:+" + tel}, icono("tel"), "Contactar") : null);
+}
 function pintarPie(p, confirmar) {
-  const pie = $("#d-pie");
-  if (confirmar) return pie.replaceChildren(
+  if (confirmar) return ponerPie(p, 
     h("p", {}, "¿Ya cobraste " + dinero(aCobrar(p)) + " en efectivo?"),
     h("div", {class:"fila"}, h("button", {class:"btn ok", on:{click:() => marcar(p, "entregado")}}, "Sí, entregado"), h("button", {class:"btn sec", on:{click:() => pintarPie(p)}}, "Volver")));
-  if (puede(p, "en_camino")) return pie.replaceChildren(h("button", {class:"btn", on:{click:() => marcar(p, "en_camino")}}, icono("moto"), "Recogí el pedido · En camino"));
-  if (puede(p, "entregado")) return pie.replaceChildren(h("button", {class:"btn ok", on:{click:() => pagado(p) ? marcar(p, "entregado") : pintarPie(p, true)}}, icono("check"), "Entregado"));
-  pie.replaceChildren(h("p", {class:"espera"}, p.estado === "en_preparacion" ? "Aún en cocina. Te avisamos cuando esté listo." : "Esperando al restaurante."));
+  if (puede(p, "en_camino")) return ponerPie(p, h("button", {class:"btn", on:{click:() => marcar(p, "en_camino")}}, icono("moto"), "Recogí el pedido · En camino"));
+  if (puede(p, "entregado")) return ponerPie(p, h("button", {class:"btn ok", on:{click:() => pagado(p) ? marcar(p, "entregado") : pintarPie(p, true)}}, icono("check"), "Entregado"));
+  ponerPie(p, h("p", {class:"espera"}, p.estado === "en_preparacion" ? "Aún en cocina. Te avisamos cuando esté listo." : "Esperando al restaurante."));
 }
 async function marcar(p, estado) {
   const botones = $("#d-pie").querySelectorAll("button"); botones.forEach(b => b.disabled = true);
@@ -349,8 +473,78 @@ async function marcar(p, estado) {
     }
     if (estado === "entregado") { avisar(`#${p.id} entregado. ¡Gracias!`); history.back(); ver("lista"); await cargar(); }
     else { avisar(`#${p.id}: en camino`); pintarDetalle(p); }
+    actualizarTransmision();
   } catch (e) { avisar(e.message, true); botones.forEach(b => b.disabled = false); }
 }
+
+/* ---------- Aviso de ubicación (se acepta una vez, en el servidor) ---------- */
+function mostrarAviso() {
+  const a = st.aviso, d = $("#dlg-aviso");
+  if (!a || a.aceptado || d.open || $("#login").hidden === false) return;
+  $("#aviso-texto").textContent = a.texto; $("#aviso-ok").checked = false; $("#aviso-seguir").disabled = true; $("#aviso-error").textContent = "";
+  d.showModal();
+}
+$("#dlg-aviso").addEventListener("cancel", e => e.preventDefault()); // no se cierra con Esc: hay que leerlo y aceptar
+$("#aviso-ok").onchange = e => { $("#aviso-seguir").disabled = !e.target.checked; };
+$("#aviso-seguir").onclick = async () => {
+  const b = $("#aviso-seguir"); b.disabled = true;
+  try {
+    if (!st.demo) {
+      const r = await fetch("/repartidor/aviso_ubicacion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({version:st.aviso.version})});
+      if (r.status === 401) return location.reload();
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo guardar. Inténtalo otra vez.");
+    }
+    st.aviso.aceptado = true; $("#dlg-aviso").close(); actualizarTransmision();
+  } catch (e) { $("#aviso-error").textContent = e.message; b.disabled = false; }
+};
+
+/* ---------- Compartir ubicación mientras hay un pedido en camino ----------
+   watchPosition solo con la app en primer plano; se envía cada 10 s como mucho y solo si te moviste más de 20 m (o cada 60 s para no quedar "viejo").
+   Se apaga sola sin pedido en camino, al salir, al ocultar la app o con "Dejar de compartir". */
+const U = {watch:null, pausa:false, ultimo:null, t:0, ok:0, err:""};
+const distM = (a, b) => { const R = 6371000, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon), q = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); };
+const hayCamino = () => st.pedidos.some(p => p.estado === "en_camino");
+const aceptado = () => !!(st.aviso && st.aviso.aceptado);
+function actualizarTransmision() {
+  const on = aceptado() && hayCamino() && !U.pausa && document.visibilityState === "visible" && "geolocation" in navigator;
+  if (on && U.watch == null) U.watch = navigator.geolocation.watchPosition(enviarPos, errorPos, {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+  else if (!on && U.watch != null) { navigator.geolocation.clearWatch(U.watch); U.watch = null; }
+  if (!hayCamino()) { U.ultimo = null; U.t = 0; U.err = ""; U.pausa = false; }
+  pintarComparte();
+}
+async function enviarPos(pos) {
+  const lat = pos.coords.latitude, lon = pos.coords.longitude, ahora = Date.now();
+  const movio = !U.ultimo || distM(U.ultimo, {lat, lon}) > 20;
+  if (ahora - U.t < 10000 || (!movio && ahora - U.t < 60000)) return;
+  U.t = ahora; U.ultimo = {lat, lon}; U.err = "";
+  if (!st.demo) {
+    try {
+      const r = await fetch("/repartidor/posicion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({lat, lon, precision:Math.round(pos.coords.accuracy || 0)})});
+      if (r.status === 401) return location.reload();
+      if (r.status === 409) { U.err = ""; return actualizarTransmision(); } // ya no hay pedido en camino
+      if (r.status === 403) { st.aviso.aceptado = false; return mostrarAviso(); }
+      if (!r.ok) U.err = (await r.json().catch(() => ({}))).error || "No se pudo enviar tu ubicación.";
+      else U.ok = ahora;
+    } catch (e) { U.err = "Sin señal: no se pudo enviar tu ubicación."; }
+  } else U.ok = ahora;
+  pintarComparte();
+}
+function errorPos(e) {
+  U.err = e.code === 1 ? "No tienes permiso de ubicación. Actívalo en los ajustes del teléfono para esta app." : "No se pudo leer tu ubicación. Revisa el GPS.";
+  pintarComparte();
+}
+function pintarComparte() {
+  const barra = $("#comparte"), txt = $("#comparte-txt"), b = $("#btn-comparte");
+  const ver = aceptado() && hayCamino();
+  barra.hidden = !ver; if (!ver) return;
+  barra.className = "comparte" + (U.err ? " err" : U.pausa ? " pausa" : "");
+  if (U.err) { txt.textContent = U.err; b.hidden = true; }
+  else if (U.pausa) { txt.textContent = "Ubicación en pausa: el cliente no te ve."; b.hidden = false; b.textContent = "Compartir de nuevo"; }
+  else { txt.textContent = "Compartiendo ubicación" + (U.ok ? " · " + haceDe(U.ok) : "") + ". Mantén la app abierta."; b.hidden = false; b.textContent = "Dejar de compartir"; }
+}
+$("#btn-comparte").onclick = () => { U.pausa = !U.pausa; U.err = ""; actualizarTransmision(); };
+document.addEventListener("visibilitychange", actualizarTransmision);
+setInterval(() => { if (U.watch != null) pintarComparte(); }, 5000);
 
 /* ---------- Avisos ---------- */
 let tToast, audio;

@@ -260,6 +260,11 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
 @keyframes entra{from{opacity:0;transform:translateY(8px)}}
 @keyframes punto{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
 @keyframes pulso{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--primary) 40%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+#mapa-cli{height:260px;border-radius:var(--r12);margin-top:12px;background:var(--sc);z-index:0}
+.pin-rep span,.pin-yo span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pin-yo span{background:var(--inverse);color:var(--secondary-container)}
+.pin-rep.viejo span{background:#6f6f73;border-style:dashed}
+.leaflet-container{font-family:var(--texto)}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
 .burbuja,.fila-bot,.sistema,.escribiendo,.resumen,.plato{animation:entra .22s cubic-bezier(.16,1,.3,1)}
 .puntos{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
@@ -455,6 +460,12 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
           </div>
         </div>
         <ol class="pasos" id="pasos"></ol>
+        <div class="tarjeta" id="tarjeta-mapa" hidden>
+          <h3>Tu repartidor</h3>
+          <p id="mapa-cli-txt" role="status" aria-live="polite"></p>
+          <div id="mapa-cli" role="img" aria-label="Mapa con la posición actual de tu repartidor" hidden></div>
+          <p class="ayuda" id="mapa-cli-aviso" hidden>No se pudo cargar el mapa. Te seguimos avisando por aquí.</p>
+        </div>
         <div class="tarjeta" id="tarjeta-ubic" hidden>
           <h3>Entrega a domicilio</h3>
           <p class="ayuda" id="ubic-estado"></p>
@@ -585,6 +596,7 @@ function pestana(cual) {
     $("#tab-" + t).tabIndex = on ? 0 : -1;
     $("#" + t).hidden = t === "menu" ? (!on && !ancho.matches) : !on;
   }
+  if (cual === "estado" && st.pedido) pintarRepartidor(st.pedido);
   if (cual === "estado") { $("#punto").hidden = true; $("#punto-sr").textContent = ""; document.title = "Fonda El Chitreano · Pedidos"; }
 }
 ancho.addEventListener("change", () => pestana(st.tab));
@@ -757,6 +769,53 @@ function tablaItems(caja, p) { // solo textContent: los nombres vienen del servi
   caja.replaceChildren(tabla);
 }
 
+/* ---------- Dónde va tu repartidor (solo con el pedido en camino; punto actual, sin estela; Leaflet se carga solo si hace falta) ---------- */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+const pinEl = t => { const e = document.createElement("span"); e.textContent = t; return e; };
+const MC = {mapa:null, marca:null, yo:null, id:0};
+const kmTexto = m => m < 950 ? `a ${Math.round(m / 10) * 10} m de ti` : `a ${(m / 1000).toFixed(1)} km de ti`;
+function distM(a, b) { const R = 6371000, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon), q = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); }
+function quitarMapaCli() { if (MC.mapa) { MC.mapa.remove(); MC.mapa = MC.marca = MC.yo = null; } $("#mapa-cli").hidden = true; }
+async function pintarRepartidor(p) {
+  const card = $("#tarjeta-mapa"), en = !!p && p.estado === "en_camino";
+  card.hidden = !en;
+  if (!en) return quitarMapaCli();
+  const pos = p.repartidor_pos, nombre = p.repartidor || "Tu repartidor";
+  let txt;
+  if (!pos) txt = p.mensaje || `${nombre} va en camino.`;
+  else {
+    txt = pos.viejo ? `${nombre} va en camino · última ubicación hace ${Math.max(1, Math.round(pos.edad_s / 60))} min.` : `${nombre} va en camino · ubicación actualizada hace ${pos.edad_s} s.`;
+    if (st.miUbic) txt += " Está " + kmTexto(distM(pos, st.miUbic)).replace("a ", "a ") + " (en línea recta).";
+  }
+  $("#mapa-cli-txt").textContent = txt;
+  if (!pos || $("#estado").hidden || st.demo) { if (!pos) quitarMapaCli(); return; } // el mapa solo se arma con la pestaña a la vista
+  const id = ++MC.id;
+  try {
+    const L = await cargarLeaflet(); if (id !== MC.id) return;
+    $("#mapa-cli").hidden = false; $("#mapa-cli-aviso").hidden = true;
+    if (!MC.mapa) {
+      MC.mapa = L.map("mapa-cli", {zoomControl:true}).setView([pos.lat, pos.lon], 16); MC.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(MC.mapa);
+    }
+    if (!MC.marca) MC.marca = L.marker([pos.lat, pos.lon], {title:nombre, icon:L.divIcon({className:"pin-rep", html:pinEl(String(nombre)[0].toUpperCase()), iconSize:[34, 34]})}).addTo(MC.mapa);
+    MC.marca.setLatLng([pos.lat, pos.lon]); MC.marca.getElement().classList.toggle("viejo", !!pos.viejo);
+    if (st.miUbic) {
+      if (!MC.yo) MC.yo = L.marker([st.miUbic.lat, st.miUbic.lon], {title:"Tú", icon:L.divIcon({className:"pin-yo", html:pinEl("Tú"), iconSize:[34, 34]})}).addTo(MC.mapa);
+      MC.mapa.fitBounds([[pos.lat, pos.lon], [st.miUbic.lat, st.miUbic.lon]], {padding:[40, 40], maxZoom:17});
+    } else MC.mapa.panTo([pos.lat, pos.lon]);
+    setTimeout(() => MC.mapa && MC.mapa.invalidateSize(), 50);
+  } catch (e) { $("#mapa-cli").hidden = true; $("#mapa-cli-aviso").hidden = false; }
+}
+
 function ponerPedido(p) {
   if (st.pedido && st.pedido.id !== p.id) st.comprobante = false;
   const antes = st.pedido && st.pedido.estado;
@@ -771,6 +830,7 @@ function ponerPedido(p) {
   const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
   $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
   $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
+  pintarRepartidor(p);
   const pasos = p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
   const idx = pasos.findIndex(([k]) => k === p.estado);
   const fin = p.estado === "entregado";
@@ -845,7 +905,7 @@ $("#ubic-gps").onclick = () => {
   const b = $("#ubic-gps"); $("#ubic-error").textContent = "";
   ocupado(b, true, "Buscando tu ubicación…");
   navigator.geolocation.getCurrentPosition(
-    pos => enviarUbic({lat:+pos.coords.latitude.toFixed(6), lon:+pos.coords.longitude.toFixed(6)}, b, "Compartir mi ubicación"),
+    pos => { st.miUbic = {lat:+pos.coords.latitude.toFixed(6), lon:+pos.coords.longitude.toFixed(6)}; enviarUbic(st.miUbic, b, "Compartir mi ubicación"); }, // solo en memoria de esta pestaña, para calcular la distancia
     err => {
       ocupado(b, false, "Compartir mi ubicación");
       $("#ubic-error").textContent = err.code === 1 ? "No diste permiso para usar tu ubicación. Puedes pegar un enlace de Google Maps." : "No pudimos encontrar tu ubicación. Prueba otra vez o pega un enlace de Google Maps.";

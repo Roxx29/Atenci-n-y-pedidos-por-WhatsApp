@@ -82,3 +82,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-04 — Copia continua de datos.sqlite y comprobantes/ a la nube (Litestream → Cloudflare R2) con prueba de restauración (devops)
 - [ ] 2026-11-04 — Con muchos restaurantes: PostgreSQL gestionado (Supabase/Neon) + fotos en R2, datos separados por restaurante (arquitecto)
 - [ ] 2026-11-04 — Ley 81: dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)
+- [ ] 2026-11-04 — Conectar Turso de verdad: crear BD, `migrar`, probar sync entre procesos y latencia; sin BEGIN IMMEDIATE hay que mantener un solo proceso escritor (devops)

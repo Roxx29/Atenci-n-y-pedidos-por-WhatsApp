@@ -466,10 +466,9 @@ def atender_escalado(sv, esc_id):
 
 def comprobante(sv, pedido_id):
     """(bytes, content-type) solo mientras el pago está pendiente y el archivo existe; si no, None."""
-    from .panel import ruta_comprobante
     p = next((p for p in sv.listar("pedido") if p["id"] == pedido_id), None)
-    ruta = p and p["estado"] in PAGO_PENDIENTE and ruta_comprobante(sv, p)
-    return (ruta.read_bytes(), CT_IMAGEN[ruta.suffix[1:]]) if ruta else None
+    img = p and p["estado"] in PAGO_PENDIENTE and herramientas.leer_comprobante(sv, p)
+    return (img[0], CT_IMAGEN[img[1]]) if img else None
 
 
 def auditar(sv, usuario, accion, pedido_id=None):

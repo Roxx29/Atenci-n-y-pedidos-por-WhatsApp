@@ -52,6 +52,19 @@ Información del negocio:
 {conocimiento}"""
 
 
+def conectar(ruta, nube=False):
+    """Conexión a la BD. SQLite local salvo `nube` (solo cuando no se pasa db=): con TURSO_DATABASE_URL y TURSO_AUTH_TOKEN, réplica embebida libsql
+    (archivo local + sync con Turso: sync al abrir y cada 2 s; las escrituras van a Turso). TURSO_SOLO_LOCAL=1: libsql sobre el archivo, sin red (diagnóstico)."""
+    url, token = os.environ.get("TURSO_DATABASE_URL"), os.environ.get("TURSO_AUTH_TOKEN")
+    if nube and (url and token or os.environ.get("TURSO_SOLO_LOCAL") == "1"):
+        import libsql  # solo en este caso: el paquete es opcional (requirements-nube.txt)
+        ruta = str(Path(ruta).with_name("datos-nube.db"))  # réplica propia: no se mezcla con datos.sqlite
+        if url and token:
+            return libsql.connect(ruta, timeout=10, _check_same_thread=False, sync_url=url, auth_token=token, sync_interval=2), True
+        return libsql.connect(ruta, timeout=10, _check_same_thread=False), True
+    return sqlite3.connect(ruta, timeout=10, check_same_thread=False), False  # timeout: espera al otro proceso (bot/panel)
+
+
 class Servicio:
     def __init__(self, carpeta, db=None, cliente=None, cliente_respaldo=None):
         self.dir = Path(carpeta)
@@ -59,8 +72,8 @@ class Servicio:
         self.tz = ZoneInfo(self.cfg.get("zona_horaria", "America/Panama"))
         self.tools = herramientas.esquemas(self.cfg.get("herramientas", []))
         ruta = str(db or self.dir / "datos.sqlite")
-        self.db = sqlite3.connect(ruta, timeout=10, check_same_thread=False)  # timeout: espera al otro proceso (bot/panel)
-        if ruta != ":memory:":
+        self.db, self.nube = conectar(ruta, nube=db is None)
+        if ruta != ":memory:" and not self.nube:
             self.db.execute("PRAGMA journal_mode=WAL")  # las lecturas del panel no bloquean al bot
         self.db.executescript(
             "CREATE TABLE IF NOT EXISTS registros(id INTEGER PRIMARY KEY, tipo TEXT, datos TEXT, creado TEXT);"
@@ -69,10 +82,12 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS platos(orden INTEGER PRIMARY KEY, id TEXT UNIQUE, datos TEXT);"
             "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
             "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
+            "CREATE TABLE IF NOT EXISTS comprobantes(nombre TEXT PRIMARY KEY, datos BLOB NOT NULL, creado REAL NOT NULL);"  # fotos de comprobantes de Yappy (antes archivos)
         )
-        if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)")}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
+        if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)").fetchall()}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
             self.db.executescript("ALTER TABLE platos ADD COLUMN foto BLOB; ALTER TABLE platos ADD COLUMN foto2x BLOB; ALTER TABLE platos ADD COLUMN foto_v TEXT;")
         self._db_lock = threading.Lock()
+        herramientas.importar_comprobantes(self)  # archivos de versiones anteriores → tabla
         self.citas_lock = threading.Lock()
         self.pedidos_lock = threading.RLock()
         self._locks = defaultdict(threading.Lock)  # un turno a la vez por cliente
@@ -140,7 +155,8 @@ class Servicio:
     def actualizar(self, id, cambios, tipo=None, desde=None, antes=None):
         """Lee-comprueba-escribe en una transacción; devuelve el registro ya fusionado. `desde`: estados permitidos; `antes`: dict que recibe el registro previo."""
         with self._db_lock, self.db:
-            self.db.execute("BEGIN IMMEDIATE")  # bloqueo de escritura entre procesos antes de leer
+            if not self.nube:  # ponytail: en la nube un solo proceso escribe (el lock de arriba); Turso no admite BEGIN IMMEDIATE en réplica
+                self.db.execute("BEGIN IMMEDIATE")  # bloqueo de escritura entre procesos antes de leer
             fila = self.db.execute("SELECT tipo, datos FROM registros WHERE id=?", (id,)).fetchall()
             if not fila or (tipo and fila[0][0] != tipo):
                 raise ValueError(f"No existe el registro {id}" + (f" de tipo {tipo}" if tipo else ""))

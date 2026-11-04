@@ -7,11 +7,12 @@ import threading
 import socket
 import threading
 import struct
+import types
 import time
 import unittest
 import zlib
 
-from motor import herramientas, panel, web
+from motor import herramientas, panel_web, web
 from tests.test_web import PEDIDO, TEL, Base
 
 EXIF = b"Exif\x00\x00GPS-SECRETO"
@@ -41,7 +42,10 @@ class Comprobante(Base):
         return self.js("POST", f"/comprobante?pedido={pid or self.pid}" + (f"&referencia={ref}" if ref else ""), crudo=datos, tipo=tipo, cookie=ck or self.ck)
 
     def archivos(self):
-        return list(self.carpeta.iterdir()) if self.carpeta.exists() else []
+        return [types.SimpleNamespace(name=n, read_bytes=lambda d=d: bytes(d)) for n, d in self.sv._q("SELECT nombre, datos FROM comprobantes ORDER BY nombre")]
+
+    def meter(self, nombre, datos, antiguedad=0):
+        self.sv._q("INSERT INTO comprobantes(nombre, datos, creado) VALUES (?,?,?)", (nombre, datos, time.time() - antiguedad))
 
     def pedido(self):
         return next(p for p in self.sv.listar("pedido") if p["id"] == self.pid)
@@ -123,19 +127,16 @@ class Comprobante(Base):
         self.assertIn("comprobante_borrado_at", p)
         # cancelar (desde confirmado un comprobante no existe; se fuerza el caso con el campo puesto a mano)
         self.sv.actualizar(self.pid, {"estado": "confirmado", "comprobante": "a" * 32 + ".jpg"})
-        self.carpeta.mkdir(exist_ok=True)
-        (self.carpeta / ("a" * 32 + ".jpg")).write_bytes(jpeg())
+        self.meter("a" * 32 + ".jpg", jpeg())
         herramientas.cancelar_pedido(self.sv, self.pid)
         self.assertEqual(self.archivos(), [])
 
     def test_purgar(self):
         self.subir(jpeg())
         viejo = self.archivos()[0]
-        huerfano = self.carpeta / ("b" * 32 + ".png")
-        huerfano.write_bytes(png())
-        reciente = self.carpeta / ("c" * 32 + ".png")
-        reciente.write_bytes(png())
-        os.utime(huerfano, (time.time() - 3600,) * 2)
+        self.meter("b" * 32 + ".png", png(), 3600)
+        self.meter("c" * 32 + ".png", png())
+        reciente = types.SimpleNamespace(name="c" * 32 + ".png")
         herramientas.purgar_comprobantes(self.sv)
         self.assertEqual(sorted(f.name for f in self.archivos()), sorted([viejo.name, reciente.name]))  # ni el reciente ni el del pedido
         self.sv.actualizar(self.pid, {"comprobante_at": (self.sv.ahora() - dt.timedelta(days=8)).isoformat()})
@@ -144,13 +145,27 @@ class Comprobante(Base):
         self.assertEqual(self.pedido()["comprobante"], "")
         herramientas.purgar_comprobantes(self.sv)  # idempotente / archivo ya inexistente
 
-    def test_ruta_comprobante_segura(self):
+    def test_leer_comprobante_seguro(self):
         self.subir(jpeg())
         p = self.pedido()
-        self.assertEqual(panel.ruta_comprobante(self.sv, p), self.carpeta.resolve() / p["comprobante"])
-        for malo in ("../servicio.yaml", "..\\servicio.yaml", "x.jpg", "a" * 32 + ".exe", "a" * 32 + ".jpg", "/etc/passwd", "", None):
-            self.assertIsNone(panel.ruta_comprobante(self.sv, {"comprobante": malo}))
-        self.assertIsNone(panel.ruta_comprobante(self.sv, {}))
+        self.assertEqual(herramientas.leer_comprobante(self.sv, p), (jpeg(False), "jpg"))
+        for malo in ("../servicio.yaml", "..\servicio.yaml", "x.jpg", "a" * 32 + ".exe", "a" * 32 + ".jpg", "/etc/passwd", "", None):
+            self.assertIsNone(herramientas.leer_comprobante(self.sv, {"comprobante": malo}))
+        self.assertIsNone(herramientas.leer_comprobante(self.sv, {}))
+
+    def test_panel_sirve_desde_la_bd(self):
+        self.subir(jpeg())
+        self.assertEqual(panel_web.comprobante(self.sv, self.pid), (jpeg(False), "image/jpeg"))
+
+    def test_importa_archivos_viejos_una_vez(self):
+        self.carpeta.mkdir(exist_ok=True)
+        (self.carpeta / ("d" * 32 + ".png")).write_bytes(png())
+        (self.carpeta / "otro.txt").write_text("x")
+        herramientas.importar_comprobantes(self.sv)
+        self.assertEqual([(f.name, f.read_bytes()) for f in self.archivos()], [("d" * 32 + ".png", png())])
+        self.assertEqual(sorted(f.name for f in self.carpeta.iterdir()), ["otro.txt"])  # el importado se borra, lo ajeno no se toca
+        herramientas.importar_comprobantes(self.sv)
+        self.assertEqual(len(self.archivos()), 1)
 
 
 class Extra(Base):

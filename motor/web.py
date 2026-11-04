@@ -506,6 +506,12 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("GET", self.path.split("?")[0])
             ruta = self.path.split("?")[0]
+            if ruta == "/salud":  # para el monitor de la plataforma: sin cookie ni datos
+                try:
+                    sv._q("SELECT 1")
+                    return self._enviar(200, {"ok": True})
+                except Exception:
+                    return self._enviar(503, {"ok": False})
             if ruta.startswith("/menu/foto/"):  # límite propio: un menú con fotos son decenas de GET de una vez
                 return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else self._foto(ruta)
             if limite.excede(("ip", self._ip()), 60):

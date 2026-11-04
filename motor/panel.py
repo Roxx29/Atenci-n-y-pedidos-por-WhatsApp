@@ -4,6 +4,7 @@
 """
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -35,16 +36,6 @@ def avisos_pendientes(sv):
     """Avisos de pedidos que esperan acción del restaurante (confirmado o pago_reportado), del más nuevo al más viejo."""
     espera = {p["id"] for p in sv.listar("pedido") if p["estado"] in {"confirmado", "pago_reportado"}}
     return [a for a in reversed(sv.listar("aviso")) if a.get("pedido_id") in espera]
-
-
-def ruta_comprobante(sv, pedido):
-    """Ruta del comprobante del pedido, solo si el nombre es [0-9a-f]{32}.jpg|png y queda dentro de comprobantes/; si no, None."""
-    n = pedido.get("comprobante")
-    if not (isinstance(n, str) and herramientas.NOMBRE_COMPROBANTE.fullmatch(n)):
-        return None
-    carpeta = (sv.dir / "comprobantes").resolve()
-    f = (carpeta / n).resolve()
-    return f if f.parent == carpeta and f.is_file() else None
 
 
 def elegir_carpeta(argv, exe_dir):
@@ -99,8 +90,10 @@ def main(argv):
 
     def ver_comprobante():
         sel = tabla.selection()
-        ruta = next((ruta_comprobante(sv, p) for p in sv.listar("pedido") if sel and p["id"] == int(sel[0])), None)
-        if ruta:
+        img = next((herramientas.leer_comprobante(sv, p) for p in sv.listar("pedido") if sel and p["id"] == int(sel[0])), None)
+        if img:
+            ruta = Path(tempfile.mkdtemp()) / f"comprobante.{img[1]}"  # ponytail: queda en la carpeta temporal del sistema
+            ruta.write_bytes(img[0])
             os.startfile(ruta)
         else:
             messagebox.showinfo("Comprobante", "Sin comprobante")

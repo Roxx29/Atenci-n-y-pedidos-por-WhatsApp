@@ -7,6 +7,7 @@
   python -m motor pedidos <carpeta>        lista los pedidos
   python -m motor pedidos <carpeta> marcar <id> pagado|en_preparacion|listo|en_camino|entregado|pago_rechazado
   python -m motor panel [carpeta]          panel gráfico del restaurante (tkinter)
+  python -m motor migrar <carpeta> [--forzar]  copia datos.sqlite a Turso (TURSO_DATABASE_URL y TURSO_AUTH_TOKEN)
   python -m motor recordatorios <carpeta>  envía una vez los mensajes programados vencidos
 """
 import sys
@@ -65,6 +66,9 @@ def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
     elif cmd == "web":
         from . import web  # import diferido
         web.servir(Servicio(carpeta), int(argv[2]) if len(argv) > 2 else 8080)
+    elif cmd == "migrar":
+        from .migrar import migrar
+        migrar(carpeta, forzar="--forzar" in argv)
     elif cmd == "recordatorios":
         whatsapp.enviar_pendientes(Servicio(carpeta))
     else:

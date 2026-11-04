@@ -146,7 +146,12 @@ def crear_servidor(sv, puerto=8080, secreto=None):
 
     def mapa_panel():
         rutas, quedan, t = en_ruta()
-        return {"repartidores": [{"repartidor": n, "pedido_id": p["id"], **ubicacion.vista_posicion(quedan[n], t)} for n, ps in rutas.items() if n in quedan for p in ps]}
+        try:  # RESTAURANTE_LAT/LON (.env): opcional; sin ellos o inválidos, null
+            lat, lon = ubicacion.validar(float(os.environ["RESTAURANTE_LAT"]), float(os.environ["RESTAURANTE_LON"]))
+            rest = {"lat": lat, "lon": lon, "nombre": sv.cfg.get("nombre") or "Restaurante"}
+        except (KeyError, ValueError):
+            rest = None
+        return {"restaurante": rest, "repartidores": [{"repartidor": n, "pedido_id": p["id"], **ubicacion.vista_posicion(quedan[n], t)} for n, ps in rutas.items() if n in quedan for p in ps]}
 
     def mapa_cliente(p, rutas, quedan, t):
         """Campos extra del pedido en_camino del cliente: nombre de pila; posición solo si es la siguiente parada (si no, mensaje)."""

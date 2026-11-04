@@ -4,26 +4,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · Fonda El Chitreano</title>
+<link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  --papel:#FBF6EC; --carril:#F1E7D6; --superficie:#FFFFFF; --tinta:#2A1A12; --tinta-2:#6B5446; --linea:#E2D4C0;
-  --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE; --sobre-achiote:#FFFFFF;
-  --maiz:#E9B949; --maiz-suave:#FFF3D1; --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2;
-  --sombra:0 1px 2px rgba(42,26,18,.08),0 3px 10px rgba(42,26,18,.07);
-  --r:12px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-  --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  /* Tokens "brasa" (estilo Material 3); los mismos de la web de pedidos */
+  --surface:#f9f9fc; --sc-lowest:#ffffff; --sc-low:#f3f3f6; --sc:#eeeef0; --sc-high:#e8e8ea; --sc-highest:#e2e2e5;
+  --on-surface:#1a1c1e; --on-variant:#5a4139; --outline:#8e7068; --outline-variant:#e2bfb5;
+  --inverse:#2f3133; --on-inverse:#f0f0f3;
+  --primary:#aa3000; --primary-container:#d04411; --on-primary:#ffffff; --primary-fixed:#ffdbd0;
+  --secondary:#7e5700; --secondary-container:#feb300; --secondary-fixed:#ffdeac;
+  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#a3f69c;
+  --error:#ba1a1a; --error-container:#ffdad6;
+  --azul:#005ac1; --azul-suave:#d8e2ff; --violeta:#6b3fa0; --violeta-suave:#ecdcff; --celeste:#00677e; --celeste-suave:#b8eaff;
+  --sombra:0 1px 2px rgba(26,28,30,.06),0 2px 10px rgba(26,28,30,.07);
+  --sombra-2:0 8px 28px rgba(26,28,30,.18);
+  --barra:#2f3133; --sobre-barra:#f0f0f3; --sobre-maiz:#1a1c1e; --velo:rgba(249,249,252,.86);
+  /* nombres anteriores, apuntando a los nuevos */
+  --papel:var(--surface); --carril:var(--sc); --superficie:var(--sc-lowest); --tinta:var(--on-surface); --tinta-2:var(--on-variant); --linea:var(--outline-variant);
+  --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
+  --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed); --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed);
+  --r:12px; --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light dark;
 }
+@media (prefers-color-scheme:dark){:root{
+  --surface:#141211; --sc-lowest:#1d1a19; --sc-low:#221f1d; --sc:#292523; --sc-high:#332e2c; --sc-highest:#3e3835;
+  --on-surface:#ece0dc; --on-variant:#d8c2ba; --outline:#a08c85; --outline-variant:#4f3f39;
+  --primary:#ffb59f; --primary-container:#d04411; --on-primary:#5f1500; --primary-fixed:#4a1a0b;
+  --secondary:#ffba38; --secondary-fixed:#3a2b0b;
+  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21;
+  --error:#ffb4ab; --error-container:#5c1a14;
+  --azul:#aec6ff; --azul-suave:#1c2b4a; --violeta:#d6baff; --violeta-suave:#2f2142; --celeste:#7fd3ee; --celeste-suave:#0d3340;
+  --sombra:0 1px 2px rgba(0,0,0,.5); --sombra-2:0 8px 28px rgba(0,0,0,.6);
+  --barra:#0f0d0c; --velo:rgba(20,18,17,.86);
+}}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.4 var(--texto)}
-::selection{background:var(--maiz);color:var(--tinta)}
-:focus-visible{outline:3px solid var(--maiz);outline-offset:2px}
+body{margin:0;background:var(--papel);color:var(--tinta);font:15px/1.45 var(--texto)}
+::selection{background:var(--maiz);color:var(--sobre-maiz)}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.barra :focus-visible,.banda :focus-visible{outline-color:#fff}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
 button:disabled{cursor:progress;opacity:.6}
 [hidden]{display:none!important}
 h1,h2,h3{margin:0;line-height:1.15}
-.num{font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.01em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 *{scrollbar-color:var(--linea) transparent}
@@ -50,26 +82,26 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .teclado button:hover{background:var(--carril)}
 .teclado button.btn{background:var(--achiote);color:var(--sobre-achiote);border:0}
 .teclado button.btn:hover{background:var(--achiote-osc)}
-#login.bloqueo{position:fixed;inset:0;z-index:30;background:rgba(251,246,236,.86);backdrop-filter:blur(3px)}
+#login.bloqueo{position:fixed;inset:0;z-index:30;background:var(--velo);backdrop-filter:blur(3px)}
 #login.bloqueo .caja-login{background:var(--superficie);padding:24px;border-radius:16px;box-shadow:0 16px 48px rgba(42,26,18,.25)}
 .error{color:var(--achiote);font-weight:600;min-height:1.4em;margin:0}
 
 /* ---------- Panel ---------- */
 #panel{height:100%;display:flex;flex-direction:column}
-header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--tinta);color:var(--papel)}
+header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--barra);color:var(--sobre-barra)}
 .barra h1{font-family:var(--display);font-size:1.375rem;margin-right:auto;white-space:nowrap}
 .barra h1 small{font:500 .875rem var(--texto);opacity:.75;margin-left:8px}
-.barra .btn.suave{color:var(--papel);border-color:rgba(251,246,236,.3);min-height:48px}
+.barra .btn.suave{color:var(--sobre-barra);border-color:rgba(251,246,236,.3);min-height:48px}
 .barra .btn.suave:hover{background:rgba(251,246,236,.1)}
 .barra .btn.suave[aria-pressed=true]{background:rgba(251,246,236,.16)}
-.cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--tinta);font-weight:800;font-size:.875rem}
-#btn-nuevos{background:var(--maiz);color:var(--tinta);min-height:48px}
+.cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--sobre-maiz);font-weight:800;font-size:.875rem}
+#btn-nuevos{background:var(--maiz);color:var(--sobre-maiz);min-height:48px}
 #btn-nuevos:hover{background:#F2C95E}
 .reloj{white-space:nowrap;font-weight:600;opacity:.85;min-width:3.5em;text-align:right}
 
-.banda{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--achiote);color:#fff;font-weight:700}
+.banda{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--achiote);color:var(--sobre-achiote);font-weight:700}
 .banda p{margin:0;flex:1}
-.banda button{min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid rgba(255,255,255,.6);background:none;color:#fff;font-weight:700}
+.banda button{min-height:44px;padding:0 14px;border-radius:8px;border:1.5px solid currentColor;background:none;color:var(--sobre-achiote);font-weight:700}
 
 /* Tablero */
 .tablero{flex:1;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(212px,1fr);gap:12px;padding:12px;overflow-x:auto;min-height:0;scroll-snap-type:x proximity}
@@ -91,11 +123,20 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 .t-num{font-size:1.5rem;font-weight:800}
 .t-nombre{font-weight:700;font-size:1.0625rem;min-width:0;overflow-wrap:break-word;max-width:100%}
 .chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:.8125rem;font-weight:700;background:var(--carril);color:var(--tinta-2);white-space:nowrap}
-.chip.nuevo{background:var(--maiz);color:var(--tinta)}
+.chip.nuevo{background:var(--maiz);color:var(--sobre-maiz)}
 .chip.tarde{background:var(--achiote-suave);color:var(--achiote-osc)}
 .chip svg.i{width:15px;height:15px}
 .tarjeta{position:relative}
 .t-cab>.chip:last-child{position:absolute;top:14px;right:12px}
+/* Barra de urgencia: se llena hasta el límite de la columna; hoja → maíz → achiote. El texto "Tarde" va en la etiqueta de tiempo. */
+.t-urg{height:6px;border-radius:3px;background:var(--carril);overflow:hidden}
+.t-urg i{display:block;height:100%;background:var(--hoja);transform:scaleX(var(--p));transform-origin:left;transition:transform .6s ease-out,background-color .3s}
+.t-urg.atento i{background:var(--maiz)} .t-urg.tarde i{background:var(--achiote)}
+.tarjeta:has(.t-urg.tarde){border-color:var(--achiote)}
+/* "Tarde · N min" es largo: va en su propia línea sobre el número para no pisar el nombre */
+.t-cab:has(.chip.tarde){flex-wrap:wrap}
+.t-cab:has(.chip.tarde)>.t-abrir{flex-basis:100%}
+.t-cab>.chip.tarde:last-child{position:static;order:-1;margin-left:auto}
 .t-modo{display:flex;gap:8px;align-items:flex-start;color:var(--tinta);font-size:.9375rem}
 .t-modo svg{margin-top:1px;color:var(--tinta-2)}
 .t-modo b{font-weight:700}
@@ -169,12 +210,132 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 @media (max-width:1180px){.barra h1 small{display:none}}
 @media (max-width:900px){.dlg{grid-template-columns:1fr}.dlg-img img{max-height:55vh}}
 .lista .btn{font-size:1rem;padding:0 12px}
+
+/* ---------- Rediseño brasa: cabecera, barra de mando y columnas por color ---------- */
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;flex:none}
+.logo svg{width:22px;height:22px;fill:currentColor;stroke:none}
+header.barra{min-height:64px;padding:8px 20px}
+.barra h1{font-size:1.125rem;font-weight:700}
+.barra h1 small{font:500 .75rem var(--texto)}
+.btn{border-radius:8px;font-size:.9375rem}
+.barra .btn.suave{border-color:rgba(240,240,243,.28);min-height:44px;padding:0 14px}
+.mando{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 20px 4px}
+.mando h2{font-size:1.5rem;font-weight:700;margin-right:auto}
+.metricas{display:flex;flex-wrap:wrap;gap:8px}
+.metrica{display:inline-flex;align-items:baseline;gap:8px;padding:6px 14px;border-radius:999px;background:var(--sc-lowest);box-shadow:var(--sombra)}
+.metrica b{font:500 1rem var(--mono)}
+.etq{font-size:.6875rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--on-variant)}
+.seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--sc-high)}
+.seg button{min-height:40px;padding:0 14px;border:0;border-radius:8px;background:none;font-weight:700;font-size:.8125rem;color:var(--on-variant)}
+.seg button[aria-pressed=true]{background:var(--sc-lowest);color:var(--primary);box-shadow:var(--sombra)}
+.buscar-p{position:relative;display:block}
+.buscar-p svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--outline);pointer-events:none}
+.buscar-p input{min-height:44px;width:200px;padding:0 14px 0 38px;border:1.5px solid var(--outline-variant);border-radius:999px;background:var(--sc-lowest)}
+.buscar-p input:focus{outline:none;border-color:var(--primary)}
+.tablero{padding-top:12px}
+.col{--acento:var(--outline);border-top:4px solid var(--acento);border-radius:var(--r)}
+.col.a-azul{--acento:var(--azul)}.col.a-ambar{--acento:var(--secondary-container)}.col.a-verde{--acento:var(--tertiary)}
+.col.a-primary{--acento:var(--primary)}.col.a-violeta{--acento:var(--violeta)}.col.a-celeste{--acento:var(--celeste)}
+.col.destacada{box-shadow:0 0 0 2px var(--primary),var(--sombra-2)}
+.col h2{font-size:.8125rem;font-weight:800;letter-spacing:.08em}
+.col h2+.cuenta{background:var(--sc-lowest)}
+.tarjeta{border:0;border-left:5px solid var(--acento,var(--outline-variant));border-radius:10px}
+.tarjeta.nuevo{box-shadow:0 0 0 3px var(--maiz-suave),var(--sombra)}
+.tarjeta.foco{box-shadow:0 0 0 2px var(--primary),var(--sombra)}
+.t-num{font:500 1.375rem var(--mono)}
+.t-items{border:0;background:var(--sc-low);border-radius:8px;padding:10px 12px}
+.t-total{font-family:var(--mono);font-weight:500}
+.chip{font-size:.6875rem;letter-spacing:.04em}
+.col.estrecha .tarjeta{border-left-color:var(--outline-variant)}
+dialog.dlg-mapa{width:min(900px,calc(100% - 32px));padding:16px}
+.mapa-cab{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mapa-cab h2{margin-right:auto;font-size:1.25rem}
+#mapa{height:min(420px,50vh);border-radius:10px;background:var(--sc);z-index:0}
+#mapa-lista{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+#mapa-lista li{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--sc-low)}
+#mapa-lista li .edad{margin-left:auto;font-size:.8125rem;color:var(--on-variant)}
+#mapa-lista li.viejo .edad{color:var(--error);font-weight:700}
+.pin-rep span,.pin-rest span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pin-rest span{background:var(--inverse);color:var(--secondary-container);font-size:1rem}
+.pin-rep.viejo span{background:#6f6f73;border-style:dashed}
+.leaflet-container{font-family:var(--texto)}
+.tablero{grid-auto-columns:minmax(244px,1fr)}
+.t-pie{flex-wrap:wrap;row-gap:2px}
+.t-total{font-size:1.125rem}
+.t-nota{padding:8px 12px;border-radius:8px;background:var(--error-container);color:var(--error);font-weight:700}
+.ini-rep{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--celeste-suave);color:var(--celeste);font-size:.6875rem;font-weight:800;letter-spacing:0}
+
+/* ---------- Teléfono (≤700px): una columna, sin scroll horizontal ----------
+   Las pantallas nuevas del panel (repartidores, menú) reutilizan estas clases:
+   .btn (52px táctil), .tarjeta, .col, .lista, .dlg, dialog.chico, .fila-btn. */
+html,body{overflow-x:hidden}
+@media (max-width:700px){
+  body{font-size:16px}
+  #login{align-items:start;padding:20px 16px;overflow-y:auto}
+  .caja-login{margin:auto}
+  .teclado button{min-height:68px}
+  header.barra{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .barra h1{font-size:1.125rem;flex:1 1 calc(100% - 175px);min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .barra .logo{order:0}
+  .mando{padding:12px 12px 0;gap:10px}
+  .mando h2{font-size:1.25rem;flex:1 1 100%}
+  .metricas{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
+  .metrica{flex:none}
+  .seg{width:100%}.seg button{flex:1;min-height:44px}
+  .buscar-p{flex:1 1 100%}.buscar-p input{width:100%}
+  .reloj{display:none}
+  #btn-salir{order:2;flex:0 0 auto}
+  #btn-sonido{order:2;flex:0 0 48px;padding:0}
+  .barra .btn{order:3;flex:1 1 auto;min-width:0;padding:0 8px;font-size:.875rem;min-height:48px}
+  #btn-sonido{padding:0}
+  .banda{flex-wrap:wrap}
+  .banda button{min-height:48px;flex:1 1 100%}
+  .tablero{display:block;overflow-x:hidden;overflow-y:auto;padding:10px;-webkit-overflow-scrolling:touch}
+  .col,.col.estrecha{max-width:none;margin-bottom:12px}
+  .col>header{position:sticky;top:-10px;z-index:2;background:var(--carril);border-radius:var(--r) var(--r) 0 0}
+  .lista{overflow:visible;flex:none}
+  .col.vacio .vacia{padding:8px}
+  .tarjeta{padding:14px}
+  .acciones .btn,.acciones.dos .btn{min-height:56px}
+  .acciones.dos{grid-template-columns:1fr}
+  .t-abrir{min-height:48px}
+  .miniatura{min-height:56px}
+  .bandeja{width:100%}
+  .aviso .fila .btn{flex:1;min-height:48px}
+  dialog,dialog.chico{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0;padding:0}
+  .dlg{max-height:none;height:100%;overflow-y:auto;display:block}
+  .dlg-img{min-height:0;max-height:40vh;border-radius:0;padding:8px}
+  .dlg-img img{max-height:36vh}
+  .dlg-lado{padding:16px 16px 24px;overflow:visible}
+  .dlg-lado h2{font-size:1.5rem;padding-right:52px}
+  .dlg-lado .acciones{position:sticky;bottom:0;background:var(--superficie);padding:10px 0;margin-top:8px}
+  .dlg-cerrar{position:fixed;top:8px;right:8px;z-index:3}
+  .dlg-lado select{width:100%}
+  .fila-btn .btn{min-height:52px}
+  .toast{left:12px;right:12px;bottom:12px;transform:translateY(calc(100% + 40px))}
+  .toast.ver{transform:none}
+}
+
+/* ---------- Ajustes (solo dueño): personas con PIN y menú ---------- */
+.aj{display:grid;gap:12px}
+.aj form{display:grid;gap:8px;padding:12px;border-radius:10px;background:var(--carril)}
+.aj input:not([type=checkbox]),.aj select{min-height:48px;padding:0 12px;border:1.5px solid var(--linea);border-radius:10px;background:var(--superficie);width:100%}
+.aj label.si{display:flex;gap:8px;align-items:center;font-weight:600}
+.aj-fila{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--linea)}
+.aj-fila span{flex:1;min-width:0;overflow-wrap:anywhere}
+.aj-fila .btn{min-height:44px;font-size:.9375rem}
+.aj-fila{flex-wrap:wrap}
+.aj-acc{display:flex;gap:8px;flex-wrap:wrap}
+.aj-fila .aj-foto{flex:none;width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--maiz-suave)}
+.aj-fila .aj-foto.ini{display:grid;place-items:center;font:700 1.25rem var(--display);color:var(--tinta-2)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-fuego" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2 0-3-1-5 1-8z"/></symbol>
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
   <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
   <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
   <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
@@ -210,18 +371,33 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 <!-- ============ Panel ============ -->
 <div id="panel" hidden>
   <header class="barra">
-    <h1>El Chitreano <small id="modo">Pedidos de hoy</small></h1>
+    <span class="logo" aria-hidden="true"><svg class="i"><use href="#i-fuego"/></svg></span>
+    <h1>Fonda El Chitreano <small id="modo">Pedidos de hoy</small></h1>
     <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
     <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
     <button class="btn suave" id="btn-cerrados" aria-pressed="false">Cancelados</button>
     <button class="btn suave" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg></button>
     <span class="reloj num" id="reloj" aria-hidden="true"></span>
+    <button class="btn suave" id="btn-ajustes" hidden>Ajustes</button>
     <button class="btn suave" id="btn-salir">Salir</button>
   </header>
   <div class="banda" id="banda" role="alert" hidden>
     <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
     <button id="banda-ok">Entendido</button>
   </div>
+  <section class="mando" aria-label="Resumen y filtros">
+    <h2>Pedidos en servicio</h2>
+    <div class="metricas" role="group" aria-label="Resumen de hoy">
+      <span class="metrica"><span class="etq">Venta de hoy</span><b id="m-venta">B/. 0.00</b></span>
+      <span class="metrica"><span class="etq">Tiempo medio</span><b id="m-medio">—</b></span>
+      <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
+    </div>
+    <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
+      <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
+    </div>
+    <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
+    <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
+  </section>
   <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
 </div>
 
@@ -254,6 +430,39 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
 </dialog>
 
+<dialog id="dlg-aj" class="chico" aria-labelledby="aj-titulo">
+  <div class="dlg-lado aj">
+    <h2 id="aj-titulo">Ajustes</h2>
+    <h3>Personas (panel y repartidores)</h3>
+    <div id="aj-usuarios"></div>
+    <form id="f-usuario" autocomplete="off">
+      <label class="dlg-dato"><span>Nombre (sin tildes ni espacios)</span><input name="nombre" maxlength="30" pattern="[A-Za-z0-9_\-]+" required></label>
+      <label class="dlg-dato"><span>Rol</span><select name="rol"><option value="personal">Personal</option><option value="dueno">Dueño</option><option value="repartidor">Repartidor</option></select></label>
+      <label class="dlg-dato"><span>PIN nuevo (6 números; vacío = no cambiar)</span><input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
+      <label class="si"><input name="activo" type="checkbox" checked> Activo</label>
+      <button class="btn ok">Guardar persona</button>
+    </form>
+    <h3>Menú</h3>
+    <div id="aj-menu"></div>
+    <form id="f-plato" autocomplete="off">
+      <label class="dlg-dato"><span>Id (minúsculas y guiones)</span><input name="id" maxlength="40" pattern="[a-z0-9\-]+" required></label>
+      <label class="dlg-dato"><span>Nombre</span><input name="nombre" maxlength="80"></label>
+      <label class="dlg-dato"><span>Precio (B/.)</span><input name="precio" type="number" min="0" max="999.99" step="0.01"></label>
+      <label class="dlg-dato"><span>Categoría</span><input name="categoria" maxlength="30"></label>
+      <label class="si"><input name="disponible" type="checkbox" checked> Disponible hoy</label>
+      <button class="btn ok">Guardar plato</button>
+    </form>
+  </div>
+  <button class="icono-btn dlg-cerrar" id="aj-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-flota" class="dlg-mapa" aria-labelledby="mapa-tit">
+  <div class="mapa-cab"><h2 id="mapa-tit">Repartidores en camino</h2><button class="icono-btn" id="mapa-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button></div>
+  <div id="mapa" role="img" aria-label="Mapa con la posición actual de los repartidores en camino"></div>
+  <p class="error" id="mapa-aviso" hidden>No se pudo cargar el mapa. La lista de abajo sigue al día.</p>
+  <ul id="mapa-lista" aria-live="polite"></ul>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -282,11 +491,12 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-PA", {hour:"numeric", m
 
 /* Columnas del tablero. `tarde`: minutos en ese estado a partir de los que la tarjeta pide atención. */
 const COLS = [
-  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"]},
-  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5},
-  {titulo:"Pagado", estados:["pagado"], tarde:5},
-  {titulo:"En cocina", estados:["en_preparacion"], tarde:25},
-  {titulo:"Listo / En camino", estados:["listo", "en_camino"], tarde:15},
+  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"], acento:"a-azul"},
+  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5, acento:"a-ambar"},
+  {titulo:"Pagado", estados:["pagado"], tarde:5, acento:"a-verde"},
+  {titulo:"En cocina", estados:["en_preparacion"], tarde:25, acento:"a-primary", destacada:true},
+  {titulo:"Listo", estados:["listo"], tarde:15, acento:"a-violeta"},
+  {titulo:"En camino", estados:["en_camino"], tarde:15, acento:"a-celeste"},
   {titulo:"Entregado", estados:["entregado"], estrecha:true},
   {titulo:"Cancelados", estados:["cancelado", "caducado"], estrecha:true, filtro:true}
 ];
@@ -319,10 +529,12 @@ $("#form-pin").addEventListener("submit", async ev => {
   if (!st.demo) {
     try {
       const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
-      if (!r.ok) { const j = await r.json().catch(() => ({})); $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+      $("#btn-ajustes").hidden = j.rol !== "dueno";
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
-  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad();
+  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
   if (st.demo) { $("#modo").textContent = "Demostración con datos de ejemplo"; cargarDemo(); }
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
@@ -347,6 +559,20 @@ setInterval(() => {
   $("#login-texto").textContent = "Panel bloqueado por inactividad. Escribe tu PIN para seguir.";
   $("#login").classList.add("bloqueo"); $("#login").hidden = false; pin.focus();
 }, 15000);
+
+/* ---------- Pantalla encendida y globo en el icono (mejora progresiva: sin la API no hace nada) ---------- */
+let bloqueoPantalla = null, quierePantalla = false;
+async function mantenerPantalla(on) {
+  quierePantalla = on;
+  try {
+    if (on && !bloqueoPantalla && "wakeLock" in navigator && document.visibilityState === "visible") {
+      bloqueoPantalla = await navigator.wakeLock.request("screen");
+      bloqueoPantalla.addEventListener("release", () => { bloqueoPantalla = null; });
+    } else if (!on && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+  } catch (e) { /* sin permiso o sin soporte: se ignora */ }
+}
+document.addEventListener("visibilitychange", () => { if (quierePantalla && document.visibilityState === "visible") mantenerPantalla(true); });
+const globo = n => { try { Promise.resolve(n > 0 ? navigator.setAppBadge && navigator.setAppBadge(n) : navigator.clearAppBadge && navigator.clearAppBadge()).catch(() => {}); } catch (e) {} };
 
 /* ---------- Sonido (sin archivos: dos tonos con WebAudio) ---------- */
 let audio;
@@ -403,15 +629,39 @@ function recibir(d) {
 }
 
 /* ---------- Tablero ---------- */
+/* Filtros de la barra de mando: tipo de pedido y búsqueda por número o nombre */
+st.tipo = "todos"; st.q = "";
+const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const coincide = p => (st.tipo === "todos" || (st.tipo === "entrega") === (p.modalidad === "entrega")) &&
+  (!st.q || String(p.id).includes(st.q.replace(/^#/, "")) || plano(p.nombre).includes(plano(st.q)));
+$("#filtro-tipo").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  st.tipo = b.dataset.f; for (const x of $("#filtro-tipo").children) x.setAttribute("aria-pressed", x === b); pintar();
+});
+$("#buscar-ped").addEventListener("input", e => { st.q = e.target.value.trim(); pintar(); });
+/* Métricas de hoy, con todos los pedidos que llegan (no solo los filtrados) */
+const COBRADOS = new Set(["pagado", "en_preparacion", "listo", "en_camino", "entregado"]);
+function pintarMetricas() {
+  const todos = [...st.pedidos.values()];
+  let venta = 0, suma = 0, n = 0;
+  for (const p of todos) {
+    if (COBRADOS.has(p.estado)) venta += Math.round(num(p.total) * 100); // en centavos
+    if (p.estado === "entregado" && p.creado_at && p.estado_at) { const m = (new Date(p.estado_at) - new Date(p.creado_at)) / 60000; if (m >= 0 && m < 600) { suma += m; n++; } }
+  }
+  $("#m-venta").textContent = dinero(venta / 100);
+  $("#m-medio").textContent = n ? Math.round(suma / n) + " min" : "—";
+  $("#m-activos").textContent = todos.filter(p => !CERRADOS.has(p.estado)).length;
+}
 function pintar() {
+  pintarMetricas();
   const foco = document.activeElement && document.activeElement.dataset.clave; // conservar el foco al repintar
   const tablero = $("#tablero"), cols = [];
   for (const c of COLS) {
     if (c.filtro && !st.cerrados) continue;
-    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
+    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado) && coincide(p)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
     const lista = h("div", {class:"lista"}, ps.length ? ps.map(p => tarjeta(p, c)) : h("p", {class:"vacia"}, "Nada por aquí"));
     const id = "col-" + c.estados[0];
-    cols.push(h("section", {class:"col" + (c.estrecha ? " estrecha" : ""), "aria-labelledby":id},
+    cols.push(h("section", {class:"col" + (c.acento ? " " + c.acento : "") + (c.destacada ? " destacada" : "") + (c.estrecha ? " estrecha" : "") + (ps.length ? "" : " vacio"), "aria-labelledby":id},
       h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
       lista));
   }
@@ -419,7 +669,7 @@ function pintar() {
   if (foco) { const e = document.querySelector(`[data-clave="${foco}"]`); if (e) e.focus(); }
   // contadores y título de la pestaña
   const n = st.nuevos.size;
-  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n;
+  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n; globo(n);
   $("#n-avisos").hidden = !st.sinLeer; $("#n-avisos").textContent = st.sinLeer;
   document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · Fonda El Chitreano";
   if (!$("#bandeja").hidden) pintarAvisos();
@@ -442,10 +692,11 @@ function tarjeta(p, col) {
     h("div", {class:"t-cab"},
       abrir,
       nuevo ? h("span", {class:"chip nuevo"}, "Nuevo")
-            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), hace(m))),
+            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m) + (col.destacada ? " / meta " + col.tarde : ""))),
+    col.tarde && h("div", {class:"t-urg " + (tarde ? "tarde" : m >= col.tarde * .6 ? "atento" : "ok"), "aria-hidden":"true", style:"--p:" + Math.min(1, m / col.tarde).toFixed(2)}, h("i")),
     h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
       h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
-    entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, icono("persona"),
+    entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, repNombre(p.repartidor) ? h("span", {class:"ini-rep", "aria-hidden":"true"}, repNombre(p.repartidor).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()) : icono("persona"),
       repNombre(p.repartidor) || "Sin repartidor",
       (p.tiene_ubicacion || p.ubicacion) && h("span", {class:"t-ubic"}, icono("pin"), "Ubicación")),
     h("ul", {class:"t-items"}, (p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre, i.nota ? ` (${i.nota})` : ""))),
@@ -545,6 +796,148 @@ $("#dlg-cerrar").onclick = () => $("#dlg").close();
 $("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
 $("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
 $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+
+/* ---------- Ajustes (solo dueño; el servidor responde 403 a los demás) ---------- */
+const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
+async function pintarAjustes() {
+  try {
+    const [u, m] = await Promise.all([api("GET", "/panel/dueno/usuarios"), api("GET", "/panel/dueno/menu")]);
+    const fu = $("#f-usuario"), fp = $("#f-plato");
+    $("#aj-usuarios").replaceChildren(...u.usuarios.map(x => h("div", {class:"aj-fila"},
+      h("span", {}, h("b", {}, x.nombre), ` · ${NOMBRE_ROL[x.rol] || x.rol}${x.activo ? "" : " · inactivo"}`),
+      h("button", {class:"btn suave", type:"button", on:{click:() => { fu.nombre.value = x.nombre; fu.rol.value = x.rol; fu.activo.checked = x.activo; fu.pin.value = ""; fu.pin.focus(); }}}, "Editar"))));
+    $("#aj-menu").replaceChildren(...m.menu.map(x => h("div", {class:"aj-fila"},
+      miniatura(x),
+      h("span", {}, h("b", {}, x.nombre), ` · ${dinero(x.precio)}${x.disponible ? "" : " · agotado"}`),
+      h("div", {class:"aj-acc"},
+        h("button", {class:"btn suave", type:"button", on:{click:() => { fp.elements.id.value = x.id; fp.nombre.value = x.nombre; fp.precio.value = x.precio; fp.categoria.value = x.categoria || ""; fp.disponible.checked = x.disponible; fp.nombre.focus(); }}}, "Editar"),
+        botonesFoto(x)))));
+  } catch (e) { aviso(e.message, true); }
+}
+$("#btn-ajustes").onclick = () => { $("#dlg-aj").showModal(); pintarAjustes(); };
+$("#aj-cerrar").onclick = () => $("#dlg-aj").close();
+/* ---- Fotos de platos (bloque propio): miniatura, subir/cambiar y quitar ---- */
+function miniatura(x) {
+  if (!x.foto) return h("span", {class:"aj-foto ini", "aria-hidden":"true"}, (x.nombre.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/) || ["?"])[0].toUpperCase());
+  const i = h("img", {class:"aj-foto", alt:"", width:48, height:48, loading:"lazy", src:x.foto});
+  if (x.foto2x) i.srcset = x.foto + " 1x, " + x.foto2x + " 2x";
+  return i;
+}
+// Reduce la foto en el teléfono (la del celular pesa más de 3 MB): recorte cuadrado de 640 px, WebP o JPEG.
+async function reducirFoto(archivo) {
+  const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), lado = Math.min(bmp.width, bmp.height), T = 640;
+  const c = document.createElement("canvas"); c.width = c.height = T;
+  c.getContext("2d").drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, T, T);
+  bmp.close && bmp.close();
+  for (const tipo of ["image/webp", "image/jpeg"]) { // Safari viejo no sabe WebP y devuelve PNG: se pide JPEG
+    const b = await new Promise(ok => c.toBlob(ok, tipo, .85));
+    if (b && b.type === tipo) return b;
+  }
+  throw new Error("No se pudo preparar la foto. Prueba con otra.");
+}
+async function subirFoto(x, archivo, boton) {
+  const texto = boton.textContent; boton.disabled = true; boton.textContent = "Subiendo…";
+  try {
+    const b = await reducirFoto(archivo);
+    const r = await fetch("/panel/dueno/foto?plato=" + encodeURIComponent(x.id), {method:"POST", headers:{"Content-Type":b.type}, body:b});
+    if (r.status === 401) return location.reload();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "No se pudo subir la foto.");
+    aviso("Foto guardada"); await pintarAjustes();
+  } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; boton.textContent = texto; }
+}
+function botonesFoto(x) {
+  const sel = h("input", {type:"file", accept:"image/jpeg,image/png,image/webp", hidden:true});
+  const b = h("button", {class:"btn suave", type:"button", "aria-label":(x.foto ? "Cambiar foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}}, x.foto ? "Cambiar foto" : "Subir foto");
+  sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], b); };
+  const fila = [sel, b];
+  if (x.foto) {
+    const q = h("button", {class:"btn suave", type:"button", "aria-label":"Quitar la foto de " + x.nombre}, "Quitar");
+    let espera = 0;
+    q.onclick = async () => { // doble toque: el primero pide confirmar
+      if (!espera) { q.textContent = "¿Seguro?"; espera = setTimeout(() => { q.textContent = "Quitar"; espera = 0; }, 3000); return; }
+      clearTimeout(espera); q.disabled = true;
+      try { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); pintarAjustes(); }
+      catch (e) { aviso(e.message, true); q.disabled = false; q.textContent = "Quitar"; espera = 0; }
+    };
+    fila.push(q);
+  }
+  return fila;
+}
+function enviarAjuste(form, ruta, datos) {
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    try { await api("POST", ruta, datos(form)); aviso("Guardado"); form.reset(); pintarAjustes(); }
+    catch (e) { aviso(e.message, true); }
+  };
+}
+const sinVacios = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
+enviarAjuste($("#f-usuario"), "/panel/dueno/usuario", f => sinVacios({nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim(), activo:f.activo.checked}));
+enviarAjuste($("#f-plato"), "/panel/dueno/plato", f => sinVacios({id:f.elements.id.value.trim(), nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim(), disponible:f.disponible.checked}));
+
+/* ---------- Mapa de repartidores en camino (Leaflet autoalojado, carga diferida) ----------
+   Solo el punto actual de cada repartidor, sin estela. Siempre con "© OpenStreetMap" a la vista y una lista en texto como alternativa. */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+const MAPA = {mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
+const inicialesDe = n => String(n || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+async function pedirFlota() {
+  if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:"Fonda El Chitreano"}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
+  return api("GET", "/panel/repartidores_mapa");
+}
+function pintarListaMapa() {
+  const d = MAPA.datos;
+  $("#n-mapa").textContent = d.repartidores.length; $("#n-mapa").hidden = !d.repartidores.length;
+  $("#mapa-lista").replaceChildren(...(d.repartidores.length ? d.repartidores.map(r => h("li", {class:r.viejo ? "viejo" : ""},
+    h("span", {class:"ini-rep", "aria-hidden":"true"}, inicialesDe(r.repartidor)),
+    h("span", {}, h("b", {}, r.repartidor), ` · pedido #${r.pedido_id}`),
+    h("span", {class:"edad num"}, r.viejo ? `Dato viejo · hace ${Math.round(r.edad_s / 60)} min` : `hace ${r.edad_s} s`)))
+    : [h("li", {class:"vacia"}, "Nadie va en camino ahora.")]));
+}
+async function actualizarMapa() {
+  try { MAPA.datos = await pedirFlota(); } catch (e) { return; }
+  pintarListaMapa();
+  if (!$("#dlg-flota").open || !MAPA.mapa) return;
+  const L = window.L, d = MAPA.datos, vistos = new Set(), pts = [];
+  if (d.restaurante && !MAPA.rest) {
+    MAPA.rest = L.marker([d.restaurante.lat, d.restaurante.lon], {title:d.restaurante.nombre || "Restaurante", icon:L.divIcon({className:"pin-rest", html:h("span", {}, "★"), iconSize:[32, 32]})}).addTo(MAPA.mapa);
+  }
+  if (d.restaurante) pts.push([d.restaurante.lat, d.restaurante.lon]);
+  for (const r of d.repartidores) {
+    const k = r.repartidor + r.pedido_id; vistos.add(k); pts.push([r.lat, r.lon]);
+    let m = MAPA.marcas.get(k);
+    if (!m) { m = L.marker([r.lat, r.lon], {title:r.repartidor, icon:L.divIcon({className:"pin-rep", html:h("span", {}, inicialesDe(r.repartidor)), iconSize:[34, 34]})}).addTo(MAPA.mapa); MAPA.marcas.set(k, m); }
+    m.setLatLng([r.lat, r.lon]); m.getElement().classList.toggle("viejo", !!r.viejo);
+  }
+  for (const [k, m] of MAPA.marcas) if (!vistos.has(k)) { m.remove(); MAPA.marcas.delete(k); }
+  if (pts.length && !MAPA.ajustado) { MAPA.mapa.fitBounds(pts, {padding:[40, 40], maxZoom:16}); MAPA.ajustado = true; }
+}
+$("#btn-mapa").onclick = async () => {
+  $("#dlg-flota").showModal(); $("#mapa-aviso").hidden = true; $("#mapa").hidden = false; MAPA.ajustado = false;
+  await actualizarMapa();
+  try {
+    if (st.demo) throw new Error("demo");
+    const L = await cargarLeaflet();
+    if (!MAPA.mapa) {
+      MAPA.mapa = L.map("mapa", {zoomControl:true, attributionControl:true}).setView([7.9667, -80.4333], 13);
+      MAPA.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(MAPA.mapa);
+    }
+    setTimeout(() => { MAPA.mapa.invalidateSize(); actualizarMapa(); }, 50);
+  } catch (e) { $("#mapa").hidden = true; $("#mapa-aviso").hidden = false; }
+};
+$("#mapa-cerrar").onclick = () => $("#dlg-flota").close();
+$("#dlg-flota").addEventListener("click", e => { if (e.target === $("#dlg-flota")) $("#dlg-flota").close(); });
+setInterval(() => { if (!$("#panel").hidden && !st.bloqueado && document.visibilityState === "visible") actualizarMapa(); }, 6000);
 
 /* ---------- Bandeja de avisos ---------- */
 function abrirBandeja(on) {

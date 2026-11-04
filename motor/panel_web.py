@@ -8,12 +8,14 @@ Las reglas de estado son las de herramientas.marcar_pedido / cancelar_pedido.
 """
 import hashlib
 import hmac
+import io
 import ipaddress
 import os
 import re
 import secrets
 import sys
 import time
+from collections.abc import Mapping
 
 from . import herramientas
 from . import ubicacion
@@ -106,16 +108,17 @@ class Acceso:
         return hallado
 
     def _firma(self, rol, exp, lim):
-        return hmac.new(self.clave, f"{rol}.{exp}.{lim}".encode(), hashlib.sha256).hexdigest()
+        # incluye el PIN (hash) vigente: cambiarlo o desactivar al usuario invalida sus sesiones
+        return hmac.new(self.clave, f"{rol}.{exp}.{lim}.{self.roles.get(rol)}".encode(), hashlib.sha256).hexdigest()
 
-    def cookie(self, rol, lim=None):
+    def cookie(self, rol, lim=None, seguro=False):
         """Cookie con inactividad de 30 min (exp) y tope absoluto de 12 h (lim)."""
         lim = lim or int(time.time()) + VIDA_S
         exp = min(int(time.time()) + self.inactivo, lim)
-        return f"{self.nombre}={rol}.{exp}.{lim}.{self._firma(rol, exp, lim)}; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age={exp - int(time.time())}"
+        return f"{self.nombre}={rol}.{exp}.{lim}.{self._firma(rol, exp, lim)}; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age={exp - int(time.time())}{'; Secure' if seguro else ''}"
 
-    def borrar_cookie(self):
-        return f"{self.nombre}=; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age=0"
+    def borrar_cookie(self, seguro=False):
+        return f"{self.nombre}=; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age=0{'; Secure' if seguro else ''}"
 
     def sesion(self, cabecera):
         """(rol, lim) si hay sesión válida; si no, None."""
@@ -129,6 +132,207 @@ class Acceso:
                 except ValueError:
                     pass
         return None
+
+
+PANEL, REPARTO = ("dueno", "personal"), ("repartidor",)
+NOMBRE = re.compile(r"[A-Za-z0-9_-]{1,30}")  # va en la cookie (sin puntos)
+
+
+class Usuarios(Mapping):
+    """Usuarios activos de esos roles (tabla usuarios: nombre, rol, pin_hash, activo), leídos en vivo: {nombre: (None, pin_hash)}."""
+
+    def __init__(self, sv, roles):
+        self.sv, self.de = sv, set(roles)
+        sembrar_usuarios(sv)
+
+    def _d(self):
+        return {u["nombre"]: (None, u["pin_hash"]) for u in _todos(self.sv) if u["activo"] and u["rol"] in self.de}
+
+    def __getitem__(self, k):
+        return self._d()[k]
+
+    def __iter__(self):
+        return iter(self._d())
+
+    def __len__(self):
+        return len(self._d())
+
+    def items(self):
+        return self._d().items()
+
+    def rol(self, nombre):
+        return next((u["rol"] for u in _todos(self.sv) if u["nombre"] == nombre and u["activo"]), None)
+
+
+def _todos(sv):
+    return [{"nombre": n, "rol": r, "pin_hash": h, "activo": bool(a)} for n, r, h, a in sv._q("SELECT nombre, rol, pin_hash, activo FROM usuarios ORDER BY rowid")]
+
+
+def _poner(sv, u):
+    sv._q("INSERT OR REPLACE INTO usuarios(nombre, rol, pin_hash, activo) VALUES (?,?,?,?)", (u["nombre"], u["rol"], u["pin_hash"], int(u["activo"])))
+
+
+def _pin_en_uso(sv, pin, excepto=None):
+    """¿Algún otro usuario activo tiene ese PIN? (se comprueban todos, sin cortar)."""
+    return any([_coincide(pin, None, u["pin_hash"]) for u in _todos(sv) if u["activo"] and u["nombre"] != excepto])
+
+
+def sembrar_usuarios(sv):
+    """Importa PANEL_PIN* (usuarios Dueno / Personal) y REPARTIDORES del .env si ese nombre aún no está en la BD; nunca pisa la BD. Solo guarda el hash."""
+    semillas = [(n, r, *env_panel().get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
+    semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores().items()]
+    with sv.pedidos_lock:
+        existentes = {u["nombre"]: u for u in _todos(sv)}
+        for nombre, rol, texto, hash_ in semillas:
+            if not (texto or hash_):
+                continue
+            if nombre in existentes:
+                if texto and not _coincide(texto, None, existentes[nombre]["pin_hash"]) or hash_ and hash_ != existentes[nombre]["pin_hash"]:
+                    print(f"[panel] aviso: el PIN de {nombre!r} en .env no coincide con el de la BD; manda la BD (cámbielo desde Ajustes)")
+                continue
+            if texto and _pin_en_uso(sv, texto):
+                print(f"[panel] usuario {nombre!r} no importado: PIN repetido")
+                continue
+            _poner(sv, {"nombre": nombre, "rol": rol, "pin_hash": hash_ or hash_pin(texto), "activo": True})
+
+
+def guardar_usuario(sv, d, quien):
+    """Crea o edita (por nombre) un usuario: {nombre, rol?, pin?, activo?}. PIN de 6 dígitos no trivial y único entre activos. Audita sin PIN."""
+    nombre, rol, pin, activo = d.get("nombre"), d.get("rol"), d.get("pin"), d.get("activo")
+    if not (isinstance(nombre, str) and NOMBRE.fullmatch(nombre)):
+        raise ValueError("Nombre inválido: 1 a 30 letras sin tildes, números, - o _")
+    if rol is not None and rol not in PANEL + REPARTO:
+        raise ValueError("Rol inválido")
+    if pin is not None and not (isinstance(pin, str) and pin.isascii() and pin.isdigit() and len(pin) == 6 and pin not in PIN_DEBILES):
+        raise ValueError("El PIN debe tener 6 números y no ser trivial")
+    if activo is not None and not isinstance(activo, bool):
+        raise ValueError("Activo debe ser sí o no")
+    with sv.pedidos_lock:
+        u = next((u for u in _todos(sv) if u["nombre"] == nombre), None)
+        if not u and not (rol and pin):
+            raise ValueError("Para crear un usuario hacen falta rol y PIN")
+        if u and activo and not u["activo"] and not pin:
+            raise ValueError("Para reactivar a un usuario ponga un PIN nuevo")
+        if pin and _pin_en_uso(sv, pin, excepto=nombre):
+            raise ValueError("Ese PIN ya lo usa otra persona")
+        nuevo = {**(u or {"nombre": nombre, "activo": True}), **({"rol": rol} if rol else {}), **({"activo": activo} if activo is not None else {}),
+                 **({"pin_hash": hash_pin(pin)} if pin else {})}
+        if u and u["rol"] == "dueno" and u["activo"] and not (nuevo["rol"] == "dueno" and nuevo["activo"]) and \
+                not any(x["rol"] == "dueno" and x["activo"] and x["nombre"] != nombre for x in _todos(sv)):
+            raise ValueError("Debe quedar al menos un dueño activo")
+        _poner(sv, nuevo)
+    cambios = ["usuario_crear"] if not u else [a for a, si in (("usuario_pin", pin), ("usuario_rol", rol and rol != u["rol"]),
+                                                               ("usuario_activo" if activo else "usuario_desactivar", activo is not None and activo != u["activo"])) if si]
+    for a in cambios:
+        auditar(sv, quien, f"{a}:{nombre}")
+    return {"nombre": nombre, "rol": nuevo["rol"], "activo": nuevo["activo"]}
+
+
+ID_PLATO = re.compile(r"[a-z0-9-]{1,40}")
+
+
+def guardar_plato(sv, d, quien):
+    """Crea o edita (por id) un plato: {id, nombre?, precio?, categoria?, disponible?}. Precio >= 0 en B/. sin fracción de centavo."""
+    iid, nombre, precio, cat, disp = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible")
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
+        raise ValueError("Id inválido: 1 a 40 minúsculas, números o -")
+    if nombre is not None and not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 80):
+        raise ValueError("El nombre no puede estar vacío (máx. 80)")
+    if cat is not None and not (isinstance(cat, str) and len(cat) <= 30):
+        raise ValueError("Categoría demasiado larga (máx. 30)")
+    if disp is not None and not isinstance(disp, bool):
+        raise ValueError("Disponible debe ser sí o no")
+    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp)) if v is not None}
+    if precio is not None:
+        if isinstance(precio, bool) or not isinstance(precio, (int, float, str)):
+            raise ValueError("Precio inválido")
+        cambios["precio_c"] = herramientas._c(precio)
+        if not 0 <= cambios["precio_c"] <= 99_999:
+            raise ValueError("El precio debe estar entre 0 y 999.99")
+    with sv.pedidos_lock:
+        p = sv.menu.get(iid)
+        if not p and not ("nombre" in cambios and "precio_c" in cambios):
+            raise ValueError("Para crear un plato hacen falta nombre y precio")
+        sv.guardar_plato(iid, {**{k: v for k, v in (p or {"categoria": "", "disponible": True}).items() if k not in ("id", "precio")}, **cambios})
+    auditar(sv, quien, f"plato_{'editar' if p else 'crear'}:{iid}")
+    return {"ok": True, "plato": next(x for x in menu_json(sv) if x["id"] == iid)}
+
+
+def urls_foto(iid, v):
+    """{foto, foto2x}: URL de 160 y 320 px (con versión para caché immutable) o None."""
+    u = v and f"/menu/foto/{iid}.webp?v={v}"
+    return {"foto": u or None, "foto2x": u and u + "&s=2" or None}
+
+
+def menu_json(sv):
+    """Menú para la web pública y el panel (precio en B/. como número; foto/foto2x URL o null)."""
+    fotos = sv.fotos()
+    return [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
+             "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {}),
+             **urls_foto(i["id"], fotos.get(i["id"]))} for i in sv.menu.values()]
+
+
+MAX_FOTO = 3 * 1024 * 1024  # bytes de subida
+MAX_PX = 40_000_000  # píxeles de la imagen de origen (anti decompression bomb)
+TIPOS_FOTO = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+
+
+class TipoNoValido(ValueError):
+    """→ 415."""
+
+
+def procesar_foto(datos):
+    """(webp 160, webp 320) cuadrados y centrados, sin metadatos. El formato se detecta con Pillow por contenido.
+    TipoNoValido si no es JPEG/PNG/WebP; ValueError si está corrupta o es demasiado grande en píxeles."""
+    from PIL import Image, ImageOps
+    try:
+        im = Image.open(io.BytesIO(datos), formats=list(TIPOS_FOTO.values()))
+        if im.width * im.height > MAX_PX:
+            raise ValueError("Imagen demasiado grande (máx. 40 Mpx)")
+        im.draft("RGB", (640, 640))  # JPEG: decodifica ya reducida
+        im = ImageOps.exif_transpose(im)  # gira según EXIF antes de descartarlo
+        if im.mode in ("RGBA", "LA", "P", "PA"):  # transparencia → fondo blanco
+            im = im.convert("RGBA")
+            fondo = Image.new("RGB", im.size, "white")
+            fondo.paste(im, mask=im.getchannel("A"))
+            im = fondo
+        im = ImageOps.fit(im.convert("RGB"), (320, 320), Image.Resampling.LANCZOS)
+    except Image.UnidentifiedImageError:
+        raise TipoNoValido("Solo se aceptan imágenes JPEG, PNG o WebP")
+    except Exception:  # corrupta, bomba (DecompressionBombError/Warning) o > MAX_PX; Pillow lanza de todo
+        raise ValueError("Imagen no válida o demasiado grande (máx. 40 Mpx)")
+
+    def webp(img, tope):
+        for q in (80, 65, 50, 35):
+            b = io.BytesIO()
+            Image.frombytes("RGB", img.size, img.tobytes()).save(b, "WEBP", quality=q, method=6)  # imagen nueva: sin EXIF/ICC/XMP
+            if b.tell() <= tope:
+                break
+        return b.getvalue()
+    return webp(im.resize((160, 160), Image.Resampling.LANCZOS), 12_000), webp(im, 40_000)
+
+
+def guardar_foto(sv, quien, iid, datos):
+    """Procesa y guarda la foto de un plato. LookupError si el plato no existe."""
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid) and iid in sv.menu):
+        raise LookupError(iid)
+    p1, p2 = procesar_foto(datos)
+    v = hashlib.sha256(p1 + p2).hexdigest()[:12]
+    if not sv.poner_foto(iid, p1, p2, v):
+        raise LookupError(iid)
+    auditar(sv, quien, f"foto_subir:{iid}")
+    return {"ok": True, **urls_foto(iid, v)}
+
+
+def borrar_foto(sv, quien, iid):
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid) and sv.poner_foto(iid)):
+        raise LookupError(iid)
+    auditar(sv, quien, f"foto_borrar:{iid}")
+    return {"ok": True}
+
+
+def lista_usuarios(sv):
+    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": u["activo"]} for u in _todos(sv)]
 
 
 class Bloqueo:
@@ -159,9 +363,17 @@ def acciones_de(p):
     return a
 
 
-def _mask(tel):
-    t = str(tel or "")
-    return t[:1] + "***-**" + t[-2:] if len(t) > 4 else "***"
+def _mask(tel, con_prefijo=False):
+    """Panamá: 6***-**12 (con_prefijo: +507 6***-**12, para logs). Otros: +prefijo, primer dígito, * y 2 últimos. Sin teléfono (anonimizado): —."""
+    t = "".join(c for c in str(tel or "") if c.isdigit())
+    if not t:
+        return "—"
+    if len(t) <= 8:  # ponytail: se asume parte nacional de 8 dígitos para separar el prefijo de país
+        return t[:1] + "***-**" + t[-2:] if len(t) > 4 else "***"
+    pref, nac = t[:-8], t[-8:]
+    if pref == "507":
+        return ("+507 " if con_prefijo else "") + nac[0] + "***-**" + nac[-2:]
+    return f"+{pref} {nac[0]}{'*' * 5}{nac[-2:]}"
 
 
 def pedido_json(p, detalle=False):
@@ -261,8 +473,25 @@ def comprobante(sv, pedido_id):
 
 
 def auditar(sv, usuario, accion, pedido_id=None):
-    """Tabla auditoria (usuario=rol, accion, pedido_id, at): sin datos personales ni IP."""
+    """Tabla auditoria (usuario=nombre de la persona, accion, pedido_id, at): sin datos de clientes ni IP."""
     sv.insertar("auditoria", {"usuario": usuario, "accion": accion, "pedido_id": pedido_id, "at": sv.ahora().isoformat()})
+
+
+def api_dueno(sv, quien, rol, metodo, ruta, d=None):
+    """Rutas /panel/dueno/<ruta>, solo rol dueno. PermissionError → 403, LookupError → 404, ValueError → 409."""
+    if rol != "dueno":
+        raise PermissionError("Solo el dueño puede hacer esto")
+    if (metodo, ruta) == ("GET", "usuarios"):
+        return {"usuarios": lista_usuarios(sv)}
+    if (metodo, ruta) == ("POST", "usuario"):
+        return {"ok": True, "usuario": guardar_usuario(sv, d or {}, quien)}
+    if (metodo, ruta) == ("GET", "menu"):
+        return {"menu": menu_json(sv)}
+    if (metodo, ruta) == ("POST", "plato"):
+        return guardar_plato(sv, d or {}, quien)
+    if (metodo, ruta) == ("POST", "foto_borrar"):
+        return borrar_foto(sv, quien, (d or {}).get("plato"))
+    raise LookupError(ruta)
 
 
 if __name__ == "__main__":

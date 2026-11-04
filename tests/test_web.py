@@ -128,7 +128,7 @@ class Acceso(Base):
             st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
         self.assertEqual((st, d["respuesta"]), (200, web.GENERICA))
         self.assertNotIn(TEL, str(pr.call_args_list))  # teléfono enmascarado en consola
-        self.assertEqual(web.enmascarar(TEL), "507******11")
+        self.assertEqual(web.enmascarar(TEL), "+507 6***-**11")
 
     def test_limite_entrar_429(self):
         for _ in range(10):
@@ -157,10 +157,11 @@ class Acceso(Base):
 
     def test_pagina_segura_y_casilla_no_premarcada(self):
         h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
-        self.assertEqual(h.count("innerHTML"), 2)  # solo plantillas fijas (fila del menú y pasos); el texto del servidor va con textContent
+        self.assertEqual(h.count("innerHTML"), 1)  # solo la plantilla fija de los pasos; el menú se arma con nodos y el texto del servidor va con textContent
         self.assertNotIn("${p.nombre", h)
         self.assertNotRegex(h, r'<input type="checkbox"[^>]*checked')
         self.assertRegex(h, r'<input type="checkbox" name="privacidad" required')
+        h = h.replace("https://tile.openstreetmap.org/", "")  # único origen externo permitido: los mosaicos del mapa (la CSP también lo limita)
         for malo in ("<script src", "http://", "https://", "eval("):
             self.assertNotIn(malo, h)
 
@@ -212,6 +213,98 @@ class MenuYPedidos(Base):
         # un turno sin cambios en pedidos -> null
         self.sv._cliente.respuestas.append(texto("nada"))
         self.assertIsNone(self.js("POST", "/chat", {"texto": "hola"}, cookie=a)[1]["pedido"])
+
+    def _historial_filas(self):
+        return self.sv._q("SELECT id FROM conversaciones")
+
+    def test_visita_nueva_tras_pedido_cerrado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        pid = d["pedido"]["id"]
+        self.entrar()  # pedido en curso: se conserva historial y pedido
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+        self.sv.actualizar(pid, {"estado": "entregado"}, tipo="pedido")
+        self.entrar()  # cerrado: chat limpio, pedido ya no se muestra, sigue en BD
+        self.assertEqual(self._historial_filas(), [])
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})
+        self.assertEqual(len(self.sv.listar("pedido")), 1)
+
+    def test_visita_nueva_sin_reentrar_en_pedidos(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})  # sin /entrar
+        self.assertEqual(self._historial_filas(), [])
+
+    def test_visita_nueva_sin_reentrar_en_chat(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo"), texto("hola de nuevo"), texto("otra")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        m = lambda: self.sv._q("SELECT mensajes FROM conversaciones")[0][0]
+        self.assertNotIn("sancochos", m())  # historial anterior descartado
+        self.js("POST", "/chat", {"texto": "otra"}, cookie=a)
+        self.assertIn("hola", m())  # no vuelve a limpiar en cada mensaje
+
+    def test_confirmado_con_pago_pendiente_no_cuenta_como_terminado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "confirmado"}, tipo="pedido")
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+
+    def test_visita_nueva_por_inactividad(self):
+        self.arrancar([texto("hola")])
+        _, _, a = self.entrar()
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)  # reciente: se conserva
+        self.sv._q("UPDATE conversaciones SET actualizado=?", (time.time() - web.VISITA_S - 60,))
+        self.entrar()
+        self.assertEqual(self._historial_filas(), [])
+
+
+class FormatoBot(unittest.TestCase):
+    """formato() de la web: **x** y *x* → <strong>, _x_ → <em>, solo con nodos DOM. Se prueba con node y un DOM de mentira (se omite sin node)."""
+
+    JS = r"""
+const document = {createDocumentFragment: () => mk("#f"), createTextNode: t => ({t}), createElement: n => mk(n)};
+function mk(n) { return {n, c: [], append(...x) { this.c.push(...x); }, set textContent(v) { this.c = [{t: v}]; }}; }
+const ser = x => x.t !== undefined ? x.t : (x.n === "#f" ? "" : `<${x.n}>`) + x.c.map(ser).join("") + (x.n === "#f" ? "" : `</${x.n}>`);
+%s
+const casos = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(casos.map(c => ser(formato(c)))));
+"""
+
+    def test_formato(self):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node")
+        h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
+        fn = h[h.index("function formato("):h.index("function burbuja(")]
+        casos = {
+            "Hola **Ana**, quieres *tasajo*": "Hola <strong>Ana</strong>, quieres <strong>tasajo</strong>",
+            "Total: *B/. 7.00* (con ITBMS)": "Total: <strong>B/. 7.00</strong> (con ITBMS)",
+            "_nota_ final": "<em>nota</em> final",
+            "2 * 3 * 4": "2 * 3 * 4",
+            "2*3*4": "2*3*4",
+            "snake_case_name": "snake_case_name",
+            "*sin cerrar": "*sin cerrar",
+            "- uno\n\u2022 dos": "- uno\n\u2022 dos",
+            "<b>x</b> *y*": "<b>x</b> <strong>y</strong>",
+            "": "",
+        }
+        r = subprocess.run([node, "-e", self.JS % fn, json.dumps(list(casos))], capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout), list(casos.values()))
 
 
 if __name__ == "__main__":

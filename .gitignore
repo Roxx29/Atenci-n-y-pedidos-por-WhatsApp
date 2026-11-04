@@ -3,3 +3,5 @@ __pycache__/
 .env
 .web_secret
 comprobantes/
+*.sqlite-*
+despliegue/logs/

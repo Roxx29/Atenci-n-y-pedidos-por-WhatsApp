@@ -5,6 +5,8 @@
 
 **Datos que pedimos:** nombre, teléfono, dirección y, si la compartes, ubicación de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
 
+**Seguimiento del repartidor:** cuando tu pedido va en camino, puedes ver en un mapa dónde está el repartidor. El mapa usa OpenStreetMap; si se carga directamente desde sus servidores, la Fundación OpenStreetMap (Reino Unido) recibe tu dirección IP y la zona del mapa que ves.
+
 **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin un permiso aparte.
 
 **Asistente de IA:** un sistema de inteligencia artificial lee tus mensajes para responderte. Ese servicio lo presta un proveedor tecnológico que puede estar fuera de Panamá (Anthropic, Estados Unidos). Solo recibe lo necesario para contestarte y no puede usarlo para otros fines. Si quieres, pide hablar con una persona del restaurante.

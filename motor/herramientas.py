@@ -226,7 +226,7 @@ def caducar_pedidos(sv):
     for p in sv.listar("pedido"):
         if p["estado"] == "por_confirmar" and p.get("creado_at") and dt.datetime.fromisoformat(p["creado_at"]) <= limite:
             try:
-                _transicion(sv, p["id"], {"por_confirmar"}, "caducado", {"ubicacion": None})
+                _transicion(sv, p["id"], {"por_confirmar"}, "caducado", {"ubicacion": None, "estado_at": sv.ahora().isoformat()})
                 ids.append(p["id"])
             except ValueError:  # otro proceso lo confirmó o canceló justo ahora
                 pass

@@ -73,7 +73,7 @@ class PanelWeb(Base):
         self.assertEqual(st, 409)  # el pago va antes
         self.assertEqual(self.js("POST", "/panel/marcar", {"pedido_id": pid, "estado": "pagado"}, cookie=ck)[0], 200)
         p = next(p for p in self.sv.listar("pedido") if p["id"] == pid)
-        self.assertEqual((p["estado"], p["pagado_por"]), ("pagado", "dueno"))
+        self.assertEqual((p["estado"], p["pagado_por"]), ("pagado", "Dueno"))  # nombre de la persona
         for e in ("en_preparacion", "listo", "entregado"):
             self.assertEqual(self.js("POST", "/panel/marcar", {"pedido_id": pid, "estado": e}, cookie=ck)[0], 200)
         acc = [a["accion"] for a in self.sv.listar("auditoria")]
@@ -100,6 +100,26 @@ class PanelWeb(Base):
         self.assertNotIn(TEL, str(e))
         self.assertEqual(self.js("POST", f"/panel/escalado/{eid}/atendido", {}, cookie=ck)[0], 200)
         self.assertEqual(self.js("GET", "/panel/estado", cookie=ck)[1]["escalados"], [])
+
+    def test_dueno_gestiona_y_personal_403(self):
+        _, ck = self.login()
+        st, d, _ = self.js("POST", "/panel/dueno/usuario", {"nombre": "Pedro", "rol": "repartidor", "pin": "739104"}, cookie=ck)
+        self.assertEqual((st, d["usuario"]), (200, {"nombre": "Pedro", "rol": "repartidor", "activo": True}))
+        self.assertEqual(self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "739104"}, cookie=ck)[0], 409)  # PIN repetido
+        self.assertEqual(self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)[0], 200)
+        self.assertNotIn("pbkdf2", str(self.js("GET", "/panel/dueno/usuarios", cookie=ck)[1]))
+        st, d, _ = self.js("POST", "/repartidor/entrar", {"pin": "739104"})
+        self.assertEqual((st, d["nombre"]), (200, "Pedro"))
+        self.assertIn("Pedro", self.js("GET", "/panel/estado", cookie=ck)[1]["repartidores"])
+        self.assertEqual(self.js("POST", "/panel/dueno/plato", {"id": "sancocho", "precio": 6, "disponible": False}, cookie=ck)[0], 200)
+        m = next(m for m in self.js("GET", "/menu")[1] if m["id"] == "sancocho")
+        self.assertEqual((m["precio"], m["disponible"]), (6, False))
+        st, ck2 = self.login("918273")
+        self.assertEqual(self.js("GET", "/panel/estado", cookie=ck2)[0], 200)
+        for m, r, cuerpo in (("GET", "/panel/dueno/usuarios", None), ("POST", "/panel/dueno/plato", {"id": "sancocho", "precio": 0})):
+            self.assertEqual(self.js(m, r, cuerpo, cookie=ck2)[0], 403)
+        self.assertEqual(self.js("GET", "/panel/dueno/nada", cookie=ck)[0], 404)
+        self.assertIn(("Ana", "login"), [(a["usuario"], a["accion"]) for a in self.sv.listar("auditoria")])
 
 
 if __name__ == "__main__":

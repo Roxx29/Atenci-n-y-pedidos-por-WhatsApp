@@ -212,6 +212,15 @@ html,body{overflow-x:hidden}
   .toast{left:12px;right:12px;bottom:12px;transform:translateY(calc(100% + 40px))}
   .toast.ver{transform:none}
 }
+
+/* ---------- Ajustes (solo dueño): personas con PIN y menú ---------- */
+.aj{display:grid;gap:12px}
+.aj form{display:grid;gap:8px;padding:12px;border-radius:10px;background:var(--carril)}
+.aj input:not([type=checkbox]),.aj select{min-height:48px;padding:0 12px;border:1.5px solid var(--linea);border-radius:10px;background:var(--superficie);width:100%}
+.aj label.si{display:flex;gap:8px;align-items:center;font-weight:600}
+.aj-fila{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--linea)}
+.aj-fila span{flex:1;min-width:0;overflow-wrap:anywhere}
+.aj-fila .btn{min-height:44px;font-size:.9375rem}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -259,6 +268,7 @@ html,body{overflow-x:hidden}
     <button class="btn suave" id="btn-cerrados" aria-pressed="false">Cancelados</button>
     <button class="btn suave" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg></button>
     <span class="reloj num" id="reloj" aria-hidden="true"></span>
+    <button class="btn suave" id="btn-ajustes" hidden>Ajustes</button>
     <button class="btn suave" id="btn-salir">Salir</button>
   </header>
   <div class="banda" id="banda" role="alert" hidden>
@@ -295,6 +305,32 @@ html,body{overflow-x:hidden}
     </div>
   </div>
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-aj" class="chico" aria-labelledby="aj-titulo">
+  <div class="dlg-lado aj">
+    <h2 id="aj-titulo">Ajustes</h2>
+    <h3>Personas (panel y repartidores)</h3>
+    <div id="aj-usuarios"></div>
+    <form id="f-usuario" autocomplete="off">
+      <label class="dlg-dato"><span>Nombre (sin tildes ni espacios)</span><input name="nombre" maxlength="30" pattern="[A-Za-z0-9_\-]+" required></label>
+      <label class="dlg-dato"><span>Rol</span><select name="rol"><option value="personal">Personal</option><option value="dueno">Dueño</option><option value="repartidor">Repartidor</option></select></label>
+      <label class="dlg-dato"><span>PIN nuevo (6 números; vacío = no cambiar)</span><input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
+      <label class="si"><input name="activo" type="checkbox" checked> Activo</label>
+      <button class="btn ok">Guardar persona</button>
+    </form>
+    <h3>Menú</h3>
+    <div id="aj-menu"></div>
+    <form id="f-plato" autocomplete="off">
+      <label class="dlg-dato"><span>Id (minúsculas y guiones)</span><input name="id" maxlength="40" pattern="[a-z0-9\-]+" required></label>
+      <label class="dlg-dato"><span>Nombre</span><input name="nombre" maxlength="80"></label>
+      <label class="dlg-dato"><span>Precio (B/.)</span><input name="precio" type="number" min="0" max="999.99" step="0.01"></label>
+      <label class="dlg-dato"><span>Categoría</span><input name="categoria" maxlength="30"></label>
+      <label class="si"><input name="disponible" type="checkbox" checked> Disponible hoy</label>
+      <button class="btn ok">Guardar plato</button>
+    </form>
+  </div>
+  <button class="icono-btn dlg-cerrar" id="aj-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -362,7 +398,9 @@ $("#form-pin").addEventListener("submit", async ev => {
   if (!st.demo) {
     try {
       const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
-      if (!r.ok) { const j = await r.json().catch(() => ({})); $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+      $("#btn-ajustes").hidden = j.rol !== "dueno";
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad();
@@ -588,6 +626,34 @@ $("#dlg-cerrar").onclick = () => $("#dlg").close();
 $("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
 $("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
 $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+
+/* ---------- Ajustes (solo dueño; el servidor responde 403 a los demás) ---------- */
+const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
+async function pintarAjustes() {
+  try {
+    const [u, m] = await Promise.all([api("GET", "/panel/dueno/usuarios"), api("GET", "/panel/dueno/menu")]);
+    const fu = $("#f-usuario"), fp = $("#f-plato");
+    $("#aj-usuarios").replaceChildren(...u.usuarios.map(x => h("div", {class:"aj-fila"},
+      h("span", {}, h("b", {}, x.nombre), ` · ${NOMBRE_ROL[x.rol] || x.rol}${x.activo ? "" : " · inactivo"}`),
+      h("button", {class:"btn suave", type:"button", on:{click:() => { fu.nombre.value = x.nombre; fu.rol.value = x.rol; fu.activo.checked = x.activo; fu.pin.value = ""; fu.pin.focus(); }}}, "Editar"))));
+    $("#aj-menu").replaceChildren(...m.menu.map(x => h("div", {class:"aj-fila"},
+      h("span", {}, h("b", {}, x.nombre), ` · ${dinero(x.precio)}${x.disponible ? "" : " · agotado"}`),
+      h("button", {class:"btn suave", type:"button", on:{click:() => { fp.elements.id.value = x.id; fp.nombre.value = x.nombre; fp.precio.value = x.precio; fp.categoria.value = x.categoria || ""; fp.disponible.checked = x.disponible; fp.nombre.focus(); }}}, "Editar"))));
+  } catch (e) { aviso(e.message, true); }
+}
+$("#btn-ajustes").onclick = () => { $("#dlg-aj").showModal(); pintarAjustes(); };
+$("#aj-cerrar").onclick = () => $("#dlg-aj").close();
+function enviarAjuste(form, ruta, datos) {
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    try { await api("POST", ruta, datos(form)); aviso("Guardado"); form.reset(); pintarAjustes(); }
+    catch (e) { aviso(e.message, true); }
+  };
+}
+const sinVacios = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
+enviarAjuste($("#f-usuario"), "/panel/dueno/usuario", f => sinVacios({nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim(), activo:f.activo.checked}));
+enviarAjuste($("#f-plato"), "/panel/dueno/plato", f => sinVacios({id:f.elements.id.value.trim(), nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim(), disponible:f.disponible.checked}));
 
 /* ---------- Bandeja de avisos ---------- */
 function abrirBandeja(on) {

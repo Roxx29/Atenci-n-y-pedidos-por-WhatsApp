@@ -128,7 +128,7 @@ class Acceso(Base):
             st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
         self.assertEqual((st, d["respuesta"]), (200, web.GENERICA))
         self.assertNotIn(TEL, str(pr.call_args_list))  # teléfono enmascarado en consola
-        self.assertEqual(web.enmascarar(TEL), "507******11")
+        self.assertEqual(web.enmascarar(TEL), "+507 6***-**11")
 
     def test_limite_entrar_429(self):
         for _ in range(10):
@@ -212,6 +212,61 @@ class MenuYPedidos(Base):
         # un turno sin cambios en pedidos -> null
         self.sv._cliente.respuestas.append(texto("nada"))
         self.assertIsNone(self.js("POST", "/chat", {"texto": "hola"}, cookie=a)[1]["pedido"])
+
+    def _historial_filas(self):
+        return self.sv._q("SELECT id FROM conversaciones")
+
+    def test_visita_nueva_tras_pedido_cerrado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        pid = d["pedido"]["id"]
+        self.entrar()  # pedido en curso: se conserva historial y pedido
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+        self.sv.actualizar(pid, {"estado": "entregado"}, tipo="pedido")
+        self.entrar()  # cerrado: chat limpio, pedido ya no se muestra, sigue en BD
+        self.assertEqual(self._historial_filas(), [])
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})
+        self.assertEqual(len(self.sv.listar("pedido")), 1)
+
+    def test_visita_nueva_sin_reentrar_en_pedidos(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})  # sin /entrar
+        self.assertEqual(self._historial_filas(), [])
+
+    def test_visita_nueva_sin_reentrar_en_chat(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo"), texto("hola de nuevo"), texto("otra")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        m = lambda: self.sv._q("SELECT mensajes FROM conversaciones")[0][0]
+        self.assertNotIn("sancochos", m())  # historial anterior descartado
+        self.js("POST", "/chat", {"texto": "otra"}, cookie=a)
+        self.assertIn("hola", m())  # no vuelve a limpiar en cada mensaje
+
+    def test_confirmado_con_pago_pendiente_no_cuenta_como_terminado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "confirmado"}, tipo="pedido")
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+
+    def test_visita_nueva_por_inactividad(self):
+        self.arrancar([texto("hola")])
+        _, _, a = self.entrar()
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)  # reciente: se conserva
+        self.sv._q("UPDATE conversaciones SET actualizado=?", (time.time() - web.VISITA_S - 60,))
+        self.entrar()
+        self.assertEqual(self._historial_filas(), [])
 
 
 if __name__ == "__main__":

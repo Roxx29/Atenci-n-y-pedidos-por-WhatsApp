@@ -63,7 +63,9 @@ Variante corta (móvil):
 | Dato | Plazo | Luego |
 |---|---|---|
 | Mensajes del chat | 90 días desde el último mensaje | borrar |
-| Pedido (ítems, total, fecha, estado) | **[ABOGADO: plazo fiscal/contable; Código de Comercio exige libros ~5 años]** | anonimizar (quitar nombre/teléfono/dirección) |
+| Datos personales en el pedido (nombre/teléfono/dirección) | 12 meses desde el último pedido | anonimizar |
+| Pedido anonimizado (ítems, total, fecha, estado) | 5 años **[ABOGADO: plazo fiscal/contable]** | borrar |
+| Registro de solicitudes ARCO | 24 meses **[ABOGADO]** | borrar |
 | Cliente (nombre, teléfono) | 12 meses desde el último pedido | borrar |
 | Logs técnicos | 30 días | borrar |
 | Captura de Yappy | al marcar pagado o rechazado; como máximo 7 días desde la subida | borrar el archivo |
@@ -75,6 +77,13 @@ Variante corta (móvil):
 - Borrar = eliminar mensajes y datos del cliente; los pedidos que deban quedar por ley se **anonimizan** (no se borran las cifras).
 - Registrar la solicitud: `fecha`, `tipo` (acceso/rectificación/cancelación/oposición/portabilidad), `estado`, `respondida_at`. Sin el contenido borrado.
 - SQLite: tras borrar, `PRAGMA secure_delete=ON` (o `VACUUM`) para que no quede en páginas libres. Copias de seguridad: caducan por rotación en ≤ 90 días; documentarlo.
+
+**Detalle (acordado con agentedeprogramacion, 2026-11-03)**
+- **Exportar** (JSON que se descarga y no se guarda en el servidor): cliente (nombre, teléfono, `consentimiento_at`, `version_aviso`); pedidos (fecha, ítems y notas, total, estado, entrega, dirección, método de pago, `pago_ref`, monto); mensajes vivos; ubicación y comprobante solo si aún existen (el comprobante como metadato, sin la imagen); solicitudes ARCO previas. **No** se exporta: la auditoría, `pagado_por` ni los hashes de PIN.
+- **Borrar:** cliente, mensajes, capturas, ubicación y notas de ítems (pueden contener alergias). **Anonimizar** los pedidos: nombre, teléfono, dirección y `cliente_id` pasan a NULL; se conservan las cifras, `pago_ref` y `pagado_por/at` **[ABOGADO: confirmar que `pago_ref` puede quedar]**. Con un pedido abierto no se borra: el panel pide cerrarlo o cancelarlo antes.
+- **Registro `arco_solicitud`:** `id`, `tipo`, `canal`, `recibida_at`, `respondida_at`, `estado`, `usuario`, `telefono_hmac` (HMAC-SHA256 con clave secreta sobre el número E.164; no un SHA simple, que se revierte por fuerza bruta). Se conserva 24 meses **[ABOGADO: plazo]**. En la auditoría: `arco_exportar`/`arco_borrar` con `solicitud_id`.
+- **Plazos** (2.3): los datos personales del pedido se anonimizan a los 12 meses del último pedido del cliente; el pedido anonimizado se guarda 5 años **[ABOGADO]**.
+- **Enmascarado:** primer dígito local y 2 últimos (`+507 6***-**12`; en otros países, prefijo + 1.er dígito + `*` + 2 últimos). Solo al mostrar: en la BD el número sigue completo hasta la anonimización. Los pedidos anonimizados muestran "—".
 
 ### 2.5 Transferencia al proveedor de IA
 - **Demo (Ollama local):** no hay transferencia; todo queda en la PC.

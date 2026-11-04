@@ -70,3 +70,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [x] 2026-11-03 — W5 Ajustes: subir/cambiar/quitar foto por plato hecho (disenador)
 - [~] Rediseño estilo maquetas 'Fuego & Brasa' (usuario, 2026-11-03): tokens brasa M3, Epilogue/Plus Jakarta/JetBrains Mono autoalojadas, kanban por estados, catálogo+chat 8/4, repartidor con tarjeta activa. Se mantiene marca real y funciones reales; sin Tailwind CDN. Fases: web → panel → repartidor (disenador)
 - [~] Mapa en vivo del repartidor (usuario, 2026-11-03): lo ven panel y cliente; OSM + Leaflet autoalojado; solo última posición mientras en_camino. legal-datos (criterios Ley 81) + agentedeprogramacion (API) + disenador (3 páginas)
+- [ ] 2026-11-03 — [ABOGADO] ARCO: confirmar que pago_ref puede quedar en el pedido anonimizado, el plazo de 24 meses del registro ARCO y los 5 años del pedido anonimizado (legal §2.4)
+- [ ] 2026-11-03 — Mapa en vivo en producción: mosaicos propios (PMTiles Panamá) o proxy con caché para que OSM no vea la IP del cliente (devops, legal §2.10). [ABOGADO] base de la ubicación del repartidor empleado (pendiente 9)

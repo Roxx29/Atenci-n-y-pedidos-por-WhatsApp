@@ -486,13 +486,15 @@ function verMenu(on) { $("#menu").hidden = !on; $("#btn-menu").setAttribute("ari
 $("#btn-menu").onclick = () => verMenu($("#menu").hidden);
 
 const carro = new Map(); // id del plato → cantidad (solo en este teléfono; el bot sigue confirmando el pedido)
-const frase = m => m.nombre.replace(/ \(.*\)$/, "").toLowerCase();
+const sinParentesis = n => n.replace(/ \(.*\)$/, "").toLowerCase();
+// Nombre corto para la frase al bot; si dos platos solo difieren en el paréntesis, se usa el nombre completo para no confundirlos.
+const frase = m => MENU.filter(x => sinParentesis(x.nombre) === sinParentesis(m.nombre)).length > 1 ? m.nombre.toLowerCase() : sinParentesis(m.nombre);
 function pintarCarro() {
   let n = 0, total = 0;
-  for (const [id, q] of carro) { const m = MENU.find(x => x.id === id); if (m) { n += q; total += q * num(m.precio); } }
+  for (const [id, q] of carro) { const m = MENU.find(x => x.id === id); if (m) { n += q; total += q * Math.round(num(m.precio) * 100); } } // en centavos: sin errores de decimales
   $("#carro").hidden = !n;
   $("#carro-n").textContent = `Tu pedido: ${n} ${n === 1 ? "plato" : "platos"}`;
-  $("#carro-total").textContent = dinero(total);
+  $("#carro-total").textContent = dinero(total / 100);
 }
 function fotoDe(m) {
   const ini = () => { const e = document.createElement("span"); e.className = "foto ini"; e.setAttribute("aria-hidden", "true"); e.textContent = (m.nombre.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/) || ["?"])[0].toUpperCase(); return e; };

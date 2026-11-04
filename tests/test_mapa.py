@@ -152,6 +152,15 @@ class Mapa(Base):
         self.assertIn("img-src 'self' blob: data: https://tile.openstreetmap.org;", web.CSP)
         self.assertNotIn("*", web.CSP)
 
+    def test_restaurante_en_mapa_del_panel(self):
+        r = self.js("GET", "/panel/repartidores_mapa", cookie=self.pan)[1]
+        self.assertIsNone(r["restaurante"])
+        with unittest.mock.patch.dict(os.environ, {"RESTAURANTE_LAT": "7.96", "RESTAURANTE_LON": "-80.43"}):
+            r = self.js("GET", "/panel/repartidores_mapa", cookie=self.pan)[1]
+        self.assertEqual((r["restaurante"]["lat"], r["restaurante"]["lon"]), (7.96, -80.43))
+        with unittest.mock.patch.dict(os.environ, {"RESTAURANTE_LAT": "x", "RESTAURANTE_LON": "1"}):
+            self.assertIsNone(self.js("GET", "/panel/repartidores_mapa", cookie=self.pan)[1]["restaurante"])
+
 
 if __name__ == "__main__":
     unittest.main()

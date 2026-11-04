@@ -55,3 +55,6 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] Panel web: crear/editar repartidores (con su PIN), configurar el menú y demás ajustes sin tocar .env ni YAML. (usuario, 2026-11-03)
 - [ ] Arreglar test_recordatorio_y_cancelacion (test_motor): depende del día; falla si el próximo miércoles 10:00 está a menos de 24 h. (capitán, 2026-11-03)
 - [x] 2026-11-03 — Panel responsive móvil (≤700px) hecho; falta probar en vivo tras integrar y revisar pantalla Ajustes a 375px (disenador)
+- [ ] Antes del primer cliente: pasar a la nube (Render/Railway/Fly.io, auto-deploy desde GitHub, un servidor por restaurante, dominio vía Cloudflare). Túnel solo para demos. Revisar con legal-datos Ley 81 (ubicación de datos) y con comercial el precio que cubra 5-7 USD/mes de servidor. (usuario/capitán, 2026-11-03)
+- [ ] Web: el chat conserva la conversación del pedido anterior al reabrir la página; empezar limpio tras cerrar pedido o visita nueva (usuario, 2026-11-03) (agentedeprogramacion)
+- [ ] Panel adaptado a teléfono (usuario, 2026-11-03) (disenador)

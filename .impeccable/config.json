@@ -40,6 +40,21 @@
         ],
         "createdAt": "2026-11-03T04:53:36.829Z",
         "reason": "disenador: papel crema es el token de marca de la fonda, compartido con la web de pedidos"
+      },
+      {
+        "rule": "overused-font",
+        "value": "plus jakarta sans",
+        "createdAt": "2026-11-04T04:55:28.024Z",
+        "reason": "capitán, de las maquetas del usuario: el sistema de diseño pide Plus Jakarta Sans (autoalojada)"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "motor/web_index.html"
+        ],
+        "createdAt": "2026-11-04T04:55:28.785Z",
+        "reason": "capitán, de las maquetas del usuario: tarjetas con franja de color a la izquierda (franja de estado)"
       }
     ]
   }

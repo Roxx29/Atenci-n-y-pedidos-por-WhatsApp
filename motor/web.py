@@ -31,7 +31,6 @@ MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
 VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
-PEDIDO_ACTIVO = {"por_confirmar", "pago_reportado", "pagado", "en_preparacion", "listo", "en_camino"}  # confirmado no: ya terminó la conversación
 CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
 
@@ -358,6 +357,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if not cid:
                     return self._err(401, "Sesión inválida")
                 if ruta == "/pedidos":
+                    self._visita_nueva(cid)
                     return self._enviar(200, {"pedidos": [formato_pedido(p) for p in reversed(pedidos_de(cid)) if p["id"] > corte.get(cid, 0) or p["estado"] in herramientas.ABIERTOS]})
                 textos = []
                 for m in sv.pendientes():
@@ -414,7 +414,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
         def _visita_nueva(self, cid):
             """Chat limpio (historial del modelo) si el último pedido terminó o hubo >VISITA_S sin actividad. El pedido en BD no se toca."""
             fila, ps = sv._q("SELECT actualizado FROM conversaciones WHERE id=?", (cid,)), pedidos_de(cid)
-            cerrado = bool(ps) and ps[-1]["estado"] not in PEDIDO_ACTIVO
+            cerrado = bool(ps) and ps[-1]["estado"] not in herramientas.ABIERTOS and ps[-1]["id"] > corte.get(cid, 0)
             if cerrado:
                 corte[cid] = ps[-1]["id"]
             if fila and (cerrado or time.time() - fila[0][0] > VISITA_S):
@@ -516,6 +516,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             t = d.get("texto")
             if not (isinstance(t, str) and 1 <= len(t) <= 1000):
                 return self._err(400, "Texto inválido")
+            self._visita_nueva(cid)
             if n := nombres.pop(cid, None):
                 t = f"[Nombre del cliente: {n}] {t}"
             antes = {p["id"]: p for p in pedidos_de(cid)}

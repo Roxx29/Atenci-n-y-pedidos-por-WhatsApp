@@ -230,6 +230,34 @@ class MenuYPedidos(Base):
         self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})
         self.assertEqual(len(self.sv.listar("pedido")), 1)
 
+    def test_visita_nueva_sin_reentrar_en_pedidos(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})  # sin /entrar
+        self.assertEqual(self._historial_filas(), [])
+
+    def test_visita_nueva_sin_reentrar_en_chat(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo"), texto("hola de nuevo"), texto("otra")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "entregado"}, tipo="pedido")
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        m = lambda: self.sv._q("SELECT mensajes FROM conversaciones")[0][0]
+        self.assertNotIn("sancochos", m())  # historial anterior descartado
+        self.js("POST", "/chat", {"texto": "otra"}, cookie=a)
+        self.assertIn("hola", m())  # no vuelve a limpiar en cada mensaje
+
+    def test_confirmado_con_pago_pendiente_no_cuenta_como_terminado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        self.sv.actualizar(d["pedido"]["id"], {"estado": "confirmado"}, tipo="pedido")
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+
     def test_visita_nueva_por_inactividad(self):
         self.arrancar([texto("hola")])
         _, _, a = self.entrar()

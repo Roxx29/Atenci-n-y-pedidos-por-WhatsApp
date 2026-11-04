@@ -4,7 +4,7 @@ Remoto: https://github.com/Roxx29/Atenci-n-y-pedidos-por-WhatsApp
 
 ## Reglas (siempre)
 1. **Habla poco.** Solo lo necesario.
-2. **Modelo según dificultad:** difícil → opus, intermedio → sonnet, fácil → haiku. Si la sesión no puede cambiar de modelo, delega a un agente de ese modelo.
+2. **Modelo (modo opusplan):** la sesión usa `opusplan` (`.claude/settings.json`): Opus planifica (plan mode) y Sonnet ejecuta. Casi todo el trabajo va con **sonnet**; **opus** solo como moderador cuando hace falta (planificar, decidir entre propuestas, arquitectura, bugs raros, revisión final de seguridad); **haiku** para lo sencillo (renombrar, búsquedas, ajustes pequeños). Al encargar a agentes de Orca o subagentes, pasa el modelo con ese criterio (`--model`).
 3. **Skills:** en cada mensaje carga y usa todas las skills disponibles que apliquen.
 4. **Ideas y pendientes → `IDEAS.md`.** Toda idea (del usuario o tuya) y toda tarea futura se apunta ahí al momento.
 5. **Agentes:** trabaja siempre con los de `.claude/agents/`. Responde en español.

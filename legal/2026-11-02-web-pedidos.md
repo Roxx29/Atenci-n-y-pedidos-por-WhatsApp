@@ -26,7 +26,8 @@ Variante corta (móvil):
 >
 > **Comprobante de Yappy:** la captura puede mostrar tu nombre y datos de tu cuenta. Solo la ve el personal del restaurante para confirmar tu pago, no se envía al asistente de IA y se borra al confirmar o rechazar el pago (como máximo a los 7 días).
 >
-> **Ubicación:** si pides a domicilio, puedes compartir tu ubicación o un enlace de mapa (es opcional; también puedes escribir la dirección). Solo sirve para que el repartidor te encuentre, no se envía al asistente de IA y se borra al entregar o cancelar el pedido (como máximo a las 24 horas).>
+> **Ubicación:** si pides a domicilio, puedes compartir tu ubicación o un enlace de mapa (es opcional; también puedes escribir la dirección). Solo sirve para que el repartidor te encuentre, no se envía al asistente de IA y se borra al entregar o cancelar el pedido (como máximo a las 24 horas).
+>
 > **Seguimiento del repartidor:** cuando tu pedido va en camino, puedes ver en un mapa dónde está el repartidor. El mapa usa OpenStreetMap; si se carga directamente desde sus servidores, la Fundación OpenStreetMap (Reino Unido) recibe tu dirección IP y la zona del mapa que ves.
 >
 > **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin tu permiso aparte.

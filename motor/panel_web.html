@@ -169,6 +169,49 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 @media (max-width:1180px){.barra h1 small{display:none}}
 @media (max-width:900px){.dlg{grid-template-columns:1fr}.dlg-img img{max-height:55vh}}
 .lista .btn{font-size:1rem;padding:0 12px}
+
+/* ---------- Teléfono (≤700px): una columna, sin scroll horizontal ----------
+   Las pantallas nuevas del panel (repartidores, menú) reutilizan estas clases:
+   .btn (52px táctil), .tarjeta, .col, .lista, .dlg, dialog.chico, .fila-btn. */
+html,body{overflow-x:hidden}
+@media (max-width:700px){
+  body{font-size:16px}
+  #login{align-items:start;padding:20px 16px;overflow-y:auto}
+  .caja-login{margin:auto}
+  .teclado button{min-height:68px}
+  header.barra{flex-wrap:wrap;gap:8px;padding:8px 12px}
+  .barra h1{font-size:1.25rem;flex:1 1 calc(100% - 148px);min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .reloj{flex:0 0 76px;min-width:0}
+  #btn-sonido{order:2;flex:0 0 48px;padding:0}
+  .barra .btn{order:3;flex:1 1 auto;min-width:0;padding:0 8px;font-size:.875rem;min-height:48px}
+  #btn-sonido{padding:0}
+  .banda{flex-wrap:wrap}
+  .banda button{min-height:48px;flex:1 1 100%}
+  .tablero{display:block;overflow-x:hidden;overflow-y:auto;padding:10px;-webkit-overflow-scrolling:touch}
+  .col,.col.estrecha{max-width:none;margin-bottom:12px}
+  .col>header{position:sticky;top:-10px;z-index:2;background:var(--carril);border-radius:var(--r) var(--r) 0 0}
+  .lista{overflow:visible;flex:none}
+  .col.vacio .vacia{padding:8px}
+  .tarjeta{padding:14px}
+  .acciones .btn,.acciones.dos .btn{min-height:56px}
+  .acciones.dos{grid-template-columns:1fr}
+  .t-abrir{min-height:48px}
+  .miniatura{min-height:56px}
+  .bandeja{width:100%}
+  .aviso .fila .btn{flex:1;min-height:48px}
+  dialog,dialog.chico{width:100%;max-width:100%;height:100%;max-height:100%;margin:0;border-radius:0;padding:0}
+  .dlg{max-height:none;height:100%;overflow-y:auto;display:block}
+  .dlg-img{min-height:0;max-height:40vh;border-radius:0;padding:8px}
+  .dlg-img img{max-height:36vh}
+  .dlg-lado{padding:16px 16px 24px;overflow:visible}
+  .dlg-lado h2{font-size:1.5rem;padding-right:52px}
+  .dlg-lado .acciones{position:sticky;bottom:0;background:var(--superficie);padding:10px 0;margin-top:8px}
+  .dlg-cerrar{position:fixed;top:8px;right:8px;z-index:3}
+  .dlg-lado select{width:100%}
+  .fila-btn .btn{min-height:52px}
+  .toast{left:12px;right:12px;bottom:12px;transform:translateY(calc(100% + 40px))}
+  .toast.ver{transform:none}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -411,7 +454,7 @@ function pintar() {
     const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
     const lista = h("div", {class:"lista"}, ps.length ? ps.map(p => tarjeta(p, c)) : h("p", {class:"vacia"}, "Nada por aquí"));
     const id = "col-" + c.estados[0];
-    cols.push(h("section", {class:"col" + (c.estrecha ? " estrecha" : ""), "aria-labelledby":id},
+    cols.push(h("section", {class:"col" + (c.estrecha ? " estrecha" : "") + (ps.length ? "" : " vacio"), "aria-labelledby":id},
       h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
       lista));
   }

@@ -33,7 +33,8 @@ if not errorlevel 1 (
 )
 
 curl -s -o nul http://127.0.0.1:11435/api/version || start "Ollama demo" /min cmd /c demo-ollama.cmd
-start "Web pedidos" cmd /k python -m motor web %SERVICIO% %PUERTO%
-start "Tunel Cloudflare" cmd /k "%CLOUDFLARED%" tunnel --no-autoupdate run
-echo Servidor en http://localhost:%PUERTO% y tunel arrancando. Cerrar las ventanas para parar.
+rem Vigilados: si se caen se reinician solos; registro en despliegue\logs\
+start "Web pedidos" /min cmd /c despliegue\vigilar.cmd web python -m motor web %SERVICIO% %PUERTO%
+start "Tunel Cloudflare" /min cmd /c despliegue\vigilar.cmd tunel "%CLOUDFLARED%" tunnel --no-autoupdate run
+echo Servidor en http://localhost:%PUERTO% y tunel arrancando (se reinician solos). Para parar: cerrar las ventanas minimizadas.
 endlocal

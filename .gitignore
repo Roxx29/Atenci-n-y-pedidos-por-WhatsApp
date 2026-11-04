@@ -5,3 +5,4 @@ __pycache__/
 comprobantes/
 *.sqlite-*
 despliegue/logs/
+datos-nube.db*

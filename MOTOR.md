@@ -74,8 +74,17 @@ python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 
 ## Comprobante de Yappy
 - `POST /comprobante?pedido=N&referencia=` (cookie; cuerpo = imagen JPEG/PNG cruda, máx. 5 MB). Pasa el pedido a `pago_reportado` y avisa al restaurante.
-- Se le quitan los metadatos (EXIF, texto, fecha), se guarda en `<servicio>/comprobantes/<nombre aleatorio>` (fuera de lo que sirve la web, ignorada por git) y solo la ve el personal desde el panel ("Ver comprobante"). Nunca llega al modelo, a los logs ni a los avisos.
-- Se borra al marcar el pedido (pagado o posterior), al cancelarlo o a los `comprobantes.max_dias` (7) días; `purgar_comprobantes` también borra huérfanos y corre al arrancar web/panel y cada hora en el panel. Del pedido quedan en texto método, referencia, monto y fecha.
+- Se le quitan los metadatos (EXIF, texto, fecha), se guarda en la tabla `comprobantes` de la BD (nombre aleatorio `[0-9a-f]{32}.jpg|png`; la web no la sirve) y solo la ve el personal desde el panel ("Ver comprobante"). Nunca llega al modelo, a los logs ni a los avisos.
+- Se borra al marcar el pedido (pagado o posterior), al cancelarlo o a los `comprobantes.max_dias` (7) días; `purgar_comprobantes` también borra huérfanos (filas sin pedido, de más de 10 min) y corre al arrancar web/panel y cada hora en el panel. Del pedido quedan en texto método, referencia, monto y fecha.
+
+Al arrancar, los archivos de `comprobantes/` de versiones anteriores pasan a la tabla y se **borran** del disco una vez comprobado que quedaron en la BD (así la purga por días los cubre y no quedan copias sueltas); lo que no tenga nombre válido no se toca.
+
+## Nube (Turso / libsql) y despliegue detrás de proxy
+- Sin variables nuevas todo sigue igual: SQLite local en `datos.sqlite`.
+- `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (y `pip install -r requirements-nube.txt`): el motor usa `libsql` como réplica embebida (archivo local `datos-nube.db` + Turso; sync al abrir y cada 2 s; las escrituras van a Turso). En ese modo no hay `PRAGMA journal_mode=WAL` ni `BEGIN IMMEDIATE` (un solo proceso escritor). `TURSO_SOLO_LOCAL=1` usa libsql solo sobre el archivo, sin red (diagnóstico).
+- `python -m motor migrar <carpeta> [--forzar]`: copia todas las tablas de `datos.sqlite` a Turso; falla si faltan las variables o si Turso ya tiene datos (salvo `--forzar`, que los reemplaza).
+- `GET /salud`: `200 {"ok":true}` si la BD responde a `SELECT 1`, si no `503`. Sin cookie ni datos.
+- `TUNEL=1` (Cloudflare en este PC): se cree `CF-Connecting-IP` solo si la conexión viene de 127.0.0.1. `PROXY=1` (Render/Fly): todo llega por el proxy, así que la IP real es `Fly-Client-IP` o el primer `X-Forwarded-For`, las cookies llevan `Secure` si `X-Forwarded-Proto` es https y nunca se considera LAN (el panel solo abre con `PANEL_PUBLICO=1`). Sin ninguna, se usa la IP de la conexión.
 
 ## Límites conocidos
 

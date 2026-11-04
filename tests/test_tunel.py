@@ -13,7 +13,7 @@ CF = {"CF-Connecting-IP": "8.8.8.8", "X-Forwarded-Proto": "https"}
 
 class Tunel(Base):
     def entorno(self, **env):
-        p = unittest.mock.patch.dict(os.environ, {"PANEL_PIN": PIN, "PANEL_PIN_PERSONAL": "", "PANEL_PIN_HASH": "", "TUNEL": "", "PANEL_PUBLICO": "", **env})
+        p = unittest.mock.patch.dict(os.environ, {"PANEL_PIN": PIN, "PANEL_PIN_PERSONAL": "", "PANEL_PIN_HASH": "", "TUNEL": "", "PROXY": "", "PANEL_PUBLICO": "", **env})
         p.start()
         self.addCleanup(p.stop)
         self.arrancar()
@@ -55,6 +55,26 @@ class Tunel(Base):
         cuerpo = {"nombre": "Ana", "telefono": "50760001111", "consentimiento": True, "version_aviso": "v1"}
         self.assertIn("Secure", self.post("/entrar", cuerpo, CF).getheader("Set-Cookie"))
         self.assertNotIn("Secure", self.post("/entrar", cuerpo, {"CF-Connecting-IP": "8.8.8.8"}).getheader("Set-Cookie"))
+
+    # --- PROXY=1 (Render/Fly): peer = el proxy ---
+    def test_proxy_ip_real_secure_y_nunca_lan(self):
+        self.entorno(PROXY="1")
+        self.assertEqual(self.post("/panel/entrar", {"pin": PIN}, {"Fly-Client-IP": "10.0.0.5"}).status, 404)  # sin LAN en la nube
+        self.entorno(PROXY="1", PANEL_PUBLICO="1")
+        xf = {"X-Forwarded-For": "8.8.8.8, 10.1.1.1", "X-Forwarded-Proto": "https"}
+        for _ in range(5):
+            self.assertEqual(self.post("/panel/entrar", {"pin": "000111"}, xf).status, 401)
+        self.assertEqual(self.post("/panel/entrar", {"pin": PIN}, xf).status, 429)  # bloqueada la IP real
+        r = self.post("/panel/entrar", {"pin": PIN}, {"Fly-Client-IP": "1.1.1.1", "X-Forwarded-For": "8.8.8.8", "X-Forwarded-Proto": "https"})
+        self.assertEqual(r.status, 200)  # Fly-Client-IP manda
+        self.assertIn("Secure", r.getheader("Set-Cookie"))
+
+    def test_proxy_sin_proto_https_no_secure_y_sin_proxy_se_ignora(self):
+        self.entorno(PROXY="1")
+        cuerpo = {"nombre": "Ana", "telefono": "50760001111", "consentimiento": True, "version_aviso": "v1"}
+        self.assertNotIn("Secure", self.post("/entrar", cuerpo, {"X-Forwarded-For": "8.8.8.8"}).getheader("Set-Cookie"))
+        self.entorno()
+        self.assertNotIn("Secure", self.post("/entrar", cuerpo, {"X-Forwarded-Proto": "https"}).getheader("Set-Cookie"))
 
 
 if __name__ == "__main__":

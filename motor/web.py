@@ -203,8 +203,17 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             """TUNEL=1 y la conexión viene de este mismo PC (cloudflared): se pueden creer sus cabeceras CF-*."""
             return os.environ.get("TUNEL") == "1" and self.client_address[0] in ("127.0.0.1", "::1")
 
+        def _proxy(self):
+            """PROXY=1 (Render/Fly): todo llega por el proxy de la plataforma, así que sus cabeceras se creen."""
+            return os.environ.get("PROXY") == "1"
+
         def _ip(self):
-            """IP real: CF-Connecting-IP solo si llega por el túnel (si no, cualquiera de la LAN podría falsearla)."""
+            """IP real: CF-Connecting-IP solo si llega por el túnel (si no, cualquiera de la LAN podría falsearla); con PROXY, Fly-Client-IP o el primer X-Forwarded-For."""
+            if self._proxy():
+                try:
+                    return str(ipaddress.ip_address((self.headers.get("Fly-Client-IP") or (self.headers.get("X-Forwarded-For") or "").split(",")[0]).strip()))
+                except ValueError:
+                    pass
             if self._del_tunel():
                 try:
                     return str(ipaddress.ip_address((self.headers.get("CF-Connecting-IP") or "").strip()))
@@ -214,6 +223,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
 
         def _seguro(self):
             """Cookie Secure si el cliente llegó por https a través del túnel."""
+            if self._proxy():
+                return "https" in (self.headers.get("X-Forwarded-Proto") or "").lower()
             return self._del_tunel() and "https" in ((self.headers.get("X-Forwarded-Proto") or "") + (self.headers.get("CF-Visitor") or "")).lower()
 
         def _cid(self):
@@ -244,7 +255,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
         def _panel(self, metodo, ruta):
             """Rutas /panel*: solo LAN (o PANEL_PUBLICO=1) y solo con PIN configurado; el resto de peticiones ni lo ven."""
             ip = self._ip()
-            if not (acceso.activo and (panel_web.es_lan(ip) or os.environ.get("PANEL_PUBLICO") == "1")):
+            if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or os.environ.get("PANEL_PUBLICO") == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
                 return self._enviar(200, pagina_panel, "text/html", [("Content-Security-Policy", CSP)])
@@ -495,6 +506,12 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("GET", self.path.split("?")[0])
             ruta = self.path.split("?")[0]
+            if ruta == "/salud":  # para el monitor de la plataforma: sin cookie ni datos
+                try:
+                    sv._q("SELECT 1")
+                    return self._enviar(200, {"ok": True})
+                except Exception:
+                    return self._enviar(503, {"ok": False})
             if ruta.startswith("/menu/foto/"):  # límite propio: un menú con fotos son decenas de GET de una vez
                 return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else self._foto(ruta)
             if limite.excede(("ip", self._ip()), 60):

@@ -464,10 +464,28 @@ def limpiar_imagen(datos, ext):
 
 def _borrar_archivo(sv, nombre):
     if isinstance(nombre, str) and NOMBRE_COMPROBANTE.fullmatch(nombre):
-        try:
-            (sv.dir / "comprobantes" / nombre).unlink()
-        except FileNotFoundError:
-            pass
+        sv._q("DELETE FROM comprobantes WHERE nombre=?", (nombre,))
+
+
+def leer_comprobante(sv, pedido):
+    """(bytes, ext) del comprobante del pedido, solo si el nombre es [0-9a-f]{32}.jpg|png y está en la tabla; si no, None."""
+    n = pedido.get("comprobante")
+    if not (isinstance(n, str) and NOMBRE_COMPROBANTE.fullmatch(n)):
+        return None
+    fila = sv._q("SELECT datos FROM comprobantes WHERE nombre=?", (n,))
+    return (bytes(fila[0][0]), n[-3:]) if fila else None
+
+
+def importar_comprobantes(sv):
+    """Pasa a la tabla los archivos de comprobantes/ (versión anterior) y los borra una vez comprobado que quedaron en la BD
+    (así la purga por días sigue valiendo y no quedan copias sueltas). Los archivos con otro nombre no se tocan."""
+    carpeta = sv.dir / "comprobantes"
+    for f in carpeta.iterdir() if carpeta.is_dir() else ():
+        if f.is_file() and NOMBRE_COMPROBANTE.fullmatch(f.name):
+            datos = f.read_bytes()
+            sv._q("INSERT OR IGNORE INTO comprobantes(nombre, datos, creado) VALUES (?,?,?)", (f.name, datos, f.stat().st_mtime))
+            if sv._q("SELECT datos FROM comprobantes WHERE nombre=?", (f.name,))[0][0] is not None:
+                f.unlink(missing_ok=True)
 
 
 def borrar_comprobante(sv, p):
@@ -478,7 +496,7 @@ def borrar_comprobante(sv, p):
 
 
 def purgar_comprobantes(sv):
-    """Borra comprobantes con más de comprobantes.max_dias (7) y archivos huérfanos (sin pedido, con más de 10 min por si se está subiendo uno)."""
+    """Borra comprobantes con más de comprobantes.max_dias (7) y comprobantes huérfanos (sin pedido, con más de 10 min por si se está subiendo uno)."""
     dias = (sv.cfg.get("comprobantes") or {}).get("max_dias", 7)
     limite = sv.ahora() - dt.timedelta(days=dias)
     for p in sv.listar("pedido"):
@@ -488,19 +506,16 @@ def purgar_comprobantes(sv):
     for p in sv.listar("pedido"):
         if p.get("ubicacion") and p.get("creado_at") and dt.datetime.fromisoformat(p["creado_at"]) <= tope:
             sv.actualizar(p["id"], {"ubicacion": None}, tipo="pedido")
-    carpeta = sv.dir / "comprobantes"
     en_uso = {p.get("comprobante") for p in sv.listar("pedido")}
-    for f in carpeta.iterdir() if carpeta.is_dir() else ():
-        if f.name not in en_uso and time.time() - f.stat().st_mtime > 600:
-            f.unlink(missing_ok=True)
+    for nombre, creado in sv._q("SELECT nombre, creado FROM comprobantes"):
+        if nombre not in en_uso and time.time() - creado > 600:
+            _borrar_archivo(sv, nombre)
 
 
 def subir_comprobante(sv, p, ext, datos, referencia=""):
     """Guarda la imagen ya limpia con nombre aleatorio y pasa el pedido `p` (confirmado o pago_reportado) a pago_reportado. ValueError si cambió de estado."""
-    carpeta = sv.dir / "comprobantes"
-    carpeta.mkdir(exist_ok=True)
     nombre = f"{secrets.token_hex(16)}.{ext}"
-    (carpeta / nombre).write_bytes(datos)
+    sv._q("INSERT INTO comprobantes(nombre, datos, creado) VALUES (?,?,?)", (nombre, datos, time.time()))
     antes = {}
     try:
         nuevo = _transicion(sv, p["id"], {"confirmado", "pago_reportado"}, "pago_reportado",

@@ -74,3 +74,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-04 — Con muchos restaurantes: PostgreSQL gestionado (Supabase/Neon) + fotos en R2, datos separados por restaurante (arquitecto)
 - [ ] 2026-11-04 — Ley 81: elegir región de Turso y del servidor (Render/Fly) — dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)
 - [ ] 2026-11-04 — Ajustes profesionales: identidad del restaurante (logo, nombre, colores, datos de contacto/horario) editable desde el panel, y rediseñar Ajustes (menú, repartidores con PIN, demás configuración sin tocar .env ni YAML); decidir entre agentes si separarlo en secciones/páginas (usuario) (disenador + agentedeprogramacion + comercial)
+- [ ] 2026-11-04 — Ley 81: dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)
+- [ ] 2026-11-04 — Conectar Turso de verdad: crear BD, `migrar`, probar sync entre procesos y latencia; sin BEGIN IMMEDIATE hay que mantener un solo proceso escritor (devops)

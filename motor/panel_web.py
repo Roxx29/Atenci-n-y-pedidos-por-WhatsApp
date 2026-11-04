@@ -181,9 +181,13 @@ def sembrar_usuarios(sv):
     semillas = [(n, r, *env_panel().get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
     semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores().items()]
     with sv.pedidos_lock:
-        existentes = {u["nombre"] for u in _todos(sv)}
+        existentes = {u["nombre"]: u for u in _todos(sv)}
         for nombre, rol, texto, hash_ in semillas:
-            if nombre in existentes or not (texto or hash_):
+            if not (texto or hash_):
+                continue
+            if nombre in existentes:
+                if texto and not _coincide(texto, None, existentes[nombre]["pin_hash"]) or hash_ and hash_ != existentes[nombre]["pin_hash"]:
+                    print(f"[panel] aviso: el PIN de {nombre!r} en .env no coincide con el de la BD; manda la BD (cámbielo desde Ajustes)")
                 continue
             if texto and _pin_en_uso(sv, texto):
                 print(f"[panel] usuario {nombre!r} no importado: PIN repetido")

@@ -49,6 +49,16 @@ class Usuarios(BaseSv):
         self.assertEqual(len(panel_web.lista_usuarios(self.sv)), 3)
         self.assertEqual(panel_web.Acceso("x", self.rep).rol_de_pin("739104"), "Juan")
 
+    def test_aviso_si_el_env_difiere_de_la_bd(self):
+        self.api("POST", "usuario", {"nombre": "Juan", "pin": "739104"})
+        with unittest.mock.patch("builtins.print") as pr:
+            panel_web.sembrar_usuarios(self.sv)
+        salida = " ".join(str(c) for c in pr.call_args_list)
+        self.assertIn("Juan", salida)
+        self.assertNotIn("Dueno", salida)  # el PIN del dueño coincide: sin aviso
+        for pin in ("739104", "482913", "483920"):
+            self.assertNotIn(pin, salida)
+
     def test_login_por_persona_y_rol(self):
         a = panel_web.Acceso("x", self.panel)
         self.assertEqual(a.rol_de_pin("572910"), "Personal")

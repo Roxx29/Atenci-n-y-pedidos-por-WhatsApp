@@ -25,5 +25,6 @@ Zero Trust → Access → Applications → *Self-hosted* → `demo.tudominio.com
 
 ## Seguridad / pendientes
 - 6 dígitos + bloqueo es suficiente para demo; en producción usar `PANEL_PIN_HASH` y Access.
+- **Semilla inicial:** los PIN y el menú se cambian desde Ajustes; `.env` y `menu.yaml` solo sirven de semilla inicial. El arranque avisa (sin mostrar PIN) si el PIN del `.env` no coincide con el de la BD.
 - Quien tenga el token puede suplantar el túnel: si se filtra, *Refresh token* en el dashboard.
 - Para parar la demo: cerrar la ventana "Tunel Cloudflare" (o desactivar la ruta en el dashboard).

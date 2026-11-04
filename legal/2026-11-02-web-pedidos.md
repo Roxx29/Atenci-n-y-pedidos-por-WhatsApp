@@ -26,7 +26,8 @@ Variante corta (móvil):
 >
 > **Comprobante de Yappy:** la captura puede mostrar tu nombre y datos de tu cuenta. Solo la ve el personal del restaurante para confirmar tu pago, no se envía al asistente de IA y se borra al confirmar o rechazar el pago (como máximo a los 7 días).
 >
-> **Ubicación:** si pides a domicilio, puedes compartir tu ubicación o un enlace de mapa (es opcional; también puedes escribir la dirección). Solo sirve para que el repartidor te encuentre, no se envía al asistente de IA y se borra al entregar o cancelar el pedido (como máximo a las 24 horas).
+> **Ubicación:** si pides a domicilio, puedes compartir tu ubicación o un enlace de mapa (es opcional; también puedes escribir la dirección). Solo sirve para que el repartidor te encuentre, no se envía al asistente de IA y se borra al entregar o cancelar el pedido (como máximo a las 24 horas).>
+> **Seguimiento del repartidor:** cuando tu pedido va en camino, puedes ver en un mapa dónde está el repartidor. El mapa usa OpenStreetMap; si se carga directamente desde sus servidores, la Fundación OpenStreetMap (Reino Unido) recibe tu dirección IP y la zona del mapa que ves.
 >
 > **Para qué:** tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin tu permiso aparte.
 >
@@ -149,6 +150,33 @@ Variante corta (móvil):
 - **Externo** (freelance o motorizado por cuenta propia): es **encargado** del restaurante. Antes de darle acceso firma un acuerdo corto con estas condiciones: solo entregar, no guardar ni reutilizar datos, no contactar al cliente después y borrar todo al acabar **[ABOGADO: modelo de acuerdo, pendiente 7]**. Para el código es lo mismo; el panel marca `externo: sí/no` en el repartidor para recordar el acuerdo.
 - **Plataforma** (PedidosYa, etc.): queda fuera de esta app; los datos se rigen por su propio contrato.
 
+### 2.10 Mapa en vivo del repartidor (2026-11-03)
+**Cuándo se envía la posición**
+- Solo con un pedido **asignado a ese repartidor y en `en_camino`**, y solo con la PWA abierta en primer plano (`watchPosition`; nada en segundo plano). Se envía cada 10–15 s, y solo si se ha movido más de unos 20 m.
+- Se **apaga sola** cuando no le queda ningún pedido `en_camino` (entregado, cancelado o reasignado), al pulsar Salir o cerrar la página, al acabar la sesión y, como máximo, a las 2 h de cada `en_camino`.
+- Mientras transmite, la app muestra un indicador fijo: "📍 Compartiendo ubicación".
+
+**Aviso al repartidor** (en el primer login y con cada versión nueva; se guardan `aviso_ubicacion_at` y `version`):
+> Mientras tengas un pedido **en camino**, esta app envía tu ubicación cada pocos segundos a {Restaurante}. La ven el personal del restaurante y el cliente de ese pedido, para saber cuándo llegas. Se apaga sola al entregar o cancelar, o al salir de la app. No guardamos tu recorrido: solo la última posición, que se borra al terminar. Fuera de un pedido en camino no se envía nada. ☐ Entendido
+- **Empleado:** la base es la relación laboral más este aviso; el consentimiento de un empleado no se considera libre **[ABOGADO: base y si hace falta cláusula en el contrato o el reglamento interno]**. **Externo:** se añade al acuerdo de 2.9 (pendiente 7).
+
+**Qué ve cada uno**
+- **Cliente:** solo su pedido, solo en `en_camino` y solo el último punto (sin estela del recorrido), con el nombre de pila del repartidor y una ETA. Si el repartidor lleva **varios pedidos en camino**, el cliente que no es la siguiente parada **no ve el mapa**, solo un texto: "Tu pedido va en camino; el repartidor tiene otra entrega antes". Así no se deduce el domicilio de otro cliente. Al pasar a `entregado` o `cancelado`, el mapa desaparece.
+- **Panel:** solo los repartidores que tienen algún pedido `en_camino`, con su último punto. Sin historial, sin exportación y sin ubicación fuera de servicio.
+- El endpoint del cliente usa el mismo token del enlace del pedido y responde 404 fuera de `en_camino`. Lleva `Cache-Control: no-store` y límite de peticiones.
+
+**Retención**
+- **Solo la última posición** por repartidor, sobrescrita en cada envío (en memoria o en una fila única). Se borra cuando no le quedan pedidos `en_camino` y, en todo caso, a las 2 h.
+- No se guarda el historial de puntos ni las coordenadas de entrega (como prueba basta `entregado_at`). Nunca va a los logs, a la auditoría ni a la IA. La auditoría solo anota `ubicacion_on/off` sin coordenadas.
+
+**Mosaicos del mapa (OpenStreetMap)**
+- Si el navegador pide los mosaicos directamente a tile.openstreetmap.org, la **OSMF (Reino Unido)** recibe la IP del visitante y los mosaicos que pide. Como el mapa está centrado cerca de la casa del cliente, eso revela su **zona aproximada**: es una comunicación a un tercero en el extranjero.
+- Además, la política de uso de OSM ([operations.osmfoundation.org/policies/tiles](https://operations.osmfoundation.org/policies/tiles/)) exige atribución visible, Referer y un User-Agent propio. Prohíbe la descarga masiva y la precarga, y advierte que a los servicios comerciales se les puede **cortar el acceso sin aviso**.
+- **Recomendación:** en la demo, OSM directo con la atribución "© OpenStreetMap" visible y mencionado en el aviso. En producción, **mosaicos propios** (p. ej. un archivo PMTiles de Panamá servido por nuestro servidor) o un **proxy con caché** en nuestro servidor (≥7 días, respetando las cabeceras). Así OSM no ve la IP del cliente ni del repartidor y no dependemos de su servidor (devops).
+- La atribución de OSM (ODbL) es obligatoria en cualquier caso, también con mosaicos propios.
+
+**Aviso del cliente:** se añade el párrafo "Seguimiento del repartidor" (1.2 y `aviso.md`). No hace falta una casilla nueva: no se tratan datos nuevos del cliente, salvo la IP que recibe OSM si se usa directo.
+
 ### 2.6 Seguridad mínima
 - BD SQLite en la PC del restaurante con usuario de Windows con contraseña; panel sin acceso desde Internet o con login.
 - Web: HTTPS obligatorio.
@@ -165,3 +193,4 @@ Variante corta (móvil):
 6. Si la web la usan menores de edad.
 7. Modelo de acuerdo de confidencialidad/encargado para repartidores externos (2.9).
 8. Si la geolocalización precisa necesita un consentimiento aparte de la casilla general.
+9. Base para enviar la ubicación del repartidor empleado (relación laboral) y cláusula en su contrato (2.10).

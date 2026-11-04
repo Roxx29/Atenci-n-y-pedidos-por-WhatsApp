@@ -69,6 +69,8 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS platos(orden INTEGER PRIMARY KEY, id TEXT UNIQUE, datos TEXT);"
             "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
         )
+        if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)")}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
+            self.db.executescript("ALTER TABLE platos ADD COLUMN foto BLOB; ALTER TABLE platos ADD COLUMN foto2x BLOB; ALTER TABLE platos ADD COLUMN foto_v TEXT;")
         self._db_lock = threading.Lock()
         self.citas_lock = threading.Lock()
         self.pedidos_lock = threading.RLock()
@@ -100,6 +102,19 @@ class Servicio:
     def guardar_plato(self, iid, datos):
         """Inserta o reemplaza un plato (tabla platos; el orden de alta se conserva)."""
         self._q("INSERT INTO platos(id, datos) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET datos=excluded.datos", (iid, json.dumps(datos, ensure_ascii=False)))
+
+    def fotos(self):
+        """{id: versión} de los platos con foto."""
+        return dict(self._q("SELECT id, foto_v FROM platos WHERE foto_v IS NOT NULL"))
+
+    def poner_foto(self, iid, foto=None, foto2x=None, v=None):
+        """Guarda (o borra, con None) la foto de un plato existente; False si el plato no está en la BD."""
+        with self._db_lock, self.db:
+            return self.db.execute("UPDATE platos SET foto=?, foto2x=?, foto_v=? WHERE id=?", (foto, foto2x, v, iid)).rowcount == 1
+
+    def foto(self, iid, grande=False):
+        fila = self._q(f"SELECT {'foto2x' if grande else 'foto'} FROM platos WHERE id=? AND foto_v IS NOT NULL", (iid,))
+        return fila[0][0] if fila else None
 
     @property
     def system(self):

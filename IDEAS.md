@@ -78,3 +78,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-04 — Pruebas inestables bajo carga: test_fotos.test_demasiado_grande (ConnectionAbortedError) y test_mapa 409/429 por tiempos; pasan solas 3/3 (capitán) (agentedeprogramacion)
 - [ ] 2026-11-04 — Probar mapa en vivo en un móvil real: watchPosition del repartidor con un pedido en_camino y ver el mapa en panel y web del cliente (usuario)
 - [ ] 2026-11-04 — Web de pedidos se cae sin aviso (el túnel sigue vivo y la página no carga): reinicio automático del servidor y aviso si cae (devops)
+- [ ] 2026-11-04 — Pasar el motor (bot + web + panel) a un servidor en la nube (USD 5–6/mes) en vez del PC del restaurante (devops)
+- [ ] 2026-11-04 — Copia continua de datos.sqlite y comprobantes/ a la nube (Litestream → Cloudflare R2) con prueba de restauración (devops)
+- [ ] 2026-11-04 — Con muchos restaurantes: PostgreSQL gestionado (Supabase/Neon) + fotos en R2, datos separados por restaurante (arquitecto)
+- [ ] 2026-11-04 — Ley 81: dónde se guardan los datos de clientes (país del servidor), tiempo de conservación y borrado (legal-datos)

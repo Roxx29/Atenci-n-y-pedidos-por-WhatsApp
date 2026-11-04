@@ -1,0 +1,31 @@
+# Fly.io. Guía: despliegue/nube.md. Los secretos van con `fly secrets set`, nunca aquí.
+app = "restaurante-pedidos"   # cambiar si el nombre está ocupado
+primary_region = "mia"        # Miami, la más cercana a Panamá. Comprobar con `fly platform regions` si hay "bog" (Bogotá).
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
+  LLM_MODEL = "deepseek-v4-flash"
+  PANEL_PUBLICO = "1"
+  # TUNEL no aplica detrás del proxy de Fly (ver "Pendientes" en despliegue/nube.md)
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/salud"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"            # 256mb es lo mínimo, pero anthropic+pillow van justos

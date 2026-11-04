@@ -1,0 +1,15 @@
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+comprobantes/
+despliegue/logs/
+.git
+.claude
+__pycache__/
+*.pyc
+.web_secret
+tests/
+investigacion/
+legal/
+diseno/

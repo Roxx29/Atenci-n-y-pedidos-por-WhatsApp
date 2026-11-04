@@ -1,0 +1,39 @@
+# Blueprint de Render. Guía: despliegue/nube.md
+services:
+  - type: web
+    name: restaurante-pedidos
+    runtime: docker
+    region: virginia            # la más cercana a Panamá entre las de Render
+    plan: free                  # free se duerme tras 15 min sin tráfico (el primer cliente espera ~1 min). starter ($7/mes) no se duerme.
+    healthCheckPath: /salud
+    envVars:
+      # Fijos
+      - key: ANTHROPIC_BASE_URL
+        value: https://api.deepseek.com/anthropic
+      - key: LLM_MODEL
+        value: deepseek-v4-flash
+      - key: PANEL_PUBLICO
+        value: "1"              # /panel y /repartidor por internet (siempre con PIN)
+      # TUNEL no se pone: solo confía en CF-Connecting-IP si el cliente es 127.0.0.1 (cloudflared).
+      # Detrás de Render nunca lo es, así que TUNEL=1 no haría nada. Ver "Pendientes" en despliegue/nube.md.
+      # Secretos: Render los pide al crear el Blueprint
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: WEB_SECRET         # obligatorio: sin él cada reinicio invalida las sesiones
+        sync: false
+      - key: PANEL_PIN
+        sync: false
+      - key: REPARTIDORES
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false

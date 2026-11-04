@@ -4,34 +4,58 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel · Fonda El Chitreano</title>
+<link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  --papel:#FBF6EC; --carril:#F1E7D6; --superficie:#FFFFFF; --tinta:#2A1A12; --tinta-2:#6B5446; --linea:#E2D4C0;
-  --achiote:#A8321F; --achiote-osc:#8A2817; --achiote-suave:#FBE3DE; --sobre-achiote:#FFFFFF;
-  --maiz:#E9B949; --maiz-suave:#FFF3D1; --hoja:#2F6B3A; --hoja-osc:#245530; --hoja-suave:#E3F0E2;
-  --sombra:0 1px 2px rgba(42,26,18,.08),0 3px 10px rgba(42,26,18,.07);
-  --barra:#2A1A12; --sobre-barra:#FBF6EC; --sobre-maiz:#2A1A12; --velo:rgba(251,246,236,.86);
+  /* Tokens "brasa" (estilo Material 3); los mismos de la web de pedidos */
+  --surface:#f9f9fc; --sc-lowest:#ffffff; --sc-low:#f3f3f6; --sc:#eeeef0; --sc-high:#e8e8ea; --sc-highest:#e2e2e5;
+  --on-surface:#1a1c1e; --on-variant:#5a4139; --outline:#8e7068; --outline-variant:#e2bfb5;
+  --inverse:#2f3133; --on-inverse:#f0f0f3;
+  --primary:#aa3000; --primary-container:#d04411; --on-primary:#ffffff; --primary-fixed:#ffdbd0;
+  --secondary:#7e5700; --secondary-container:#feb300; --secondary-fixed:#ffdeac;
+  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#a3f69c;
+  --error:#ba1a1a; --error-container:#ffdad6;
+  --azul:#005ac1; --azul-suave:#d8e2ff; --violeta:#6b3fa0; --violeta-suave:#ecdcff; --celeste:#00677e; --celeste-suave:#b8eaff;
+  --sombra:0 1px 2px rgba(26,28,30,.06),0 2px 10px rgba(26,28,30,.07);
+  --sombra-2:0 8px 28px rgba(26,28,30,.18);
+  --barra:#2f3133; --sobre-barra:#f0f0f3; --sobre-maiz:#1a1c1e; --velo:rgba(249,249,252,.86);
+  /* nombres anteriores, apuntando a los nuevos */
+  --papel:var(--surface); --carril:var(--sc); --superficie:var(--sc-lowest); --tinta:var(--on-surface); --tinta-2:var(--on-variant); --linea:var(--outline-variant);
+  --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
+  --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed); --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed);
+  --r:12px; --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   color-scheme:light dark;
-  --r:12px; --display:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-  --texto:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root{
-  --papel:#15100D; --carril:#1F1713; --superficie:#2A201A; --tinta:#F5EBDD; --tinta-2:#C9B6A4; --linea:#3D2E25;
-  --achiote:#DE6550; --achiote-osc:#E5735E; --achiote-suave:#3E1E19; --sobre-achiote:#1A1310;
-  --maiz-suave:#3A2E14; --hoja:#7DC48A; --hoja-osc:#93D09E; --hoja-suave:#1E2E20;
-  --sombra:0 1px 2px rgba(0,0,0,.5); --barra:#0D0907; --velo:rgba(21,16,13,.86);
+  --surface:#141211; --sc-lowest:#1d1a19; --sc-low:#221f1d; --sc:#292523; --sc-high:#332e2c; --sc-highest:#3e3835;
+  --on-surface:#ece0dc; --on-variant:#d8c2ba; --outline:#a08c85; --outline-variant:#4f3f39;
+  --primary:#ffb59f; --primary-container:#d04411; --on-primary:#5f1500; --primary-fixed:#4a1a0b;
+  --secondary:#ffba38; --secondary-fixed:#3a2b0b;
+  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21;
+  --error:#ffb4ab; --error-container:#5c1a14;
+  --azul:#aec6ff; --azul-suave:#1c2b4a; --violeta:#d6baff; --violeta-suave:#2f2142; --celeste:#7fd3ee; --celeste-suave:#0d3340;
+  --sombra:0 1px 2px rgba(0,0,0,.5); --sombra-2:0 8px 28px rgba(0,0,0,.6);
+  --barra:#0f0d0c; --velo:rgba(20,18,17,.86);
 }}
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--papel);color:var(--tinta);font:16px/1.4 var(--texto)}
+body{margin:0;background:var(--papel);color:var(--tinta);font:15px/1.45 var(--texto)}
 ::selection{background:var(--maiz);color:var(--sobre-maiz)}
-:focus-visible{outline:3px solid var(--maiz);outline-offset:2px}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.barra :focus-visible,.banda :focus-visible{outline-color:#fff}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer}
 button:disabled{cursor:progress;opacity:.6}
 [hidden]{display:none!important}
 h1,h2,h3{margin:0;line-height:1.15}
-.num{font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:var(--display);letter-spacing:-.01em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 *{scrollbar-color:var(--linea) transparent}
@@ -187,6 +211,48 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 @media (max-width:900px){.dlg{grid-template-columns:1fr}.dlg-img img{max-height:55vh}}
 .lista .btn{font-size:1rem;padding:0 12px}
 
+/* ---------- Rediseño brasa: cabecera, barra de mando y columnas por color ---------- */
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;flex:none}
+.logo svg{width:22px;height:22px;fill:currentColor;stroke:none}
+header.barra{min-height:64px;padding:8px 20px}
+.barra h1{font-size:1.125rem;font-weight:700}
+.barra h1 small{font:500 .75rem var(--texto)}
+.btn{border-radius:8px;font-size:.9375rem}
+.barra .btn.suave{border-color:rgba(240,240,243,.28);min-height:44px;padding:0 14px}
+.mando{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;padding:14px 20px 4px}
+.mando h2{font-size:1.5rem;font-weight:700;margin-right:auto}
+.metricas{display:flex;flex-wrap:wrap;gap:8px}
+.metrica{display:inline-flex;align-items:baseline;gap:8px;padding:6px 14px;border-radius:999px;background:var(--sc-lowest);box-shadow:var(--sombra)}
+.metrica b{font:500 1rem var(--mono)}
+.etq{font-size:.6875rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--on-variant)}
+.seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--sc-high)}
+.seg button{min-height:40px;padding:0 14px;border:0;border-radius:8px;background:none;font-weight:700;font-size:.8125rem;color:var(--on-variant)}
+.seg button[aria-pressed=true]{background:var(--sc-lowest);color:var(--primary);box-shadow:var(--sombra)}
+.buscar-p{position:relative;display:block}
+.buscar-p svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--outline);pointer-events:none}
+.buscar-p input{min-height:44px;width:200px;padding:0 14px 0 38px;border:1.5px solid var(--outline-variant);border-radius:999px;background:var(--sc-lowest)}
+.buscar-p input:focus{outline:none;border-color:var(--primary)}
+.tablero{padding-top:12px}
+.col{--acento:var(--outline);border-top:4px solid var(--acento);border-radius:var(--r)}
+.col.a-azul{--acento:var(--azul)}.col.a-ambar{--acento:var(--secondary-container)}.col.a-verde{--acento:var(--tertiary)}
+.col.a-primary{--acento:var(--primary)}.col.a-violeta{--acento:var(--violeta)}.col.a-celeste{--acento:var(--celeste)}
+.col.destacada{box-shadow:0 0 0 2px var(--primary),var(--sombra-2)}
+.col h2{font-size:.8125rem;font-weight:800;letter-spacing:.08em}
+.col h2+.cuenta{background:var(--sc-lowest)}
+.tarjeta{border:0;border-left:5px solid var(--acento,var(--outline-variant));border-radius:10px}
+.tarjeta.nuevo{box-shadow:0 0 0 3px var(--maiz-suave),var(--sombra)}
+.tarjeta.foco{box-shadow:0 0 0 2px var(--primary),var(--sombra)}
+.t-num{font:500 1.375rem var(--mono)}
+.t-items{border:0;background:var(--sc-low);border-radius:8px;padding:10px 12px}
+.t-total{font-family:var(--mono);font-weight:500}
+.chip{font-size:.6875rem;letter-spacing:.04em}
+.col.estrecha .tarjeta{border-left-color:var(--outline-variant)}
+.tablero{grid-auto-columns:minmax(244px,1fr)}
+.t-pie{flex-wrap:wrap;row-gap:2px}
+.t-total{font-size:1.125rem}
+.t-nota{padding:8px 12px;border-radius:8px;background:var(--error-container);color:var(--error);font-weight:700}
+.ini-rep{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--celeste-suave);color:var(--celeste);font-size:.6875rem;font-weight:800;letter-spacing:0}
+
 /* ---------- Teléfono (≤700px): una columna, sin scroll horizontal ----------
    Las pantallas nuevas del panel (repartidores, menú) reutilizan estas clases:
    .btn (52px táctil), .tarjeta, .col, .lista, .dlg, dialog.chico, .fila-btn. */
@@ -197,8 +263,16 @@ html,body{overflow-x:hidden}
   .caja-login{margin:auto}
   .teclado button{min-height:68px}
   header.barra{flex-wrap:wrap;gap:8px;padding:8px 12px}
-  .barra h1{font-size:1.25rem;flex:1 1 calc(100% - 148px);min-width:0;overflow:hidden;text-overflow:ellipsis}
-  .reloj{flex:0 0 76px;min-width:0}
+  .barra h1{font-size:1.125rem;flex:1 1 calc(100% - 175px);min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .barra .logo{order:0}
+  .mando{padding:12px 12px 0;gap:10px}
+  .mando h2{font-size:1.25rem;flex:1 1 100%}
+  .metricas{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
+  .metrica{flex:none}
+  .seg{width:100%}.seg button{flex:1;min-height:44px}
+  .buscar-p{flex:1 1 100%}.buscar-p input{width:100%}
+  .reloj{display:none}
+  #btn-salir{order:2;flex:0 0 auto}
   #btn-sonido{order:2;flex:0 0 48px;padding:0}
   .barra .btn{order:3;flex:1 1 auto;min-width:0;padding:0 8px;font-size:.875rem;min-height:48px}
   #btn-sonido{padding:0}
@@ -248,6 +322,8 @@ html,body{overflow-x:hidden}
 <body>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-fuego" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2 0-3-1-5 1-8z"/></symbol>
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
   <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
   <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
   <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
@@ -283,7 +359,8 @@ html,body{overflow-x:hidden}
 <!-- ============ Panel ============ -->
 <div id="panel" hidden>
   <header class="barra">
-    <h1>El Chitreano <small id="modo">Pedidos de hoy</small></h1>
+    <span class="logo" aria-hidden="true"><svg class="i"><use href="#i-fuego"/></svg></span>
+    <h1>Fonda El Chitreano <small id="modo">Pedidos de hoy</small></h1>
     <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
     <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
     <button class="btn suave" id="btn-cerrados" aria-pressed="false">Cancelados</button>
@@ -296,6 +373,18 @@ html,body{overflow-x:hidden}
     <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
     <button id="banda-ok">Entendido</button>
   </div>
+  <section class="mando" aria-label="Resumen y filtros">
+    <h2>Pedidos en servicio</h2>
+    <div class="metricas" role="group" aria-label="Resumen de hoy">
+      <span class="metrica"><span class="etq">Venta de hoy</span><b id="m-venta">B/. 0.00</b></span>
+      <span class="metrica"><span class="etq">Tiempo medio</span><b id="m-medio">—</b></span>
+      <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
+    </div>
+    <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
+      <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
+    </div>
+    <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
+  </section>
   <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
 </div>
 
@@ -382,11 +471,12 @@ const hora = iso => new Date(iso).toLocaleTimeString("es-PA", {hour:"numeric", m
 
 /* Columnas del tablero. `tarde`: minutos en ese estado a partir de los que la tarjeta pide atención. */
 const COLS = [
-  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"]},
-  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5},
-  {titulo:"Pagado", estados:["pagado"], tarde:5},
-  {titulo:"En cocina", estados:["en_preparacion"], tarde:25},
-  {titulo:"Listo / En camino", estados:["listo", "en_camino"], tarde:15},
+  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"], acento:"a-azul"},
+  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5, acento:"a-ambar"},
+  {titulo:"Pagado", estados:["pagado"], tarde:5, acento:"a-verde"},
+  {titulo:"En cocina", estados:["en_preparacion"], tarde:25, acento:"a-primary", destacada:true},
+  {titulo:"Listo", estados:["listo"], tarde:15, acento:"a-violeta"},
+  {titulo:"En camino", estados:["en_camino"], tarde:15, acento:"a-celeste"},
   {titulo:"Entregado", estados:["entregado"], estrecha:true},
   {titulo:"Cancelados", estados:["cancelado", "caducado"], estrecha:true, filtro:true}
 ];
@@ -519,15 +609,39 @@ function recibir(d) {
 }
 
 /* ---------- Tablero ---------- */
+/* Filtros de la barra de mando: tipo de pedido y búsqueda por número o nombre */
+st.tipo = "todos"; st.q = "";
+const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const coincide = p => (st.tipo === "todos" || (st.tipo === "entrega") === (p.modalidad === "entrega")) &&
+  (!st.q || String(p.id).includes(st.q.replace(/^#/, "")) || plano(p.nombre).includes(plano(st.q)));
+$("#filtro-tipo").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  st.tipo = b.dataset.f; for (const x of $("#filtro-tipo").children) x.setAttribute("aria-pressed", x === b); pintar();
+});
+$("#buscar-ped").addEventListener("input", e => { st.q = e.target.value.trim(); pintar(); });
+/* Métricas de hoy, con todos los pedidos que llegan (no solo los filtrados) */
+const COBRADOS = new Set(["pagado", "en_preparacion", "listo", "en_camino", "entregado"]);
+function pintarMetricas() {
+  const todos = [...st.pedidos.values()];
+  let venta = 0, suma = 0, n = 0;
+  for (const p of todos) {
+    if (COBRADOS.has(p.estado)) venta += Math.round(num(p.total) * 100); // en centavos
+    if (p.estado === "entregado" && p.creado_at && p.estado_at) { const m = (new Date(p.estado_at) - new Date(p.creado_at)) / 60000; if (m >= 0 && m < 600) { suma += m; n++; } }
+  }
+  $("#m-venta").textContent = dinero(venta / 100);
+  $("#m-medio").textContent = n ? Math.round(suma / n) + " min" : "—";
+  $("#m-activos").textContent = todos.filter(p => !CERRADOS.has(p.estado)).length;
+}
 function pintar() {
+  pintarMetricas();
   const foco = document.activeElement && document.activeElement.dataset.clave; // conservar el foco al repintar
   const tablero = $("#tablero"), cols = [];
   for (const c of COLS) {
     if (c.filtro && !st.cerrados) continue;
-    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
+    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado) && coincide(p)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
     const lista = h("div", {class:"lista"}, ps.length ? ps.map(p => tarjeta(p, c)) : h("p", {class:"vacia"}, "Nada por aquí"));
     const id = "col-" + c.estados[0];
-    cols.push(h("section", {class:"col" + (c.estrecha ? " estrecha" : "") + (ps.length ? "" : " vacio"), "aria-labelledby":id},
+    cols.push(h("section", {class:"col" + (c.acento ? " " + c.acento : "") + (c.destacada ? " destacada" : "") + (c.estrecha ? " estrecha" : "") + (ps.length ? "" : " vacio"), "aria-labelledby":id},
       h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
       lista));
   }
@@ -558,11 +672,11 @@ function tarjeta(p, col) {
     h("div", {class:"t-cab"},
       abrir,
       nuevo ? h("span", {class:"chip nuevo"}, "Nuevo")
-            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m))),
+            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m) + (col.destacada ? " / meta " + col.tarde : ""))),
     col.tarde && h("div", {class:"t-urg " + (tarde ? "tarde" : m >= col.tarde * .6 ? "atento" : "ok"), "aria-hidden":"true", style:"--p:" + Math.min(1, m / col.tarde).toFixed(2)}, h("i")),
     h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
       h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
-    entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, icono("persona"),
+    entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, repNombre(p.repartidor) ? h("span", {class:"ini-rep", "aria-hidden":"true"}, repNombre(p.repartidor).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()) : icono("persona"),
       repNombre(p.repartidor) || "Sin repartidor",
       (p.tiene_ubicacion || p.ubicacion) && h("span", {class:"t-ubic"}, icono("pin"), "Ubicación")),
     h("ul", {class:"t-items"}, (p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre, i.nota ? ` (${i.nota})` : ""))),

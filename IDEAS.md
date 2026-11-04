@@ -74,3 +74,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-03 — Mapa en vivo en producción: mosaicos propios (PMTiles Panamá) o proxy con caché para que OSM no vea la IP del cliente (devops, legal §2.10). [ABOGADO] base de la ubicación del repartidor empleado (pendiente 9)
 - [ ] 2026-11-03 — Rediseño M3 fases 2 (panel) y 3 (repartidor) + mapa en vivo (OSM/Leaflet en /estatico/; privacidad: legal §2.10) (disenador)
 - [ ] 2026-11-03 — Maqueta sin datos en el sistema, omitido: promo con demora estimada, descripción de plato, insignias (popular, picante), valoraciones (disenador)
+- [ ] 2026-11-03 — Panel: casillas por ítem en cocina y botón llamar al repartidor (maqueta); sin datos/persistencia en el sistema (disenador)

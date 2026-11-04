@@ -72,3 +72,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [~] Mapa en vivo del repartidor (usuario, 2026-11-03): lo ven panel y cliente; OSM + Leaflet autoalojado; solo última posición mientras en_camino. legal-datos (criterios Ley 81) + agentedeprogramacion (API) + disenador (3 páginas)
 - [ ] 2026-11-03 — [ABOGADO] ARCO: confirmar que pago_ref puede quedar en el pedido anonimizado, el plazo de 24 meses del registro ARCO y los 5 años del pedido anonimizado (legal §2.4)
 - [ ] 2026-11-03 — Mapa en vivo en producción: mosaicos propios (PMTiles Panamá) o proxy con caché para que OSM no vea la IP del cliente (devops, legal §2.10). [ABOGADO] base de la ubicación del repartidor empleado (pendiente 9)
+- [ ] 2026-11-03 — Rediseño M3 fases 2 (panel) y 3 (repartidor) + mapa en vivo (OSM/Leaflet en /estatico/; privacidad: legal §2.10) (disenador)
+- [ ] 2026-11-03 — Maqueta sin datos en el sistema, omitido: promo con demora estimada, descripción de plato, insignias (popular, picante), valoraciones (disenador)

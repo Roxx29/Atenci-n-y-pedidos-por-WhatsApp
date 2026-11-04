@@ -8,6 +8,7 @@ Las reglas de estado son las de herramientas.marcar_pedido / cancelar_pedido.
 """
 import hashlib
 import hmac
+import io
 import ipaddress
 import os
 import re
@@ -257,10 +258,81 @@ def guardar_plato(sv, d, quien):
     return {"ok": True, "plato": next(x for x in menu_json(sv) if x["id"] == iid)}
 
 
+def urls_foto(iid, v):
+    """{foto, foto2x}: URL de 160 y 320 px (con versión para caché immutable) o None."""
+    u = v and f"/menu/foto/{iid}.webp?v={v}"
+    return {"foto": u or None, "foto2x": u and u + "&s=2" or None}
+
+
 def menu_json(sv):
-    """Menú para la web pública y el panel (precio en B/. como número)."""
+    """Menú para la web pública y el panel (precio en B/. como número; foto/foto2x URL o null)."""
+    fotos = sv.fotos()
     return [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
-             "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
+             "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {}),
+             **urls_foto(i["id"], fotos.get(i["id"]))} for i in sv.menu.values()]
+
+
+MAX_FOTO = 3 * 1024 * 1024  # bytes de subida
+MAX_PX = 40_000_000  # píxeles de la imagen de origen (anti decompression bomb)
+TIPOS_FOTO = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
+
+
+class TipoNoValido(ValueError):
+    """→ 415."""
+
+
+def procesar_foto(datos):
+    """(webp 160, webp 320) cuadrados y centrados, sin metadatos. El formato se detecta con Pillow por contenido.
+    TipoNoValido si no es JPEG/PNG/WebP; ValueError si está corrupta o es demasiado grande en píxeles."""
+    import warnings
+    from PIL import Image, ImageOps
+    Image.MAX_IMAGE_PIXELS = MAX_PX  # Image.open lanza DecompressionBombError por encima de 2x
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            im = Image.open(io.BytesIO(datos), formats=list(TIPOS_FOTO.values()))
+            if im.width * im.height > MAX_PX:
+                raise ValueError("Imagen demasiado grande (máx. 40 Mpx)")
+            im.draft("RGB", (640, 640))  # JPEG: decodifica ya reducida
+            im = ImageOps.exif_transpose(im)  # gira según EXIF antes de descartarlo
+            if im.mode in ("RGBA", "LA", "P", "PA"):  # transparencia → fondo blanco
+                im = im.convert("RGBA")
+                fondo = Image.new("RGB", im.size, "white")
+                fondo.paste(im, mask=im.getchannel("A"))
+                im = fondo
+            im = ImageOps.fit(im.convert("RGB"), (320, 320), Image.Resampling.LANCZOS)
+    except Image.UnidentifiedImageError:
+        raise TipoNoValido("Solo se aceptan imágenes JPEG, PNG o WebP")
+    except Exception:  # corrupta, bomba (DecompressionBombError/Warning) o > MAX_PX; Pillow lanza de todo
+        raise ValueError("Imagen no válida o demasiado grande (máx. 40 Mpx)")
+
+    def webp(img, tope):
+        for q in (80, 65, 50, 35):
+            b = io.BytesIO()
+            Image.frombytes("RGB", img.size, img.tobytes()).save(b, "WEBP", quality=q, method=6)  # imagen nueva: sin EXIF/ICC/XMP
+            if b.tell() <= tope:
+                break
+        return b.getvalue()
+    return webp(im.resize((160, 160), Image.Resampling.LANCZOS), 12_000), webp(im, 40_000)
+
+
+def guardar_foto(sv, quien, iid, datos):
+    """Procesa y guarda la foto de un plato. LookupError si el plato no existe."""
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid) and iid in sv.menu):
+        raise LookupError(iid)
+    p1, p2 = procesar_foto(datos)
+    v = hashlib.sha256(p1 + p2).hexdigest()[:12]
+    if not sv.poner_foto(iid, p1, p2, v):
+        raise LookupError(iid)
+    auditar(sv, quien, f"foto_subir:{iid}")
+    return {"ok": True, **urls_foto(iid, v)}
+
+
+def borrar_foto(sv, quien, iid):
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid) and sv.poner_foto(iid)):
+        raise LookupError(iid)
+    auditar(sv, quien, f"foto_borrar:{iid}")
+    return {"ok": True}
 
 
 def lista_usuarios(sv):
@@ -421,6 +493,8 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return {"menu": menu_json(sv)}
     if (metodo, ruta) == ("POST", "plato"):
         return guardar_plato(sv, d or {}, quien)
+    if (metodo, ruta) == ("POST", "foto_borrar"):
+        return borrar_foto(sv, quien, (d or {}).get("plato"))
     raise LookupError(ruta)
 
 

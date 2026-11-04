@@ -271,6 +271,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if len(partes) == 4 and partes[2] == "dueno":  # ajustes: usuarios y menú (solo rol dueno)
                     if rol != "dueno":
                         return self._err(403, "Solo el dueño puede hacer esto")
+                    if (metodo, partes[3]) == ("POST", "foto"):
+                        return self._subir_foto(quien, renovar)
                     d = self._json() if metodo == "POST" else {}
                     if d is None:
                         return
@@ -283,6 +285,48 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             except ValueError:  # int() de la ruta
                 return self._err(400, "Datos inválidos")
             self._err(404, "No encontrado")
+
+        def _subir_foto(self, quien, renovar):
+            """POST /panel/dueno/foto?plato=<id>, cuerpo = bytes crudos. Exigir image/* bloquea formularios ajenos (CSRF) sin CORS."""
+            if self.headers.get("Content-Type", "").split(";")[0].strip().lower() not in panel_web.TIPOS_FOTO:
+                return self._err(415, "Solo se aceptan imágenes JPEG, PNG o WebP")
+            try:
+                largo = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._err(400, "Cuerpo inválido")
+            if largo > panel_web.MAX_FOTO:  # antes de leer
+                return self._err(413, "La imagen supera 3 MB")
+            if largo <= 0:
+                return self._err(400, "Imagen no válida")
+            try:
+                self._leido = True
+                datos = self.rfile.read(largo)
+            except OSError:
+                return self._err(400, "Cuerpo incompleto")
+            if len(datos) != largo:
+                return self._err(400, "Cuerpo incompleto")
+            try:
+                r = panel_web.guardar_foto(sv, quien, (parse_qs(urlsplit(self.path).query).get("plato") or [""])[0], datos)
+            except LookupError:
+                return self._err(404, "No existe ese plato")
+            except panel_web.TipoNoValido as e:
+                return self._err(415, str(e))
+            except ValueError as e:
+                return self._err(400, str(e))
+            return self._enviar(200, r, extra=renovar)
+
+        def _foto(self, ruta):
+            """GET /menu/foto/<id>.webp[?s=2]: público; la URL lleva ?v=<hash>, así que se cachea para siempre."""
+            iid = ruta[len("/menu/foto/"):].removesuffix(".webp")
+            img = ruta.endswith(".webp") and panel_web.ID_PLATO.fullmatch(iid) and sv.foto(iid, (parse_qs(urlsplit(self.path).query).get("s") or [""])[0] == "2")
+            if not img:
+                return self._err(404, "No encontrado")
+            self.send_response(200)
+            for k, v in (("Content-Type", "image/webp"), ("Content-Length", str(len(img))), ("X-Content-Type-Options", "nosniff"),
+                         ("Cache-Control", "public, max-age=31536000, immutable")):
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(img)
 
         def _repartidor(self, metodo, ruta):
             """Rutas /repartidor*: PIN propio por repartidor; ve solo sus pedidos abiertos. No es solo-LAN (el móvil va por la calle): PIN + bloqueo; HTTPS en producción."""
@@ -342,9 +386,11 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._repartidor("GET", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("GET", self.path.split("?")[0])
+            ruta = self.path.split("?")[0]
+            if ruta.startswith("/menu/foto/"):  # límite propio: un menú con fotos son decenas de GET de una vez
+                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else self._foto(ruta)
             if limite.excede(("ip", self._ip()), 60):
                 return self._err(429, "Demasiadas peticiones")
-            ruta = self.path.split("?")[0]
             if ruta == "/":
                 return self._enviar(200, pagina, "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/menu":

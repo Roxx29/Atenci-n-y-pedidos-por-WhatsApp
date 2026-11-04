@@ -63,7 +63,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] Web: al recargar, el teléfono sale prellenado como 50760000001; comprobar que al reentrar no se duplique el prefijo +507 (tester, 2026-11-03) (agentedeprogramacion)
 - [ ] Ajustes: no se pueden borrar personas, solo desactivarlas (queda 'PruebaQA' inactivo de la prueba) (tester, 2026-11-03)
 
-- [ ] Páginas más interactivas y premium (web pedidos, panel, repartidor): investigación en curso → diseno/propuesta-premium.md (2026-11-03)
+- [~] Páginas premium (usuario, 2026-11-03): propuesta integrada (diseno/propuesta-premium.md). En curso: 5 quick wins (disenador). Después: menú con fotos + mini-carrito W5/W6 (agentedeprogramacion + disenador)
 - [ ] 2026-11-03 — Completar referentes de investigacion/2026-11-03-paginas-premium.md: Rappi, PedidosYa, Fresh KDS, Toast Online Ordering, Mobbin/Awwwards y "deslizar para confirmar"; verificar en caniuse las cifras marcadas * (agenteinvestigacion)
 - [ ] 2026-11-03 — Implementar propuesta premium (diseno/propuesta-premium.md): quick wins W1/W2/W7, P3, P6, R2, R3/P4, R5 (disenador; capitán decide)
 - [ ] 2026-11-03 — W13 Repetir último pedido y P11 borde por modalidad (propuesta premium, disenador)

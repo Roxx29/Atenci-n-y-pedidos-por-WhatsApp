@@ -51,3 +51,6 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - Ubicación/repartidor: seguimiento GPS del repartidor, ubicación por WhatsApp ya enchufada (probar con Meta), PIN de repartidor solo hash en producción, campo externo sí/no (NDA, legal §2.9), página /repartidor y botón de ubicación de disenador.
 - [ ] Repartidor: probar en un móvil real al sol (contraste, botones) e instalar la PWA (necesita HTTPS).
 - [ ] Ubicación: probar el GPS por HTTPS y el pegado de enlaces maps.app.goo.gl reales.
+
+- [ ] Panel web: crear/editar repartidores (con su PIN), configurar el menú y demás ajustes sin tocar .env ni YAML. (usuario, 2026-11-03)
+- [ ] Arreglar test_recordatorio_y_cancelacion (test_motor): depende del día; falla si el próximo miércoles 10:00 está a menos de 24 h. (capitán, 2026-11-03)

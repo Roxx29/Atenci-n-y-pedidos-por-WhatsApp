@@ -75,3 +75,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [x] 2026-11-03 — Rediseño M3 fases 1-3 y mapa en vivo (OSM/Leaflet) hechos en las 3 páginas (disenador)
 - [ ] 2026-11-03 — Maqueta sin datos en el sistema, omitido: promo con demora estimada, descripción de plato, insignias (popular, picante), valoraciones (disenador)
 - [ ] 2026-11-03 — Panel: casillas por ítem en cocina y botón llamar al repartidor (maqueta); sin datos/persistencia en el sistema (disenador)
+- [ ] 2026-11-04 — Pruebas inestables bajo carga: test_fotos.test_demasiado_grande (ConnectionAbortedError) y test_mapa 409/429 por tiempos; pasan solas 3/3 (capitán) (agentedeprogramacion)
+- [ ] 2026-11-04 — Probar mapa en vivo en un móvil real: watchPosition del repartidor con un pedido en_camino y ver el mapa en panel y web del cliente (usuario)

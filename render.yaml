@@ -12,6 +12,8 @@ services:
         value: https://api.deepseek.com/anthropic
       - key: LLM_MODEL
         value: deepseek-v4-flash
+      - key: PROXY
+        value: "1"              # IP real = último X-Forwarded-For (el que añade Render); si hay otro proxy delante, PROXY_SALTOS=2
       - key: PANEL_PUBLICO
         value: "1"              # /panel y /repartidor por internet (siempre con PIN)
       # TUNEL no se pone: solo confía en CF-Connecting-IP si el cliente es 127.0.0.1 (cloudflared).

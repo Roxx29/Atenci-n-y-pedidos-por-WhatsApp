@@ -208,11 +208,16 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             return os.environ.get("PROXY") == "1"
 
         def _ip(self):
-            """IP real: CF-Connecting-IP solo si llega por el túnel (si no, cualquiera de la LAN podría falsearla); con PROXY, Fly-Client-IP o el primer X-Forwarded-For."""
+            """IP real: CF-Connecting-IP solo si llega por el túnel (si no, cualquiera de la LAN podría falsearla).
+            Con PROXY=1: Fly-Client-IP solo en Fly (FLY_APP_NAME; en otro sitio el cliente la puede escribir) o, si no, el X-Forwarded-For
+            contando desde la DERECHA (lo que añade el proxy de confianza; el primer valor lo escribe el cliente). PROXY_SALTOS = proxies de confianza (1)."""
             if self._proxy():
                 try:
-                    return str(ipaddress.ip_address((self.headers.get("Fly-Client-IP") or (self.headers.get("X-Forwarded-For") or "").split(",")[0]).strip()))
-                except ValueError:
+                    if os.environ.get("FLY_APP_NAME") and self.headers.get("Fly-Client-IP"):
+                        return str(ipaddress.ip_address(self.headers["Fly-Client-IP"].strip()))
+                    xff = [x.strip() for x in (self.headers.get("X-Forwarded-For") or "").split(",") if x.strip()]
+                    return str(ipaddress.ip_address(xff[-max(1, int(os.environ.get("PROXY_SALTOS") or 1))]))
+                except (ValueError, IndexError):
                     pass
             if self._del_tunel():
                 try:

@@ -167,6 +167,14 @@ class Comprobante(Base):
         herramientas.importar_comprobantes(self.sv)
         self.assertEqual(len(self.archivos()), 1)
 
+    def test_importar_no_borra_si_la_bd_no_tiene_lo_mismo(self):
+        self.carpeta.mkdir(exist_ok=True)
+        n = "e" * 32 + ".png"
+        (self.carpeta / n).write_bytes(png())
+        self.sv._q("INSERT INTO comprobantes(nombre, datos, creado) VALUES (?,?,0)", (n, b"otra cosa"))  # el nombre ya existe con otro contenido
+        herramientas.importar_comprobantes(self.sv)
+        self.assertTrue((self.carpeta / n).exists())
+
 
 class Extra(Base):
     def setUp(self):

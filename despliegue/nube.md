@@ -56,6 +56,7 @@ Hoy lo sirve el túnel de Cloudflare (CNAME a `<id>.cfargotunnel.com`).
 3. Arrancar `Encender.cmd`.
 
 ## Pendientes (para agentedeprogramacion)
-- **IP real detrás del proxy.** `TUNEL=1` solo cree `CF-Connecting-IP` si el cliente es 127.0.0.1 (`motor/web.py`, `_del_tunel`). Con Render/Fly el cliente es el proxy: todos los visitantes comparten IP, así que el bloqueo de PIN (5 fallos) y los límites de peticiones afectarían a todos a la vez; las cookies no llevan `Secure`; y `es_lan()` toma la IP privada del proxy por LAN. Hace falta un modo que confíe en `X-Forwarded-For` / `Fly-Client-IP` / `X-Forwarded-Proto` (p. ej. `PROXY=1`). No inventado aquí; por eso se usa `PANEL_PUBLICO=1` y no `TUNEL`.
+- **IP real detrás del proxy.** Resuelto con `PROXY=1` (ya puesto en `render.yaml` y `fly.toml`): en Fly vale `Fly-Client-IP` (solo si existe `FLY_APP_NAME`, porque fuera de Fly el cliente la puede escribir); en Render, el ÚLTIMO valor de `X-Forwarded-For` (el primero lo escribe el cliente). Si hay otro proxy de confianza delante (CDN), `PROXY_SALTOS=2`. Comprobar tras desplegar que dos visitantes distintos no comparten IP.
+- **Un solo proceso escritor.** Con Turso no hay `BEGIN IMMEDIATE`: no escalar a más de 1 instancia (Fly `min_machines_running = 1`, sin autoescalado; Render 1 instancia) ni abrir el bot y el panel de escritorio a la vez contra la misma BD.
 - El Dockerfile no se pudo construir aquí (no hay Docker). Probar con `docker build -t restaurante .` y `docker run -p 8080:8080 restaurante`.
 - `requirements-nube.txt` (libsql), `migrar` y `/salud` los añade otro agente; el build falla hasta que estén en la rama.

@@ -84,7 +84,7 @@ Al arrancar, los archivos de `comprobantes/` de versiones anteriores pasan a la 
 - `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` (y `pip install -r requirements-nube.txt`): el motor usa `libsql` como réplica embebida (archivo local `datos-nube.db` + Turso; sync al abrir y cada 2 s; las escrituras van a Turso). En ese modo no hay `PRAGMA journal_mode=WAL` ni `BEGIN IMMEDIATE` (un solo proceso escritor). `TURSO_SOLO_LOCAL=1` usa libsql solo sobre el archivo, sin red (diagnóstico).
 - `python -m motor migrar <carpeta> [--forzar]`: copia todas las tablas de `datos.sqlite` a Turso; falla si faltan las variables o si Turso ya tiene datos (salvo `--forzar`, que los reemplaza).
 - `GET /salud`: `200 {"ok":true}` si la BD responde a `SELECT 1`, si no `503`. Sin cookie ni datos.
-- `TUNEL=1` (Cloudflare en este PC): se cree `CF-Connecting-IP` solo si la conexión viene de 127.0.0.1. `PROXY=1` (Render/Fly): todo llega por el proxy, así que la IP real es `Fly-Client-IP` o el primer `X-Forwarded-For`, las cookies llevan `Secure` si `X-Forwarded-Proto` es https y nunca se considera LAN (el panel solo abre con `PANEL_PUBLICO=1`). Sin ninguna, se usa la IP de la conexión.
+- `TUNEL=1` (Cloudflare en este PC): se cree `CF-Connecting-IP` solo si la conexión viene de 127.0.0.1. `PROXY=1` (Render/Fly): todo llega por el proxy, así que la IP real es `Fly-Client-IP` (solo con `FLY_APP_NAME`) o el último `X-Forwarded-For` (`PROXY_SALTOS` = proxies de confianza), las cookies llevan `Secure` si `X-Forwarded-Proto` es https y nunca se considera LAN (el panel solo abre con `PANEL_PUBLICO=1`). Sin ninguna, se usa la IP de la conexión.
 
 ## Límites conocidos
 

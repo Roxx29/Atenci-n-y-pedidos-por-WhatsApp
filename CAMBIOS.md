@@ -2,6 +2,7 @@
 
 Lo último que se agregó, cambió o actualizó en el proyecto. Lo más reciente arriba. Formato: `- AAAA-MM-DD — qué cambió (autor)`.
 
+- 2026-11-04 — Integradas ramas nube y despliegue; PROXY=1 usa el último X-Forwarded-For (Fly-Client-IP solo en Fly), importación de comprobantes verifica bytes antes de borrar, PROXY=1 en render/fly, quitado .whl del repo (agentedeprogramacion)
 - 2026-11-04 — Propuesta de Ajustes (datos y API): tabla `ajustes` sobre servicio.yaml, logo BLOB, `/config`, fases F1-F4 → diseno/propuestas/2026-11-04-ajustes-agentedeprogramacion.md (agentedeprogramacion)
 - 2026-11-04 — IDEAS: quitadas 9 tareas repetidas (panel, web, token, campo) y añadida "Ajustes profesionales" (logo, nombre, menú, repartidores) (capitan)
 - 2026-11-04 — En curso: código listo para la nube sin conectar (Turso opcional, comprobantes en BD, migrar, /salud, Dockerfile/render.yaml/fly.toml). El PC sigue igual (capitan)

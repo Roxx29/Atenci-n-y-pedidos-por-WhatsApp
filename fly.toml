@@ -10,6 +10,7 @@ primary_region = "mia"        # Miami, la más cercana a Panamá. Comprobar con 
   ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
   LLM_MODEL = "deepseek-v4-flash"
   PANEL_PUBLICO = "1"
+  PROXY = "1"                 # IP real = Fly-Client-IP (lo pone Fly; solo se cree si existe FLY_APP_NAME)
   # TUNEL no aplica detrás del proxy de Fly (ver "Pendientes" en despliegue/nube.md)
 
 [http_service]

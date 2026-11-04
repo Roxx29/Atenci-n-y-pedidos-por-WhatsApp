@@ -13,7 +13,7 @@ CF = {"CF-Connecting-IP": "8.8.8.8", "X-Forwarded-Proto": "https"}
 
 class Tunel(Base):
     def entorno(self, **env):
-        p = unittest.mock.patch.dict(os.environ, {"PANEL_PIN": PIN, "PANEL_PIN_PERSONAL": "", "PANEL_PIN_HASH": "", "TUNEL": "", "PROXY": "", "PANEL_PUBLICO": "", **env})
+        p = unittest.mock.patch.dict(os.environ, {"PANEL_PIN": PIN, "PANEL_PIN_PERSONAL": "", "PANEL_PIN_HASH": "", "TUNEL": "", "PROXY": "", "PROXY_SALTOS": "", "FLY_APP_NAME": "", "PANEL_PUBLICO": "", **env})
         p.start()
         self.addCleanup(p.stop)
         self.arrancar()
@@ -61,12 +61,16 @@ class Tunel(Base):
         self.entorno(PROXY="1")
         self.assertEqual(self.post("/panel/entrar", {"pin": PIN}, {"Fly-Client-IP": "10.0.0.5"}).status, 404)  # sin LAN en la nube
         self.entorno(PROXY="1", PANEL_PUBLICO="1")
-        xf = {"X-Forwarded-For": "8.8.8.8, 10.1.1.1", "X-Forwarded-Proto": "https"}
+        xf = {"X-Forwarded-For": "9.9.9.9, 8.8.8.8", "X-Forwarded-Proto": "https"}  # el primero lo escribe el cliente; el último, el proxy
         for _ in range(5):
             self.assertEqual(self.post("/panel/entrar", {"pin": "000111"}, xf).status, 401)
         self.assertEqual(self.post("/panel/entrar", {"pin": PIN}, xf).status, 429)  # bloqueada la IP real
+        # falsear el primer X-Forwarded-For no evita el bloqueo (sigue contando la IP del proxy) ni sirve Fly-Client-IP fuera de Fly
+        for falso in ("1.1.1.1", "2.2.2.2"):
+            self.assertEqual(self.post("/panel/entrar", {"pin": PIN}, {"Fly-Client-IP": falso, "X-Forwarded-For": f"{falso}, 8.8.8.8", "X-Forwarded-Proto": "https"}).status, 429)
+        self.entorno(PROXY="1", PANEL_PUBLICO="1", FLY_APP_NAME="app")
         r = self.post("/panel/entrar", {"pin": PIN}, {"Fly-Client-IP": "1.1.1.1", "X-Forwarded-For": "8.8.8.8", "X-Forwarded-Proto": "https"})
-        self.assertEqual(r.status, 200)  # Fly-Client-IP manda
+        self.assertEqual(r.status, 200)  # en Fly, Fly-Client-IP manda
         self.assertIn("Secure", r.getheader("Set-Cookie"))
 
     def test_proxy_sin_proto_https_no_secure_y_sin_proxy_se_ignora(self):

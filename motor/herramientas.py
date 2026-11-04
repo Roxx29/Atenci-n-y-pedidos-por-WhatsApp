@@ -484,7 +484,8 @@ def importar_comprobantes(sv):
         if f.is_file() and NOMBRE_COMPROBANTE.fullmatch(f.name):
             datos = f.read_bytes()
             sv._q("INSERT OR IGNORE INTO comprobantes(nombre, datos, creado) VALUES (?,?,?)", (f.name, datos, f.stat().st_mtime))
-            if sv._q("SELECT datos FROM comprobantes WHERE nombre=?", (f.name,))[0][0] is not None:
+            fila = sv._q("SELECT datos FROM comprobantes WHERE nombre=?", (f.name,))
+            if fila and bytes(fila[0][0] or b"") == datos:
                 f.unlink(missing_ok=True)
 
 

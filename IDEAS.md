@@ -69,3 +69,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-03 — W13 Repetir último pedido y P11 borde por modalidad (propuesta premium, disenador)
 - [x] 2026-11-03 — W5 Ajustes: subir/cambiar/quitar foto por plato hecho (disenador)
 - [~] Rediseño estilo maquetas 'Fuego & Brasa' (usuario, 2026-11-03): tokens brasa M3, Epilogue/Plus Jakarta/JetBrains Mono autoalojadas, kanban por estados, catálogo+chat 8/4, repartidor con tarjeta activa. Se mantiene marca real y funciones reales; sin Tailwind CDN. Fases: web → panel → repartidor (disenador)
+- [ ] 2026-11-03 — Rediseño M3 fases 2 (panel) y 3 (repartidor) + mapa en vivo (OSM/Leaflet en /estatico/; privacidad: legal §2.10) (disenador)
+- [ ] 2026-11-03 — Maqueta sin datos en el sistema, omitido: promo con demora estimada, descripción de plato, insignias (popular, picante), valoraciones (disenador)

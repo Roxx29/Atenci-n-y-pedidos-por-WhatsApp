@@ -1,0 +1,5 @@
+Fuentes autoalojadas, licencia SIL Open Font License 1.1 (https://openfontlicense.org):
+- Epilogue (Etcetera Type Co.)
+- Plus Jakarta Sans (Tokotype)
+- JetBrains Mono (JetBrains)
+Copias latinas variables obtenidas de @fontsource-variable; JetBrains Mono recortada a ASCII.

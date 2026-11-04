@@ -64,3 +64,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] Ajustes: no se pueden borrar personas, solo desactivarlas (queda 'PruebaQA' inactivo de la prueba) (tester, 2026-11-03)
 
 - [ ] Páginas más interactivas y premium (web pedidos, panel, repartidor): investigación en curso → diseno/propuesta-premium.md (2026-11-03)
+- [ ] 2026-11-03 — Completar referentes de investigacion/2026-11-03-paginas-premium.md: Rappi, PedidosYa, Fresh KDS, Toast Online Ordering, Mobbin/Awwwards y "deslizar para confirmar"; verificar en caniuse las cifras marcadas * (agenteinvestigacion)

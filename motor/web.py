@@ -30,6 +30,8 @@ MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
 VIDA_S = 24 * 3600
+VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
+PEDIDO_ACTIVO = {"por_confirmar", "pago_reportado", "pagado", "en_preparacion", "listo", "en_camino"}  # confirmado no: ya terminó la conversación
 CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data:"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
 
@@ -111,6 +113,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
     menu = [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
              "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {})} for i in sv.menu.values()]
+
+    corte = {}  # cid -> id de pedido hasta el que (inclusive) ya no se muestra si está cerrado  # ponytail: en memoria; tras reiniciar reaparece el último cerrado
 
     def pedidos_de(cid):
         return [p for p in sv.listar("pedido") if p["telefono"] == cid]
@@ -342,7 +346,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if not cid:
                     return self._err(401, "Sesión inválida")
                 if ruta == "/pedidos":
-                    return self._enviar(200, {"pedidos": [formato_pedido(p) for p in reversed(pedidos_de(cid))]})
+                    return self._enviar(200, {"pedidos": [formato_pedido(p) for p in reversed(pedidos_de(cid)) if p["id"] > corte.get(cid, 0) or p["estado"] in herramientas.ABIERTOS]})
                 textos = []
                 for m in sv.pendientes():
                     if m["telefono"] != cid:
@@ -391,8 +395,18 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             nombre = nombre.strip()
             sv.insertar("consentimiento", {"telefono": tel, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
             nombres[tel] = nombre
+            self._visita_nueva(tel)
             cookie = f"sesion={firmar(secreto, tel, int(time.time()) + VIDA_S)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={VIDA_S}{'; Secure' if self._seguro() else ''}"
             self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", cookie)])
+
+        def _visita_nueva(self, cid):
+            """Chat limpio (historial del modelo) si el último pedido terminó o hubo >VISITA_S sin actividad. El pedido en BD no se toca."""
+            fila, ps = sv._q("SELECT actualizado FROM conversaciones WHERE id=?", (cid,)), pedidos_de(cid)
+            cerrado = bool(ps) and ps[-1]["estado"] not in PEDIDO_ACTIVO
+            if cerrado:
+                corte[cid] = ps[-1]["id"]
+            if fila and (cerrado or time.time() - fila[0][0] > VISITA_S):
+                sv._q("DELETE FROM conversaciones WHERE id=?", (cid,))
 
         def _comprobante(self):
             cid = self._cid()

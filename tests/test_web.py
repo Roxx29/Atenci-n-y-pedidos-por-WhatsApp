@@ -213,6 +213,33 @@ class MenuYPedidos(Base):
         self.sv._cliente.respuestas.append(texto("nada"))
         self.assertIsNone(self.js("POST", "/chat", {"texto": "hola"}, cookie=a)[1]["pedido"])
 
+    def _historial_filas(self):
+        return self.sv._q("SELECT id FROM conversaciones")
+
+    def test_visita_nueva_tras_pedido_cerrado(self):
+        self.arrancar([herramienta("crear_pedido", PEDIDO), texto("Listo")])
+        _, _, a = self.entrar()
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
+        pid = d["pedido"]["id"]
+        self.entrar()  # pedido en curso: se conserva historial y pedido
+        self.assertEqual(len(self._historial_filas()), 1)
+        self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
+        self.sv.actualizar(pid, {"estado": "entregado"}, tipo="pedido")
+        self.entrar()  # cerrado: chat limpio, pedido ya no se muestra, sigue en BD
+        self.assertEqual(self._historial_filas(), [])
+        self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})
+        self.assertEqual(len(self.sv.listar("pedido")), 1)
+
+    def test_visita_nueva_por_inactividad(self):
+        self.arrancar([texto("hola")])
+        _, _, a = self.entrar()
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
+        self.entrar()
+        self.assertEqual(len(self._historial_filas()), 1)  # reciente: se conserva
+        self.sv._q("UPDATE conversaciones SET actualizado=?", (time.time() - web.VISITA_S - 60,))
+        self.entrar()
+        self.assertEqual(self._historial_filas(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

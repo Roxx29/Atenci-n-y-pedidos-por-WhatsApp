@@ -291,9 +291,17 @@ def acciones_de(p):
     return a
 
 
-def _mask(tel):
-    t = str(tel or "")
-    return t[:1] + "***-**" + t[-2:] if len(t) > 4 else "***"
+def _mask(tel, con_prefijo=False):
+    """Panamá: 6***-**12 (con_prefijo: +507 6***-**12, para logs). Otros: +prefijo, primer dígito, * y 2 últimos. Sin teléfono (anonimizado): —."""
+    t = "".join(c for c in str(tel or "") if c.isdigit())
+    if not t:
+        return "—"
+    if len(t) <= 8:  # ponytail: se asume parte nacional de 8 dígitos para separar el prefijo de país
+        return t[:1] + "***-**" + t[-2:] if len(t) > 4 else "***"
+    pref, nac = t[:-8], t[-8:]
+    if pref == "507":
+        return ("+507 " if con_prefijo else "") + nac[0] + "***-**" + nac[-2:]
+    return f"+{pref} {nac[0]}{'*' * 5}{nac[-2:]}"
 
 
 def pedido_json(p, detalle=False):

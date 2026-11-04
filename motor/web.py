@@ -64,8 +64,8 @@ def cid_de_cookie(secreto, cabecera):
 
 
 def enmascarar(tel):
-    """507******12: nunca se imprime el teléfono completo."""
-    return tel[:3] + "*" * max(len(tel) - 5, 0) + tel[-2:] if len(tel) > 5 else "***"
+    """+507 6***-**12: nunca se imprime el teléfono completo."""
+    return panel_web._mask(tel, con_prefijo=True)
 
 
 def aviso_de(sv):

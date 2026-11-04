@@ -128,7 +128,7 @@ class Acceso(Base):
             st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
         self.assertEqual((st, d["respuesta"]), (200, web.GENERICA))
         self.assertNotIn(TEL, str(pr.call_args_list))  # teléfono enmascarado en consola
-        self.assertEqual(web.enmascarar(TEL), "507******11")
+        self.assertEqual(web.enmascarar(TEL), "+507 6***-**11")
 
     def test_limite_entrar_429(self):
         for _ in range(10):

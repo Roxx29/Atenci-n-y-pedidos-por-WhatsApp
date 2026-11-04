@@ -135,5 +135,27 @@ class Menu(BaseSv):
             self.api("POST", "plato", {"id": "flan", "precio": 0}, quien="Personal", rol="personal")
 
 
+class Enmascarado(BaseSv):
+    def test_formatos(self):
+        m = panel_web._mask
+        self.assertEqual(m("50761234512"), "6***-**12")
+        self.assertEqual(m("+507 6123-4512", con_prefijo=True), "+507 6***-**12")
+        self.assertEqual(m("5215512345678"), "+52155 1*****78")
+        self.assertEqual(m(None), "—")
+
+    def test_cerrado_enmascarado_y_caducado_con_estado_at(self):
+        from motor import herramientas
+        from tests.test_web import PEDIDO, TEL
+        pid = herramientas.crear_pedido(self.sv, telefono=TEL, **PEDIDO)["pedido_id"]
+        p = next(p for p in self.sv.listar("pedido") if p["id"] == pid)
+        self.assertEqual(panel_web.pedido_json(p, True)["telefono"], TEL)  # abierto: completo en el detalle
+        self.sv.ahora = lambda: dt.datetime(2026, 11, 2, 13, 0, tzinfo=self.sv.tz)
+        self.assertEqual(herramientas.caducar_pedidos(self.sv), [pid])
+        p = next(p for p in self.sv.listar("pedido") if p["id"] == pid)
+        self.assertEqual(p["estado_at"], "2026-11-02T13:00:00-05:00")
+        self.assertEqual(panel_web.pedido_json(p, True)["telefono"], "6***-**11")
+        self.assertEqual(panel_web.pedido_json({**p, "telefono": None})["telefono"], "—")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,7 @@
 """Canal web: página de pedidos con chat (solo stdlib). Cookie firmada = identidad del cliente (cid = teléfono)."""
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -145,6 +146,23 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             self._leido = True
             self._enviar(codigo, {"error": msg})
 
+        def _del_tunel(self):
+            """TUNEL=1 y la conexión viene de este mismo PC (cloudflared): se pueden creer sus cabeceras CF-*."""
+            return os.environ.get("TUNEL") == "1" and self.client_address[0] in ("127.0.0.1", "::1")
+
+        def _ip(self):
+            """IP real: CF-Connecting-IP solo si llega por el túnel (si no, cualquiera de la LAN podría falsearla)."""
+            if self._del_tunel():
+                try:
+                    return str(ipaddress.ip_address((self.headers.get("CF-Connecting-IP") or "").strip()))
+                except ValueError:
+                    pass
+            return self.client_address[0]
+
+        def _seguro(self):
+            """Cookie Secure si el cliente llegó por https a través del túnel."""
+            return self._del_tunel() and "https" in ((self.headers.get("X-Forwarded-Proto") or "") + (self.headers.get("CF-Visitor") or "")).lower()
+
         def _cid(self):
             return cid_de_cookie(secreto, self.headers.get("Cookie"))
 
@@ -171,9 +189,9 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
 
         def _panel(self, metodo, ruta):
-            """Rutas /panel*: solo LAN y solo con PIN configurado; el resto de peticiones ni lo ven."""
-            ip = self.client_address[0]
-            if not (acceso.activo and panel_web.es_lan(ip)):
+            """Rutas /panel*: solo LAN (o PANEL_PUBLICO=1) y solo con PIN configurado; el resto de peticiones ni lo ven."""
+            ip = self._ip()
+            if not (acceso.activo and (panel_web.es_lan(ip) or os.environ.get("PANEL_PUBLICO") == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
                 return self._enviar(200, pagina_panel, "text/html", [("Content-Security-Policy", CSP)])
@@ -191,15 +209,15 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     return self._err(401, "PIN incorrecto")
                 bloqueo.acierto(ip)
                 panel_web.auditar(sv, rol, "login")
-                return self._enviar(200, {"ok": True, "rol": rol}, extra=[("Set-Cookie", acceso.cookie(rol))])
+                return self._enviar(200, {"ok": True, "rol": rol}, extra=[("Set-Cookie", acceso.cookie(rol, seguro=self._seguro()))])
             ses = acceso.sesion(self.headers.get("Cookie"))
             if not ses:
                 return self._err(401, "Sesión inválida")
             rol, lim = ses
-            renovar = [("Set-Cookie", acceso.cookie(rol, lim))]
+            renovar = [("Set-Cookie", acceso.cookie(rol, lim, self._seguro()))]
             if ruta == "/panel/salir" and metodo == "POST":
                 panel_web.auditar(sv, rol, "salir")
-                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acceso.borrar_cookie())])
+                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acceso.borrar_cookie(self._seguro()))])
             partes = ruta.split("/")  # ['', 'panel', 'estado'] ...
             try:
                 if ruta == "/panel/estado" and metodo == "GET":
@@ -253,7 +271,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
 
         def _repartidor(self, metodo, ruta):
             """Rutas /repartidor*: PIN propio por repartidor; ve solo sus pedidos abiertos. No es solo-LAN (el móvil va por la calle): PIN + bloqueo; HTTPS en producción."""
-            ip = self.client_address[0]
+            ip = self._ip()
             if not acc_rep.activo:
                 return self._err(404, "No encontrado")
             if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
@@ -278,15 +296,15 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     return self._err(401, "PIN incorrecto")
                 bloqueo_rep.acierto(ip)
                 panel_web.auditar(sv, nombre, "repartidor_login")
-                return self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", acc_rep.cookie(nombre))])
+                return self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", acc_rep.cookie(nombre, seguro=self._seguro()))])
             ses = acc_rep.sesion(self.headers.get("Cookie"))
             if not ses:
                 return self._err(401, "Sesión inválida")
             nombre, lim = ses
-            renovar = [("Set-Cookie", acc_rep.cookie(nombre, lim))]
+            renovar = [("Set-Cookie", acc_rep.cookie(nombre, lim, self._seguro()))]
             if ruta == "/repartidor/salir" and metodo == "POST":
                 panel_web.auditar(sv, nombre, "repartidor_salir")
-                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acc_rep.borrar_cookie())])
+                return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acc_rep.borrar_cookie(self._seguro()))])
             if ruta == "/repartidor/pedidos" and metodo == "GET":
                 return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre)}, extra=renovar)
             if ruta == "/repartidor/marcar" and metodo == "POST":
@@ -309,7 +327,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._repartidor("GET", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("GET", self.path.split("?")[0])
-            if limite.excede(("ip", self.client_address[0]), 60):
+            if limite.excede(("ip", self._ip()), 60):
                 return self._err(429, "Demasiadas peticiones")
             ruta = self.path.split("?")[0]
             if ruta == "/":
@@ -342,7 +360,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._repartidor("POST", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("POST", self.path.split("?")[0])
-            ip = self.client_address[0]
+            ip = self._ip()
             ruta = self.path.split("?")[0]
             if limite.excede(("ip", ip), 60) or (ruta == "/entrar" and limite.excede(("entrar", ip), 10)):
                 return self._err(429, "Demasiadas peticiones")
@@ -373,7 +391,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             nombre = nombre.strip()
             sv.insertar("consentimiento", {"telefono": tel, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
             nombres[tel] = nombre
-            cookie = f"sesion={firmar(secreto, tel, int(time.time()) + VIDA_S)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={VIDA_S}"
+            cookie = f"sesion={firmar(secreto, tel, int(time.time()) + VIDA_S)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={VIDA_S}{'; Secure' if self._seguro() else ''}"
             self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", cookie)])
 
         def _comprobante(self):

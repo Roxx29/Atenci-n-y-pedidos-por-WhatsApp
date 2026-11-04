@@ -108,14 +108,14 @@ class Acceso:
     def _firma(self, rol, exp, lim):
         return hmac.new(self.clave, f"{rol}.{exp}.{lim}".encode(), hashlib.sha256).hexdigest()
 
-    def cookie(self, rol, lim=None):
+    def cookie(self, rol, lim=None, seguro=False):
         """Cookie con inactividad de 30 min (exp) y tope absoluto de 12 h (lim)."""
         lim = lim or int(time.time()) + VIDA_S
         exp = min(int(time.time()) + self.inactivo, lim)
-        return f"{self.nombre}={rol}.{exp}.{lim}.{self._firma(rol, exp, lim)}; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age={exp - int(time.time())}"
+        return f"{self.nombre}={rol}.{exp}.{lim}.{self._firma(rol, exp, lim)}; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age={exp - int(time.time())}{'; Secure' if seguro else ''}"
 
-    def borrar_cookie(self):
-        return f"{self.nombre}=; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age=0"
+    def borrar_cookie(self, seguro=False):
+        return f"{self.nombre}=; HttpOnly; SameSite=Strict; Path={self.ruta}; Max-Age=0{'; Secure' if seguro else ''}"
 
     def sesion(self, cabecera):
         """(rol, lim) si hay sesión válida; si no, None."""

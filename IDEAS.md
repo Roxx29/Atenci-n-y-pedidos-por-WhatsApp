@@ -39,7 +39,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-02 — Canal web: retención/borrado/ARCO de consentimientos y datos, y redactar aviso.md con legal-datos (legal-datos)
 
 - [devops] Producción: túnel Cloudflare con nombre (cuenta + dominio) en vez de quick tunnel; y contraseña/limitar la web pública de demo.
-- [devops] cloudflared: para enseñar la demo fuera de la red local y para el webhook de WhatsApp (pendiente).
+- [devops] cloudflared: ver despliegue/cloudflare.md (túnel con nombre listo; falta que el usuario cree túnel y token). Webhook de WhatsApp pendiente.
 - [ ] 2026-11-02 — Web: en modo demo mostrar "el bot está pensando, puede tardar ~30 s" mientras responde el modelo local (capitan) (disenador)
 - [ ] Web: probar en un móvil real la subida del comprobante (galería, cámara y fotos HEIC de iPhone).
 - [ ] 2026-11-02 — Medir qwen3:4b como respaldo Ollama (tiempo + acierto crear_pedido) cuando haya memoria libre; ver investigacion/2026-11-02-modelo-rapido.md (agenteinvestigacion)

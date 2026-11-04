@@ -161,6 +161,7 @@ class Acceso(Base):
         self.assertNotIn("${p.nombre", h)
         self.assertNotRegex(h, r'<input type="checkbox"[^>]*checked')
         self.assertRegex(h, r'<input type="checkbox" name="privacidad" required')
+        h = h.replace("https://tile.openstreetmap.org/", "")  # único origen externo permitido: los mosaicos del mapa (la CSP también lo limita)
         for malo in ("<script src", "http://", "https://", "eval("):
             self.assertNotIn(malo, h)
 

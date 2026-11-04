@@ -247,6 +247,18 @@ header.barra{min-height:64px;padding:8px 20px}
 .t-total{font-family:var(--mono);font-weight:500}
 .chip{font-size:.6875rem;letter-spacing:.04em}
 .col.estrecha .tarjeta{border-left-color:var(--outline-variant)}
+dialog.dlg-mapa{width:min(900px,calc(100% - 32px));padding:16px}
+.mapa-cab{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mapa-cab h2{margin-right:auto;font-size:1.25rem}
+#mapa{height:min(420px,50vh);border-radius:10px;background:var(--sc);z-index:0}
+#mapa-lista{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+#mapa-lista li{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--sc-low)}
+#mapa-lista li .edad{margin-left:auto;font-size:.8125rem;color:var(--on-variant)}
+#mapa-lista li.viejo .edad{color:var(--error);font-weight:700}
+.pin-rep span,.pin-rest span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pin-rest span{background:var(--inverse);color:var(--secondary-container);font-size:1rem}
+.pin-rep.viejo span{background:#6f6f73;border-style:dashed}
+.leaflet-container{font-family:var(--texto)}
 .tablero{grid-auto-columns:minmax(244px,1fr)}
 .t-pie{flex-wrap:wrap;row-gap:2px}
 .t-total{font-size:1.125rem}
@@ -383,6 +395,7 @@ html,body{overflow-x:hidden}
     <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
       <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
     </div>
+    <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
     <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
   </section>
   <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
@@ -441,6 +454,13 @@ html,body{overflow-x:hidden}
     </form>
   </div>
   <button class="icono-btn dlg-cerrar" id="aj-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-flota" class="dlg-mapa" aria-labelledby="mapa-tit">
+  <div class="mapa-cab"><h2 id="mapa-tit">Repartidores en camino</h2><button class="icono-btn" id="mapa-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button></div>
+  <div id="mapa" role="img" aria-label="Mapa con la posición actual de los repartidores en camino"></div>
+  <p class="error" id="mapa-aviso" hidden>No se pudo cargar el mapa. La lista de abajo sigue al día.</p>
+  <ul id="mapa-lista" aria-live="polite"></ul>
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -855,6 +875,69 @@ function enviarAjuste(form, ruta, datos) {
 const sinVacios = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
 enviarAjuste($("#f-usuario"), "/panel/dueno/usuario", f => sinVacios({nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim(), activo:f.activo.checked}));
 enviarAjuste($("#f-plato"), "/panel/dueno/plato", f => sinVacios({id:f.elements.id.value.trim(), nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim(), disponible:f.disponible.checked}));
+
+/* ---------- Mapa de repartidores en camino (Leaflet autoalojado, carga diferida) ----------
+   Solo el punto actual de cada repartidor, sin estela. Siempre con "© OpenStreetMap" a la vista y una lista en texto como alternativa. */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+const MAPA = {mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
+const inicialesDe = n => String(n || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+async function pedirFlota() {
+  if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:"Fonda El Chitreano"}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
+  return api("GET", "/panel/repartidores_mapa");
+}
+function pintarListaMapa() {
+  const d = MAPA.datos;
+  $("#n-mapa").textContent = d.repartidores.length; $("#n-mapa").hidden = !d.repartidores.length;
+  $("#mapa-lista").replaceChildren(...(d.repartidores.length ? d.repartidores.map(r => h("li", {class:r.viejo ? "viejo" : ""},
+    h("span", {class:"ini-rep", "aria-hidden":"true"}, inicialesDe(r.repartidor)),
+    h("span", {}, h("b", {}, r.repartidor), ` · pedido #${r.pedido_id}`),
+    h("span", {class:"edad num"}, r.viejo ? `Dato viejo · hace ${Math.round(r.edad_s / 60)} min` : `hace ${r.edad_s} s`)))
+    : [h("li", {class:"vacia"}, "Nadie va en camino ahora.")]));
+}
+async function actualizarMapa() {
+  try { MAPA.datos = await pedirFlota(); } catch (e) { return; }
+  pintarListaMapa();
+  if (!$("#dlg-flota").open || !MAPA.mapa) return;
+  const L = window.L, d = MAPA.datos, vistos = new Set(), pts = [];
+  if (d.restaurante && !MAPA.rest) {
+    MAPA.rest = L.marker([d.restaurante.lat, d.restaurante.lon], {title:d.restaurante.nombre || "Restaurante", icon:L.divIcon({className:"pin-rest", html:h("span", {}, "★"), iconSize:[32, 32]})}).addTo(MAPA.mapa);
+  }
+  if (d.restaurante) pts.push([d.restaurante.lat, d.restaurante.lon]);
+  for (const r of d.repartidores) {
+    const k = r.repartidor + r.pedido_id; vistos.add(k); pts.push([r.lat, r.lon]);
+    let m = MAPA.marcas.get(k);
+    if (!m) { m = L.marker([r.lat, r.lon], {title:r.repartidor, icon:L.divIcon({className:"pin-rep", html:h("span", {}, inicialesDe(r.repartidor)), iconSize:[34, 34]})}).addTo(MAPA.mapa); MAPA.marcas.set(k, m); }
+    m.setLatLng([r.lat, r.lon]); m.getElement().classList.toggle("viejo", !!r.viejo);
+  }
+  for (const [k, m] of MAPA.marcas) if (!vistos.has(k)) { m.remove(); MAPA.marcas.delete(k); }
+  if (pts.length && !MAPA.ajustado) { MAPA.mapa.fitBounds(pts, {padding:[40, 40], maxZoom:16}); MAPA.ajustado = true; }
+}
+$("#btn-mapa").onclick = async () => {
+  $("#dlg-flota").showModal(); $("#mapa-aviso").hidden = true; $("#mapa").hidden = false; MAPA.ajustado = false;
+  await actualizarMapa();
+  try {
+    if (st.demo) throw new Error("demo");
+    const L = await cargarLeaflet();
+    if (!MAPA.mapa) {
+      MAPA.mapa = L.map("mapa", {zoomControl:true, attributionControl:true}).setView([7.9667, -80.4333], 13);
+      MAPA.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(MAPA.mapa);
+    }
+    setTimeout(() => { MAPA.mapa.invalidateSize(); actualizarMapa(); }, 50);
+  } catch (e) { $("#mapa").hidden = true; $("#mapa-aviso").hidden = false; }
+};
+$("#mapa-cerrar").onclick = () => $("#dlg-flota").close();
+$("#dlg-flota").addEventListener("click", e => { if (e.target === $("#dlg-flota")) $("#dlg-flota").close(); });
+setInterval(() => { if (!$("#panel").hidden && !st.bloqueado && document.visibilityState === "visible") actualizarMapa(); }, 6000);
 
 /* ---------- Bandeja de avisos ---------- */
 function abrirBandeja(on) {

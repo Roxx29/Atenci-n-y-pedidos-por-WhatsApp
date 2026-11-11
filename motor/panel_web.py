@@ -433,7 +433,7 @@ def pedido_json(p, detalle=False):
          "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
          "metodo": p.get("metodo"), "referencia": p.get("referencia"), "comprobante": bool(p.get("comprobante")),
          "creado_at": p.get("creado_at"), "estado_at": p.get("estado_at") or p.get("creado_at"), "acciones": acciones_de(p),
-         "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion")),
+         "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion")), "por_cobrar": bool(p.get("por_cobrar")), "cobrado_por": p.get("cobrado_por"),
          "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona"))}
     if detalle and not cerrado:
         d["direccion"] = p.get("direccion")
@@ -460,13 +460,18 @@ def estado_panel(sv, desde=0, repartidores=()):
 
 def marcar(sv, pedido_id, estado, rol):
     """pagado | pago_rechazado | en_preparacion | listo | entregado | cancelado. ValueError legible si no procede. Anota quién y cuándo."""
+    previo = next((p for p in sv.listar("pedido") if p["id"] == pedido_id), None)
     if estado in ("cancelado", "cancelar"):
         herramientas.cancelar_pedido(sv, pedido_id)
         estado = "cancelado"
     else:
         herramientas.marcar_pedido(sv, pedido_id, estado)
     ahora = sv.ahora().isoformat()
-    return sv.actualizar(pedido_id, {f"{estado}_por": rol, f"{estado}_at": ahora, "estado_at": ahora}, tipo="pedido")
+    cambios = {f"{estado}_por": rol, f"{estado}_at": ahora, "estado_at": ahora}
+    if estado == "entregado" and previo and previo.get("por_cobrar"):  # efectivo contra entrega: queda anotado quién cobró y cuánto
+        cambios.update(por_cobrar=False, cobrado_por=rol, cobrado_at=ahora, cobrado_c=previo["total_c"])
+        herramientas._aviso(sv, previo, pedido_id, f"{rol} cobró {dinero(previo['total_c'])} en efectivo del pedido #{pedido_id}.")
+    return sv.actualizar(pedido_id, cambios, tipo="pedido")
 
 
 ASIGNABLES = {"pagado", "en_preparacion", "listo"}
@@ -491,7 +496,8 @@ def pedido_repartidor(p):
     return {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"), "telefono": p.get("telefono"), "direccion": p.get("direccion"), "zona": p.get("zona"),
             "notas": p.get("notas"), "hora_deseada": p.get("hora_deseada"),
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
-            "total": dinero(p["total_c"]), "pagado": True,  # el pago va antes de preparar: el repartidor no cobra
+            "total": dinero(p["total_c"]), "pagado": not p.get("por_cobrar"),  # el pago va antes de preparar, salvo efectivo contra entrega: ahí cobra el repartidor
+            "cobrar": dinero(p["total_c"]) if p.get("por_cobrar") else None,
             "mapa": ubicacion.url_mapa(p), "tiene_ubicacion": bool(p.get("ubicacion")), "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona")),
             "acciones": [SIGUIENTE[p["estado"]]] if p["estado"] in SIGUIENTE else []}
 
@@ -501,12 +507,14 @@ def pedidos_repartidor(sv, nombre):
     return [pedido_repartidor(p) for p in sv.listar("pedido") if p.get("repartidor") == nombre and p["estado"] in EN_RUTA]
 
 
-def marcar_repartidor(sv, nombre, pedido_id, estado):
+def marcar_repartidor(sv, nombre, pedido_id, estado, cobrado=False):
     p = next((p for p in sv.listar("pedido") if p["id"] == pedido_id), None)
     if not p or p.get("repartidor") != nombre or p["estado"] not in EN_RUTA:
         raise ValueError("No tiene ese pedido asignado")
     if SIGUIENTE.get(p["estado"]) != estado:
         raise ValueError("Ese cambio no corresponde al estado actual del pedido")
+    if estado == "entregado" and p.get("por_cobrar") and cobrado is not True:
+        raise ValueError(f"Cobra {dinero(p['total_c'])} en efectivo y confirma que ya lo cobraste.")
     return marcar(sv, pedido_id, estado, nombre)
 
 
@@ -534,7 +542,7 @@ def ajustes_json(sv):
     c = sv.cfg
     pago = c.get("pago") or {}
     return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")),
-            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {k: pago.get(k) or "" for k in ("yappy", "transferencia")}}
+            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)}}
 
 
 def poner_cerrado(sv, quien, cerrado):
@@ -580,9 +588,10 @@ def guardar_ajustes(sv, d, quien):
         nuevo["horario"] = {**viejo, "dias": [x for x in herramientas.DIAS if por_dia[x]], "por_dia": por_dia}
     if "pago" in d:
         p = d["pago"]
-        if not (isinstance(p, dict) and set(p) <= {"yappy", "transferencia"} and all(isinstance(v, str) and len(v) <= 160 for v in p.values())):
+        if not (isinstance(p, dict) and set(p) <= {"yappy", "transferencia", "efectivo"}
+                and all(isinstance(v, bool) if k == "efectivo" else isinstance(v, str) and len(v) <= 160 for k, v in p.items())):
             raise ValueError("Datos de pago inválidos (máx. 160 letras cada uno)")
-        nuevo["pago"] = {**(sv.cfg.get("pago") or {}), **{k: " ".join(v.split()) or None for k, v in p.items()}}
+        nuevo["pago"] = {**(sv.cfg.get("pago") or {}), **{k: v if k == "efectivo" else " ".join(v.split()) or None for k, v in p.items()}}
     if "cerrado" in d:
         if not isinstance(d["cerrado"], bool):
             raise ValueError("Cerrado debe ser sí o no")

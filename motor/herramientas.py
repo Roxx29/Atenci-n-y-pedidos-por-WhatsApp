@@ -436,6 +436,25 @@ def reportar_pago(sv, pedido_id, metodo, referencia):
     return {"ok": True, "estado": "pago_reportado", "nota": "Pago pendiente de verificación por el restaurante. No lo des por pagado ni prometas tiempo de preparación o entrega hasta que el equipo lo verifique."}
 
 
+def efectivo_ok(sv):
+    """¿Acepta efectivo al entregar? (servicio.yaml pago.efectivo, y el dueño lo cambia en Configuración; por defecto sí)."""
+    return bool((sv.cfg.get("pago") or {}).get("efectivo", True))
+
+
+def pagar_efectivo(sv, pedido_id):
+    """Pago contra entrega, solo en pedidos con entrega a domicilio: el pedido pasa a cocina sin esperar pago y el repartidor cobra al llegar."""
+    if not efectivo_ok(sv):
+        raise ValueError("Por ahora no aceptamos efectivo; el pago es por Yappy o transferencia.")
+    p = next((x for x in sv.listar("pedido") if x["id"] == pedido_id), None)
+    if not p or p["modalidad"] != "entrega":
+        raise ValueError("El pago en efectivo es solo para pedidos con entrega a domicilio.")
+    ahora = sv.ahora().isoformat()
+    p = _transicion(sv, pedido_id, {"confirmado"}, "pagado", {"metodo": "efectivo", "por_cobrar": True, "pagado_at": ahora, "estado_at": ahora})
+    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} de {_una_linea(p['nombre'])}: pagará EN EFECTIVO al repartidor, {dinero(p['total_c'])}. Prepararlo y asignar repartidor.")
+    return {"ok": True, "estado": "pagado", "total": dinero(p["total_c"]),
+            "nota": "Pago en efectivo contra entrega: el pedido ya pasa a cocina y el repartidor cobra el total al entregar. Díselo al cliente; no pidas comprobante."}
+
+
 # --- comprobante de Yappy (foto): solo para verificar el pago de ese pedido; el modelo nunca la ve ---
 NOMBRE_COMPROBANTE = re.compile(r"[0-9a-f]{32}\.(jpg|png)")
 PNG_SIG, PNG_QUITAR = b"\x89PNG\r\n\x1a\n", {b"eXIf", b"tEXt", b"zTXt", b"iTXt", b"tIME"}
@@ -637,6 +656,7 @@ CATALOGO = {
     "escalar_a_humano": (escalar_a_humano, "Pasa la conversación a una persona: el cliente lo pide, está molesto, es urgente o no sabes la respuesta.", _s({"motivo": S}, ["motivo"])),
     "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": HP, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
     "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": HP, "notas": S}, ["pedido_id"])),
+    "pagar_efectivo": (pagar_efectivo, "El cliente pide pagar en efectivo al recibir (SOLO pedidos con entrega a domicilio, ya confirmados): pasa a cocina y el repartidor cobra. Úsala solo si el cliente lo pide.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "guardar_ubicacion": (guardar_ubicacion, "Guarda la ubicación de entrega cuando el cliente pega un enlace de Google Maps (o 'lat, lon'). Pasa el enlace EXACTO que escribió; nunca inventes ni calcules coordenadas.", _s({"pedido_id": {"type": "integer"}, "enlace": S}, ["pedido_id", "enlace"])),
@@ -653,7 +673,7 @@ def esquemas(nombres):
 
 CON_TELEFONO = {"agendar_cita", "programar_mensaje", "escalar_a_humano", "registrar", "buscar", "crear_pedido"}
 CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
-          "reportar_pago": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
+          "reportar_pago": ("pedido_id", "pedido"), "pagar_efectivo": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 

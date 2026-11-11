@@ -358,6 +358,9 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .dia-h input[type=checkbox]{width:22px;height:22px;accent-color:var(--primary)}
 .dia-h input[type=time]{min-height:44px;width:124px}
 .dia-h input:disabled{opacity:.35}
+.caja-aj label.casilla{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:.9375rem;color:var(--on-surface)}
+.caja-aj label.casilla input{width:22px;height:22px;min-height:0;accent-color:var(--primary)}
+.caja-aj label.casilla small{flex:1 0 100%}
 .config-pie{display:flex;flex-wrap:wrap;align-items:center;gap:12px;position:sticky;bottom:0;padding:12px 0;background:var(--papel)}
 .config-pie .btn{min-height:48px}
 .sw.tienda[aria-checked=false]{color:var(--error)}
@@ -557,6 +560,8 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
             <h3 class="grupo">Datos de pago</h3>
             <label>Yappy<input name="yappy" maxlength="160" placeholder="@turestaurante o número"></label>
             <label>Transferencia<input name="transferencia" maxlength="160" placeholder="Banco · tipo de cuenta · número · a nombre de"></label>
+            <label class="casilla"><input type="checkbox" name="efectivo"> Aceptar efectivo en entregas a domicilio
+              <small>El cliente elige pagar al recibir, el pedido pasa a cocina y el repartidor cobra y avisa desde su página.</small></label>
           </section>
           <div class="config-pie"><button class="btn">Guardar cambios</button><span class="t-espera" id="config-nota" role="status"></span></div>
         </form>
@@ -867,6 +872,8 @@ function tarjeta(p, col) {
 }
 function estadoCorto(p) {
   if (p.estado === "en_camino") return "En camino" + (repNombre(p.repartidor) ? " con " + repNombre(p.repartidor) : "");
+  if (p.por_cobrar && p.estado !== "entregado") return "Efectivo: cobra el repartidor " + dinero(p.total);
+  if (p.estado === "entregado" && p.cobrado_por) return "Efectivo cobrado por " + (repNombre(p.cobrado_por) || p.cobrado_por);
   return {por_confirmar:"El cliente aún no confirma", confirmado:"Esperando pago", pago_reportado:p.metodo ? `Pagó por ${p.metodo}` : "Dice que pagó"}[p.estado] || "";
 }
 const permite = (p, e) => !p.acciones || p.acciones.includes(e); // el servidor dice qué botones tocan
@@ -1153,7 +1160,7 @@ $("#stats-seg").onclick = ev => { const b = ev.target.closest("[data-d]"); if (b
 async function pintarConfig() {
   let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
   const f = $("#f-config");
-  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia;
+  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo;
   $("#config-nota").textContent = "";
   $("#horario-dias").replaceChildren(...DIAS_H.map(([d, nombre]) => {
     const t = a.horario[d] || [], abre = h("input", {type:"checkbox", "data-dia":d}); abre.checked = t.length > 0;
@@ -1176,7 +1183,7 @@ $("#f-config").onsubmit = async ev => {
     horario[abre.dataset.dia] = turnos;
   }
   try {
-    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim()}});
+    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}});
     nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
   } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
 };
@@ -1350,7 +1357,7 @@ const DEMO = {
         ["empanadas", "Empanadas de carne (3 u.)", 3, "entradas"], ["chicheme", "Chicheme", 1.75, "bebidas"], ["saril", "Chicha de saril", 1.5, "bebidas"], ["tres-leches", "Tres leches", 3.5, "postres"]]
     .map(([id, nombre, precio, categoria]) => ({id, nombre, precio, categoria, disponible:id !== "tres-leches", foto:null})),
   usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true})),
-  ajustes:{marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:""},
+  ajustes:{marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:"", efectivo:true},
            horario:Object.fromEntries(["lun", "mar", "mie", "jue", "vie", "sab", "dom"].map(d => [d, d === "lun" ? [] : [["11:00", "15:00"], ["18:00", "22:00"]]]))}
 };
 function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la demostración sin servidor; no valida nada (eso lo hace el servidor)

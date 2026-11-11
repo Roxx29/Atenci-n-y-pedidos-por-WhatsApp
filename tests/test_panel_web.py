@@ -219,6 +219,51 @@ class PanelWeb(Base):
         self.assertNotIn(TEL, str(d))  # nada de teléfonos
         self.assertEqual(self.js("POST", "/panel/dueno/estadisticas", {"dias": 5}, cookie=ck)[1]["dias"], 30)
 
+    def test_efectivo_contra_entrega_y_cobro_del_repartidor(self):
+        sv = self.sv
+        ent = {**PEDIDO, "modalidad": "entrega", "zona": "Chitré", "direccion": "Calle 4"}
+        pid = herramientas.crear_pedido(sv, telefono=TEL, **ent)["pedido_id"]
+        herramientas.confirmar_pedido(sv, pid)
+        total = sv.listar("pedido")[0]["total_c"]
+        herramientas.pagar_efectivo(sv, pid)  # pasa a cocina sin esperar pago
+        p = sv.listar("pedido")[0]
+        self.assertEqual((p["estado"], p["metodo"], p["por_cobrar"]), ("pagado", "efectivo", True))
+        self.assertIn("EN EFECTIVO", [a["texto"] for a in sv.listar("aviso")][-1])
+        panel_web.asignar(sv, pid, "Juan", {"Juan"})
+        for est in ("en_preparacion", "listo"):
+            panel_web.marcar(sv, pid, est, "Ana")
+        v = panel_web.pedidos_repartidor(sv, "Juan")[0]
+        self.assertEqual((v["pagado"], v["cobrar"]), (False, herramientas.dinero(total)))
+        panel_web.marcar_repartidor(sv, "Juan", pid, "en_camino")
+        with self.assertRaisesRegex(ValueError, "Cobra"):  # sin confirmar el cobro no se entrega
+            panel_web.marcar_repartidor(sv, "Juan", pid, "entregado")
+        panel_web.marcar_repartidor(sv, "Juan", pid, "entregado", True)
+        p = sv.listar("pedido")[0]
+        self.assertEqual((p["estado"], p["por_cobrar"], p["cobrado_por"], p["cobrado_c"]), ("entregado", False, "Juan", total))
+        self.assertIn(f"Juan cobró {herramientas.dinero(total)} en efectivo", [a["texto"] for a in sv.listar("aviso")][-1])
+        # recoger no admite efectivo; apagado desde Configuración tampoco, y la web lo sabe
+        rec = herramientas.crear_pedido(sv, telefono=TEL, **PEDIDO)["pedido_id"]
+        herramientas.confirmar_pedido(sv, rec)
+        with self.assertRaisesRegex(ValueError, "entrega a domicilio"):
+            herramientas.pagar_efectivo(sv, rec)
+        _, ck = self.login()
+        self.assertTrue(self.js("GET", "/config")[1]["efectivo"])
+        self.assertEqual(self.js("POST", "/panel/dueno/ajustes", {"pago": {"efectivo": False}}, cookie=ck)[0], 200)
+        self.assertFalse(self.js("GET", "/config")[1]["efectivo"])
+        with self.assertRaisesRegex(ValueError, "no aceptamos efectivo"):
+            herramientas.pagar_efectivo(sv, rec)
+        self.assertEqual(self.js("POST", "/panel/dueno/ajustes", {"pago": {"efectivo": "si"}}, cookie=ck)[0], 409)
+
+    def test_web_cliente_paga_en_efectivo(self):
+        ck = self.entrar()[2]
+        pid = herramientas.crear_pedido(self.sv, telefono=TEL, **{**PEDIDO, "modalidad": "entrega", "zona": "Chitré", "direccion": "Calle 4"})["pedido_id"]
+        herramientas.confirmar_pedido(self.sv, pid)
+        self.assertEqual(self.js("POST", "/efectivo", {"pedido": pid})[0], 401)
+        self.assertEqual(self.js("POST", "/efectivo", {"pedido": 9999}, cookie=ck)[0], 404)
+        st, d, _ = self.js("POST", "/efectivo", {"pedido": pid}, cookie=ck)
+        self.assertEqual((st, d["pedido"]["estado"], d["pedido"]["por_cobrar"]), (200, "pagado", True))
+        self.assertEqual(self.js("POST", "/efectivo", {"pedido": pid}, cookie=ck)[0], 409)  # ya no está esperando pago
+
     def test_config_publica_y_pago_solo_con_sesion(self):
         st, d, _ = self.js("GET", "/config")
         self.assertEqual((st, d["marca"], d["impuesto_pct"]), (200, "DeliFood", self.sv.cfg["pedidos"]["impuesto_pct"]))

@@ -394,6 +394,11 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
         <div class="tarjeta" id="tarjeta-pago" hidden>
           <h3 id="pago-titulo">Paga y envía tu comprobante</h3>
           <div id="pago-datos"></div>
+          <div id="efectivo-caja" hidden>
+            <p class="t-sub" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
+            <button class="btn btn-sec btn-ancho" id="efectivo-boton" type="button">Pagar en efectivo al recibir</button>
+            <p class="error" id="efectivo-error" role="alert"></p>
+          </div>
           <div class="comprobante">
             <input type="file" id="cp-archivo" accept="image/*" hidden>
             <div id="cp-elegir">
@@ -492,7 +497,7 @@ const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "fil
 const guardar = () => { try { localStorage.setItem("cliente", JSON.stringify({nombre:st.nombre, telefono:st.telefono.replace(/^507/, "")})); } catch (e) {} }; // sin prefijo: el campo ya muestra +507
 
 /* ---------- Datos del restaurante: GET /config (salen de servicio.yaml). Lo fijo de aquí es solo para la demostración sin servidor. ---------- */
-const DEMO_CFG = {horario:{dias:["mar", "mie", "jue", "vie", "sab", "dom"], turnos:[["11:00", "15:00"], ["18:00", "22:00"]]}, impuesto_pct:7,
+const DEMO_CFG = {efectivo:true, horario:{dias:["mar", "mie", "jue", "vie", "sab", "dom"], turnos:[["11:00", "15:00"], ["18:00", "22:00"]]}, impuesto_pct:7,
   envio:{"Chitré":2, "La Villa de Los Santos":3}, pago:{yappy:"@delifood (ejemplo)", transferencia:"Banco General · Ahorros 03-00-00-000000-0 (ejemplo)"}};
 let CFG = st.demo ? DEMO_CFG : {};
 const ORDEN_DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
@@ -851,6 +856,7 @@ function ponerPedido(p) {
   const idx = pasos.findIndex(([k]) => k === p.estado);
   const fin = p.estado === "entregado";
   $("#pasos").innerHTML = pasos.map(([k, t, d], i) => {
+    if (k === "pagado" && p.por_cobrar) { t = "Pago al recibir"; d = "Pagas en efectivo al repartidor. Pasa a cocina."; }
     const cl = fin || i < idx ? "hecho" : i === idx ? "actual" : "pendiente";
     const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
     return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
@@ -863,6 +869,7 @@ function ponerPedido(p) {
   $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
   if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
   $("#r-pagar").hidden = p.estado !== "confirmado";
+  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && p.modalidad === "entrega" && CFG.efectivo); $("#efectivo-monto").textContent = dinero(p.total);
   const pide = p.modalidad === "entrega" && !["entregado", "cancelado", "caducado"].includes(p.estado);
   const ub = !!(p.ubicacion || p.tiene_ubicacion);
   $("#r-ubic").hidden = !pide || ub; $("#r-ubic-ok").hidden = !pide || !ub;
@@ -871,7 +878,7 @@ function ponerPedido(p) {
   $("#e-ubic span").textContent = ub ? "Cambiar ubicación" : "Compartir mi ubicación";
   tablaItems($("#estado-items"), p);
 
-  if (antes && antes !== p.estado && AVISO[p.estado]) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
+  if (antes && antes !== p.estado && AVISO[p.estado] && !(p.por_cobrar && p.estado === "pagado")) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
 }
 $("#btn-resumen").onclick = () => { const d = $("#resumen-det"); d.hidden = !d.hidden; $("#btn-resumen").setAttribute("aria-expanded", !d.hidden); };
 
@@ -955,6 +962,22 @@ async function enviarUbic(cuerpo, b, texto) {
 const archivo = $("#cp-archivo");
 const elegirFoto = () => { $("#cp-error").textContent = ""; archivo.value = ""; archivo.click(); };
 $("#cp-boton").onclick = $("#cp-cambiar").onclick = $("#cp-otra").onclick = elegirFoto;
+$("#efectivo-boton").onclick = async () => {
+  const b = $("#efectivo-boton"), e = $("#efectivo-error"); e.textContent = ""; b.disabled = true;
+  try {
+    let res;
+    if (st.demo) { await new Promise(ok => setTimeout(ok, 700)); res = {pedido:{...st.pedido, estado:"pagado", por_cobrar:true}}; }
+    else {
+      const r = await fetch("/efectivo", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pedido:st.pedido.id})});
+      if (r.status === 401) return salir();
+      res = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(res.error || "No pudimos registrar el pago en efectivo. Inténtalo otra vez.");
+    }
+    ponerPedido(res.pedido);
+    burbuja("sistema", `Listo: pagas ${dinero(res.pedido.total)} en efectivo al repartidor cuando llegue. Tu pedido ya pasa a cocina.`);
+  } catch (x) { e.textContent = x.message || "Sin conexión. Inténtalo otra vez."; }
+  b.disabled = false;
+};
 $("#r-pagar").onclick = () => { pestana("estado"); $("#cp-boton").focus(); $("#tarjeta-pago").scrollIntoView({block:"start", behavior:"smooth"}); };
 async function reducir(f) { // siempre JPEG ≤1600 px: pesa poco en datos móviles; el servidor quita metadatos
   if (!f.type.startsWith("image/")) throw new Error("Elige una imagen: una foto o captura de pantalla del pago.");

@@ -70,7 +70,7 @@ def config_publica(sv, con_pago=False):
     envio = dict(zonas) if isinstance(zonas, dict) else {z: costo for z in zonas} if zonas else {"": costo} if costo else {}
     c = sv.cfg
     d = {"marca": marca_de(sv), "horario": c.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio,
-         "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado"))}
+         "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")), "efectivo": herramientas.efectivo_ok(sv)}
     if con_pago:
         d["pago"] = {k: v for k, v in (sv.cfg.get("pago") or {}).items() if k in ("yappy", "transferencia") and v}
     return d
@@ -120,7 +120,8 @@ def aviso_de(sv):
 def formato_pedido(p):
     return {"id": p["id"], "estado": p["estado"], "modalidad": p["modalidad"],
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"])} for l in p["lineas"]], "ubicacion": bool(p.get("ubicacion")),
-            "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"])}
+            "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
+            "por_cobrar": bool(p.get("por_cobrar"))}
 
 
 class Limite:
@@ -526,7 +527,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if not (isinstance(pid, int) and not isinstance(pid, bool) and isinstance(est, str)):
                     return self._err(400, "Datos inválidos")
                 try:
-                    p = panel_web.marcar_repartidor(sv, nombre, pid, est)
+                    p = panel_web.marcar_repartidor(sv, nombre, pid, est, d.get("cobrado") is True)
                 except ValueError as e:
                     return self._err(409, str(e))
                 panel_web.auditar(sv, nombre, est, pid)
@@ -618,6 +619,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._comprobante()
             if ruta == "/ubicacion":
                 return self._ubicacion()
+            if ruta == "/efectivo":
+                return self._efectivo()
             self._err(404, "No encontrado")
 
         def _entrar(self):
@@ -696,6 +699,24 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             except ValueError:
                 return self._err(409, "El pedido no está esperando pago")
             self._enviar(200, {"ok": True, "pedido": formato_pedido(nuevo)})
+
+        def _efectivo(self):
+            cid = self._cid()
+            if not cid:
+                return self._err(401, "Sesión inválida")
+            if limite.excede(("cid", cid), 30):
+                return self._err(429, "Demasiadas peticiones")
+            d = self._json()
+            if d is None:
+                return
+            p = next((p for p in pedidos_de(cid) if str(p["id"]) == str(d.get("pedido"))), None)
+            if not p:
+                return self._err(404, "No existe ese pedido")
+            try:
+                herramientas.pagar_efectivo(sv, p["id"])
+            except ValueError as e:
+                return self._err(409, str(e))
+            self._enviar(200, {"ok": True, "pedido": formato_pedido(next(x for x in pedidos_de(cid) if x["id"] == p["id"]))})
 
         def _ubicacion(self):
             cid = self._cid()

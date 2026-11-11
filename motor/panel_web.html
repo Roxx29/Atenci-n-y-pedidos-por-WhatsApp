@@ -377,6 +377,19 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
   .nuevo-aj{grid-template-columns:1fr 1fr}
   .nuevo-aj label:first-child,.nuevo-aj .btn{grid-column:1/-1}
 }
+/* Teléfono: todo el cuerpo se desplaza junto (solo la cabecera y la barra de abajo quedan fijas) para no perder pantalla */
+@media (max-width:700px){
+  .cuerpo{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .vista{flex:none;min-height:auto}
+  .vista-cuerpo,.tablero{overflow:visible;flex:none}
+  header.barra{position:sticky;top:0;z-index:4;flex-wrap:nowrap;min-height:52px;padding:6px 12px}
+  .barra h1 small,.mando h2{display:none}
+  .barra .btn,#btn-nuevos{min-height:44px}
+  .col>header{top:52px}
+  .mando{gap:8px;padding:10px 12px 0}
+  .mando>.btn.suave,#tienda-caja{flex:1 1 auto}
+  .config-pie{bottom:0;z-index:2}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>

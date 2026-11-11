@@ -122,7 +122,7 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .carro p span{font-size:.75rem;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
 .carro p b{display:block;font:500 1.25rem var(--mono)}
 .carro .btn{flex:none;background:var(--primary-container);color:#fff}
-.carro .btn:hover{background:#f0333f;color:#fff}
+.carro .btn:hover{background:var(--primary);color:var(--on-primary)}
 
 /* ---------- Chat ---------- */
 #chat{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto auto;height:100%;min-height:0;background:var(--surface)}
@@ -251,6 +251,15 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
   #entrada,#estado{background:none}
   .barra{padding-inline:max(20px,calc((100% - 1440px)/2 + 20px))}
   .info{padding-inline:max(20px,calc((100% - 1440px)/2 + 20px))}
+}
+/* Teléfono: menos cosas fijas arriba; el buscador se va al desplazar y solo quedan las categorías pegadas */
+@media (max-width:1023px){
+  .barra{min-height:0;padding-block:8px}
+  .info{padding:6px 12px;font-size:.75rem;white-space:nowrap}
+  .info span{overflow:hidden;text-overflow:ellipsis}
+  .herramientas{display:contents}
+  .buscar{margin:12px 0 4px}
+  .cats{position:sticky;top:0;z-index:2;padding-block:8px;background:var(--surface)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>

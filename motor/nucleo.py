@@ -119,6 +119,11 @@ class Servicio:
         """Inserta o reemplaza un plato (tabla platos; el orden de alta se conserva)."""
         self._q("INSERT INTO platos(id, datos) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET datos=excluded.datos", (iid, json.dumps(datos, ensure_ascii=False)))
 
+    def borrar_plato(self, iid):
+        """Quita un plato de la BD; False si no estaba."""
+        with self._db_lock, self.db:
+            return self.db.execute("DELETE FROM platos WHERE id=?", (iid,)).rowcount == 1
+
     def fotos(self):
         """{id: versión} de los platos con foto."""
         return dict(self._q("SELECT id, foto_v FROM platos WHERE foto_v IS NOT NULL"))

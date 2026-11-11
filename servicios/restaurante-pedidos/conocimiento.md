@@ -1,4 +1,4 @@
-# Fonda El Chitreano
+# DeliFood
 
 - Dirección: Calle 5ª Norte, a dos cuadras del parque Unión, Chitré, provincia de Herrera. Hay estacionamiento en la calle.
 - Horario: martes a domingo, de 11:00 a 15:00 (almuerzo) y de 18:00 a 22:00 (cena); cerrado los lunes. La cocina toma pedidos hasta 30 min antes de cerrar cada turno (14:30 y 21:30).

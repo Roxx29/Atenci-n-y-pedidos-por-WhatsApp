@@ -1,7 +1,7 @@
 <!-- BORRADOR de legal-datos (legal/2026-11-02-web-pedidos.md). Datos de la demo ficticios. Revisión de abogado pendiente. -->
-# Aviso de privacidad — Fonda El Chitreano
+# Aviso de privacidad — DeliFood
 
-**Responsable:** Fonda El Chitreano S.A., RUC {RUC}, {dirección}, Chitré, provincia de Herrera, Panamá.
+**Responsable:** DeliFood, RUC {RUC}, {dirección}, Chitré, provincia de Herrera, Panamá.
 
 **Datos que pedimos:** nombre, teléfono, dirección y, si la compartes, ubicación de entrega (si pides a domicilio), tu pedido, los mensajes que escribes en el chat y, si pagas con Yappy, la captura del comprobante.
 

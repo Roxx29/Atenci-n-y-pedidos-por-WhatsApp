@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#A8321F">
+<meta name="theme-color" content="#111113">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Repartos">
@@ -11,45 +11,21 @@
 <link rel="icon" href="/repartidor/icono.svg" type="image/svg+xml">
 <link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
-<title>Repartos · Fonda El Chitreano</title>
+<title>Repartos · DeliFood</title>
+<link rel="stylesheet" href="estatico/tema.css">
 <style>
 /* Pensado para el sol: fondo blanco, tinta casi negra y botones enormes. Modo oscuro solo si el teléfono lo pide (de noche). */
-@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
-@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
-@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  /* Tokens "brasa" (estilo Material 3); los mismos de la web de pedidos y el panel */
-  --surface:#f9f9fc; --sc-lowest:#ffffff; --sc-low:#f3f3f6; --sc:#eeeef0; --sc-high:#e8e8ea; --sc-highest:#e2e2e5;
-  --on-surface:#1a1c1e; --on-variant:#5a4139; --outline:#8e7068; --outline-variant:#e2bfb5;
-  --inverse:#2f3133; --on-inverse:#f0f0f3;
-  --primary:#aa3000; --primary-container:#d04411; --on-primary:#ffffff; --primary-fixed:#ffdbd0;
-  --secondary:#7e5700; --secondary-container:#feb300; --secondary-fixed:#ffdeac;
-  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#a3f69c;
-  --error:#ba1a1a; --error-container:#ffdad6;
-  --sombra:0 1px 2px rgba(26,28,30,.06),0 2px 10px rgba(26,28,30,.07);
   /* nombres anteriores */
   --fondo:var(--sc-lowest); --papel:var(--sc-low); --tinta:var(--on-surface); --tinta-2:var(--on-variant); --linea:var(--outline-variant);
   --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
   --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed); --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed);
-  --r:12px; --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  color-scheme:light dark;
+  --r:12px;
 }
-@media (prefers-color-scheme:dark){:root{
-  --surface:#141211; --sc-lowest:#1d1a19; --sc-low:#221f1d; --sc:#292523; --sc-high:#332e2c; --sc-highest:#3e3835;
-  --on-surface:#ece0dc; --on-variant:#d8c2ba; --outline:#a08c85; --outline-variant:#4f3f39;
-  --inverse:#0f0d0c;
-  --primary:#ffb59f; --primary-container:#d04411; --on-primary:#5f1500; --primary-fixed:#4a1a0b;
-  --secondary:#ffba38; --secondary-fixed:#3a2b0b;
-  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21;
-  --error:#ffb4ab; --error-container:#5c1a14;
-  --sombra:0 1px 2px rgba(0,0,0,.5);
-}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--surface);color:var(--tinta);font:17px/1.4 var(--texto);-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
-::selection{background:var(--maiz);color:#1E120C}
+::selection{background:var(--maiz);color:#17171a}
 :focus-visible{outline:4px solid var(--primary);outline-offset:2px}
 .barra :focus-visible{outline-color:#fff}
 button,input,a{font:inherit;color:inherit}
@@ -80,7 +56,8 @@ svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 .teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
 .teclado button{min-height:68px;border-radius:var(--r);border:2px solid var(--linea);background:var(--fondo);font-size:1.625rem;font-weight:700}
 .teclado button:active{background:var(--papel)}
-.teclado .btn{border:0;font-size:1.25rem}
+.teclado .btn{border:0;font-size:1.25rem;background:var(--achiote)}
+.teclado .btn:active{background:var(--achiote-osc)}
 .error{color:var(--achiote);font-weight:700;min-height:1.4em;margin:0}
 
 /* Barra */
@@ -88,7 +65,7 @@ svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 .barra h1{flex:1;min-width:0;font-family:var(--display);font-size:1.375rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .con{flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.875rem;font-weight:800;background:color-mix(in srgb,var(--sobre-achiote) 20%,transparent);color:var(--sobre-achiote);white-space:nowrap}
 .con::before{content:"";width:9px;height:9px;border-radius:50%;background:currentColor}
-.con.off{background:var(--maiz);color:#1E120C}
+.con.off{background:var(--maiz);color:#17171a}
 .con.off::before{border-radius:2px}
 .barra button{display:inline-flex;align-items:center;gap:6px;min-height:52px;min-width:52px;padding:0 14px;border:2px solid color-mix(in srgb,currentColor 55%,transparent);border-radius:12px;background:none;color:var(--sobre-achiote);font-weight:700}
 .barra button:active{background:color-mix(in srgb,currentColor 18%,transparent)}
@@ -106,7 +83,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:1rem;font-weight:800;white-space:nowrap;background:var(--papel);color:var(--tinta)}
 .chip.pagado{background:var(--hoja-suave);color:var(--hoja-osc)}
 .chip.cobrar{background:var(--achiote);color:var(--sobre-achiote)}
-.chip.camino{background:var(--maiz);color:#1E120C}
+.chip.camino{background:var(--maiz);color:#17171a}
 .vacio{text-align:center;color:var(--tinta-2);padding:48px 16px}
 .vacio b{display:block;color:var(--tinta);font-size:1.375rem;margin-bottom:6px}
 
@@ -136,8 +113,6 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .toast.ver{transform:none;visibility:visible}
 .toast.mal{background:var(--achiote)}
 /* ---------- Rediseño brasa ---------- */
-.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;flex:none}
-.logo svg{width:22px;height:22px;fill:currentColor;stroke:none}
 .barra{background:var(--inverse);color:var(--on-inverse);min-height:64px}
 .barra h1{font-size:1.125rem;font-weight:700}
 .barra button{color:var(--on-inverse);border-color:rgba(240,240,243,.3)}
@@ -206,10 +181,9 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
-<body>
+<body data-marca="DeliFood">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-fuego" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2 0-3-1-5 1-8z"/></symbol>
   <symbol id="i-mapa" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
   <symbol id="i-tel" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 20l1.5-4A8 8 0 1 1 9 19.5z"/></symbol>
@@ -222,7 +196,7 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
 <main id="login">
   <form class="caja" id="form-pin" novalidate>
     <h1>Repartos</h1>
-    <p>Fonda El Chitreano. Escribe tu PIN de 6 números.</p>
+    <p>DeliFood. Escribe tu PIN de 6 números.</p>
     <label class="sr" for="pin">PIN</label>
     <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" aria-describedby="e-pin" required>
     <div class="teclado" aria-label="Teclado numérico">
@@ -238,7 +212,7 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
 
 <!-- ============ Mis pedidos ============ -->
 <div id="vista-lista" hidden>
-  <header class="barra"><span class="logo" aria-hidden="true"><svg class="i"><use href="#i-fuego"/></svg></span><h1 id="hola">Mis pedidos</h1><span class="con" role="status">En línea</span><button id="btn-salir">Salir</button></header>
+  <header class="barra"><span class="logo" aria-hidden="true" data-inicial></span><h1 id="hola">Mis pedidos</h1><span class="con" role="status">En línea</span><button id="btn-salir">Salir</button></header>
   <div class="comparte" id="comparte" role="status" hidden><svg class="i" aria-hidden="true"><use href="#i-mapa"/></svg><span id="comparte-txt"></span><button type="button" id="btn-comparte"></button></div>
   <main>
     <section class="turno" aria-label="Resumen de tu turno">
@@ -285,6 +259,7 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
+document.querySelectorAll("[data-inicial]").forEach(e => e.textContent = (document.body.dataset.marca || "R").trim().charAt(0).toUpperCase());
 function h(tag, attrs, ...hijos) { // el texto del servidor siempre entra como texto
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -347,7 +322,7 @@ $("#form-pin").addEventListener("submit", async ev => {
   ev.preventDefault();
   if (!/^\d{6}$/.test(pin.value)) { $("#e-pin").textContent = "El PIN tiene 6 números."; return pin.focus(); }
   $("#e-pin").textContent = ""; let nombre = "Juan";
-  if (st.demo) st.aviso = {version:"demo", aceptado:false, texto:"Mientras tengas un pedido en camino, esta app envía tu ubicación cada pocos segundos a Fonda El Chitreano. La ven el personal del restaurante y el cliente de ese pedido, para saber cuándo llegas. Se apaga sola al entregar o cancelar, o al salir de la app. No guardamos tu recorrido: solo la última posición, que se borra al terminar. Fuera de un pedido en camino no se envía nada. (Demostración: no se envía nada de verdad.)"};
+  if (st.demo) st.aviso = {version:"demo", aceptado:false, texto:"Mientras tengas un pedido en camino, esta app envía tu ubicación cada pocos segundos al restaurante. La ven el personal del restaurante y el cliente de ese pedido, para saber cuándo llegas. Se apaga sola al entregar o cancelar, o al salir de la app. No guardamos tu recorrido: solo la última posición, que se borra al terminar. Fuera de un pedido en camino no se envía nada. (Demostración: no se envía nada de verdad.)"};
   if (!st.demo) {
     try {
       const r = await fetch("/repartidor/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:pin.value})});

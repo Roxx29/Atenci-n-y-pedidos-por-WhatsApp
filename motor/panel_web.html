@@ -3,46 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Panel · Fonda El Chitreano</title>
+<title>Panel · DeliFood</title>
 <link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="estatico/tema.css">
 <style>
-@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
-@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
-@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
 :root{
-  /* Tokens "brasa" (estilo Material 3); los mismos de la web de pedidos */
-  --surface:#f9f9fc; --sc-lowest:#ffffff; --sc-low:#f3f3f6; --sc:#eeeef0; --sc-high:#e8e8ea; --sc-highest:#e2e2e5;
-  --on-surface:#1a1c1e; --on-variant:#5a4139; --outline:#8e7068; --outline-variant:#e2bfb5;
-  --inverse:#2f3133; --on-inverse:#f0f0f3;
-  --primary:#aa3000; --primary-container:#d04411; --on-primary:#ffffff; --primary-fixed:#ffdbd0;
-  --secondary:#7e5700; --secondary-container:#feb300; --secondary-fixed:#ffdeac;
-  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#a3f69c;
-  --error:#ba1a1a; --error-container:#ffdad6;
-  --azul:#005ac1; --azul-suave:#d8e2ff; --violeta:#6b3fa0; --violeta-suave:#ecdcff; --celeste:#00677e; --celeste-suave:#b8eaff;
-  --sombra:0 1px 2px rgba(26,28,30,.06),0 2px 10px rgba(26,28,30,.07);
-  --sombra-2:0 8px 28px rgba(26,28,30,.18);
-  --barra:#2f3133; --sobre-barra:#f0f0f3; --sobre-maiz:#1a1c1e; --velo:rgba(249,249,252,.86);
-  /* nombres anteriores, apuntando a los nuevos */
+  /* nombres anteriores, apuntando a los del tema */
+  --sobre-maiz:#17171a;
   --papel:var(--surface); --carril:var(--sc); --superficie:var(--sc-lowest); --tinta:var(--on-surface); --tinta-2:var(--on-variant); --linea:var(--outline-variant);
   --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
   --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed); --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed);
-  --r:12px; --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
-  color-scheme:light dark;
+  --r:12px;
 }
-@media (prefers-color-scheme:dark){:root{
-  --surface:#141211; --sc-lowest:#1d1a19; --sc-low:#221f1d; --sc:#292523; --sc-high:#332e2c; --sc-highest:#3e3835;
-  --on-surface:#ece0dc; --on-variant:#d8c2ba; --outline:#a08c85; --outline-variant:#4f3f39;
-  --primary:#ffb59f; --primary-container:#d04411; --on-primary:#5f1500; --primary-fixed:#4a1a0b;
-  --secondary:#ffba38; --secondary-fixed:#3a2b0b;
-  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21;
-  --error:#ffb4ab; --error-container:#5c1a14;
-  --azul:#aec6ff; --azul-suave:#1c2b4a; --violeta:#d6baff; --violeta-suave:#2f2142; --celeste:#7fd3ee; --celeste-suave:#0d3340;
-  --sombra:0 1px 2px rgba(0,0,0,.5); --sombra-2:0 8px 28px rgba(0,0,0,.6);
-  --barra:#0f0d0c; --velo:rgba(20,18,17,.86);
-}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--papel);color:var(--tinta);font:15px/1.45 var(--texto)}
@@ -62,13 +35,13 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 
 /* Botones */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 18px;border-radius:10px;border:0;font-weight:700;font-size:1.0625rem;background:var(--achiote);color:var(--sobre-achiote);transition:background .12s,transform .08s}
-.btn:hover{background:var(--achiote-osc)}
+.btn:hover{background:var(--achiote-osc);color:#fff}
 .btn:active{transform:scale(.98)}
-.btn.ok{background:var(--hoja)} .btn.ok:hover{background:var(--hoja-osc)}
+.btn.ok{background:var(--hoja);color:var(--on-tertiary)} .btn.ok:hover{background:var(--hoja-osc);color:#fff}
 .btn.sec{background:var(--superficie);color:var(--achiote);border:2px solid var(--achiote)}
-.btn.sec:hover{background:var(--achiote-suave)}
+.btn.sec:hover{background:var(--achiote-suave);color:var(--achiote)}
 .btn.suave{background:transparent;color:var(--tinta);border:1.5px solid var(--linea);font-weight:600}
-.btn.suave:hover{background:var(--carril)}
+.btn.suave:hover{background:var(--carril);color:var(--tinta)}
 
 /* ---------- Entrada (PIN) ---------- */
 #login{min-height:100%;display:grid;place-items:center;padding:24px}
@@ -81,18 +54,29 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .teclado button{min-height:64px;border-radius:var(--r);border:1.5px solid var(--linea);background:var(--superficie);font-size:1.5rem;font-weight:600}
 .teclado button:hover{background:var(--carril)}
 .teclado button.btn{background:var(--achiote);color:var(--sobre-achiote);border:0}
-.teclado button.btn:hover{background:var(--achiote-osc)}
+.teclado button.btn:hover{background:var(--achiote-osc);color:#fff}
 #login.bloqueo{position:fixed;inset:0;z-index:30;background:var(--velo);backdrop-filter:blur(3px)}
-#login.bloqueo .caja-login{background:var(--superficie);padding:24px;border-radius:16px;box-shadow:0 16px 48px rgba(42,26,18,.25)}
+#login.bloqueo .caja-login{background:var(--superficie);padding:24px;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.25)}
 .error{color:var(--achiote);font-weight:600;min-height:1.4em;margin:0}
 
 /* ---------- Panel ---------- */
-#panel{height:100%;display:flex;flex-direction:column}
+#panel{height:100%;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
+/* Barra lateral: cada cosa en su sitio (Pedidos · Menú · Equipo) */
+.lado{display:flex;flex-direction:column;gap:4px;width:88px;padding:12px 8px;background:var(--barra);color:var(--sobre-barra)}
+.lado .logo{margin:2px auto 14px}
+.lado button{position:relative;display:grid;justify-items:center;gap:4px;min-height:64px;padding:8px 4px;border:0;border-radius:10px;background:none;color:inherit;font-weight:700;font-size:.75rem;opacity:.72;transition:background-color .12s,opacity .12s}
+.lado button:hover{background:rgba(255,255,255,.08);opacity:1}
+.lado button[aria-current=page]{background:var(--primary-container);color:#fff;opacity:1}
+.lado .hueco{flex:1}
+.lado .cuenta{position:absolute;top:4px;right:8px}
+.lado :focus-visible{outline-color:#fff}
+.cuerpo{display:flex;flex-direction:column;min-width:0;min-height:0}
+.vista{flex:1;min-height:0;display:flex;flex-direction:column}
 header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--barra);color:var(--sobre-barra)}
 .barra h1{font-family:var(--display);font-size:1.375rem;margin-right:auto;white-space:nowrap}
 .barra h1 small{font:500 .875rem var(--texto);opacity:.75;margin-left:8px}
 .barra .btn.suave{color:var(--sobre-barra);border-color:rgba(251,246,236,.3);min-height:48px}
-.barra .btn.suave:hover{background:rgba(251,246,236,.1)}
+.barra .btn.suave:hover{background:rgba(251,246,236,.1);color:var(--sobre-barra)}
 .barra .btn.suave[aria-pressed=true]{background:rgba(251,246,236,.16)}
 .cuenta{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--maiz);color:var(--sobre-maiz);font-weight:800;font-size:.875rem}
 #btn-nuevos{background:var(--maiz);color:var(--sobre-maiz);min-height:48px}
@@ -164,7 +148,7 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 .compacta .t-num{font-size:1.125rem}
 
 /* Bandeja de avisos */
-.bandeja{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--superficie);box-shadow:-8px 0 24px rgba(42,26,18,.18);display:flex;flex-direction:column;z-index:10;transform:translateX(105%);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.bandeja{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--superficie);box-shadow:-8px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:10;transform:translateX(105%);transition:transform .25s cubic-bezier(.16,1,.3,1)}
 .bandeja.abierta{transform:none}
 .bandeja>header{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--linea)}
 .bandeja h2{font-family:var(--display);font-size:1.375rem;margin-right:auto}
@@ -183,7 +167,7 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 
 /* Comprobante grande */
 dialog{border:0;padding:10px;border-radius:16px;width:min(1000px,calc(100% - 32px));max-height:calc(100% - 32px);background:var(--superficie);color:var(--tinta);box-shadow:0 24px 64px rgba(0,0,0,.35)}
-dialog::backdrop{background:rgba(42,26,18,.6)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
 .dlg{display:grid;grid-template-columns:1fr 340px;max-height:calc(100vh - 52px)}
 .dlg.sin-img{grid-template-columns:1fr}
 dialog.chico{width:min(480px,calc(100% - 32px))}
@@ -212,8 +196,6 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 .lista .btn{font-size:1rem;padding:0 12px}
 
 /* ---------- Rediseño brasa: cabecera, barra de mando y columnas por color ---------- */
-.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;flex:none}
-.logo svg{width:22px;height:22px;fill:currentColor;stroke:none}
 header.barra{min-height:64px;padding:8px 20px}
 .barra h1{font-size:1.125rem;font-weight:700}
 .barra h1 small{font:500 .75rem var(--texto)}
@@ -228,6 +210,8 @@ header.barra{min-height:64px;padding:8px 20px}
 .seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--sc-high)}
 .seg button{min-height:40px;padding:0 14px;border:0;border-radius:8px;background:none;font-weight:700;font-size:.8125rem;color:var(--on-variant)}
 .seg button[aria-pressed=true]{background:var(--sc-lowest);color:var(--primary);box-shadow:var(--sombra)}
+.mando .btn.suave{min-height:44px;padding:0 14px}
+.mando .btn.suave[aria-pressed=true]{background:var(--on-surface);border-color:var(--on-surface);color:var(--surface)}
 .buscar-p{position:relative;display:block}
 .buscar-p svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--outline);pointer-events:none}
 .buscar-p input{min-height:44px;width:200px;padding:0 14px 0 38px;border:1.5px solid var(--outline-variant);border-radius:999px;background:var(--sc-lowest)}
@@ -256,13 +240,15 @@ dialog.dlg-mapa{width:min(900px,calc(100% - 32px));padding:16px}
 #mapa-lista li .edad{margin-left:auto;font-size:.8125rem;color:var(--on-variant)}
 #mapa-lista li.viejo .edad{color:var(--error);font-weight:700}
 .pin-rep span,.pin-rest span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-.pin-rest span{background:var(--inverse);color:var(--secondary-container);font-size:1rem}
+.pin-rest span{background:var(--inverse);color:#fff;font-size:1rem}
 .pin-rep.viejo span{background:#6f6f73;border-style:dashed}
 .leaflet-container{font-family:var(--texto)}
 .tablero{grid-auto-columns:minmax(244px,1fr)}
 .t-pie{flex-wrap:wrap;row-gap:2px}
 .t-total{font-size:1.125rem}
 .t-nota{padding:8px 12px;border-radius:8px;background:var(--error-container);color:var(--error);font-weight:700}
+.chip-rep{min-height:40px;padding:0 14px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:700;font-size:.8125rem}
+.chip-rep:hover{border-color:var(--primary);background:var(--primary-fixed)}
 .ini-rep{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--celeste-suave);color:var(--celeste);font-size:.6875rem;font-weight:800;letter-spacing:0}
 
 /* ---------- Teléfono (≤700px): una columna, sin scroll horizontal ----------
@@ -275,8 +261,11 @@ html,body{overflow-x:hidden}
   .caja-login{margin:auto}
   .teclado button{min-height:68px}
   header.barra{flex-wrap:wrap;gap:8px;padding:8px 12px}
-  .barra h1{font-size:1.125rem;flex:1 1 calc(100% - 175px);min-width:0;overflow:hidden;text-overflow:ellipsis}
-  .barra .logo{order:0}
+  #panel{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+  .lado{grid-row:2;flex-direction:row;width:auto;gap:2px;padding:4px 6px max(4px,env(safe-area-inset-bottom))}
+  .lado .logo,.lado .hueco{display:none}
+  .lado button{flex:1;min-height:56px;font-size:.6875rem}
+  .barra h1{font-size:1.125rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
   .mando{padding:12px 12px 0;gap:10px}
   .mando h2{font-size:1.25rem;flex:1 1 100%}
   .metricas{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px;scrollbar-width:none}
@@ -284,10 +273,7 @@ html,body{overflow-x:hidden}
   .seg{width:100%}.seg button{flex:1;min-height:44px}
   .buscar-p{flex:1 1 100%}.buscar-p input{width:100%}
   .reloj{display:none}
-  #btn-salir{order:2;flex:0 0 auto}
-  #btn-sonido{order:2;flex:0 0 48px;padding:0}
-  .barra .btn{order:3;flex:1 1 auto;min-width:0;padding:0 8px;font-size:.875rem;min-height:48px}
-  #btn-sonido{padding:0}
+  .barra .btn{flex:0 1 auto;min-width:0;padding:0 10px;font-size:.875rem;min-height:48px}
   .banda{flex-wrap:wrap}
   .banda button{min-height:48px;flex:1 1 100%}
   .tablero{display:block;overflow-x:hidden;overflow-y:auto;padding:10px;-webkit-overflow-scrolling:touch}
@@ -316,25 +302,68 @@ html,body{overflow-x:hidden}
   .toast.ver{transform:none}
 }
 
-/* ---------- Ajustes (solo dueño): personas con PIN y menú ---------- */
-.aj{display:grid;gap:12px}
-.aj form{display:grid;gap:8px;padding:12px;border-radius:10px;background:var(--carril)}
-.aj input:not([type=checkbox]),.aj select{min-height:48px;padding:0 12px;border:1.5px solid var(--linea);border-radius:10px;background:var(--superficie);width:100%}
-.aj label.si{display:flex;gap:8px;align-items:center;font-weight:600}
-.aj-fila{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--linea)}
-.aj-fila span{flex:1;min-width:0;overflow-wrap:anywhere}
-.aj-fila .btn{min-height:44px;font-size:.9375rem}
-.aj-fila{flex-wrap:wrap}
-.aj-acc{display:flex;gap:8px;flex-wrap:wrap}
-.aj-fila .aj-foto{flex:none;width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--maiz-suave)}
-.aj-fila .aj-foto.ini{display:grid;place-items:center;font:700 1.25rem var(--display);color:var(--tinta-2)}
+/* ---------- Menú y Equipo: una fila por plato o persona; se edita ahí mismo y se guarda solo ---------- */
+.vista-cab{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:16px 20px 8px}
+.vista-cab h2{font-size:1.5rem;font-weight:700;margin-right:auto}
+.vista-cuerpo{flex:1;min-height:0;overflow-y:auto;padding:4px 20px 32px}
+.vista-cuerpo>*{max-width:1040px}
+.grupo{margin:20px 0 8px;font:800 .8125rem var(--texto);letter-spacing:.08em;text-transform:uppercase;color:var(--on-variant)}
+.grupo span{font-weight:500;letter-spacing:0}
+.fila-aj{display:grid;align-items:center;gap:8px 12px;padding:10px 12px;margin-bottom:8px;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra)}
+.fila-plato{grid-template-columns:56px minmax(0,1fr) 104px 160px 132px auto}
+.fila-persona{grid-template-columns:44px minmax(0,1fr) 160px 116px auto}
+.fila-aj.apagada>:not(.sw):not(.aj-acc):not(.pin-linea){opacity:.55}
+.campo-aj{min-height:44px;width:100%;min-width:0;padding:0 10px;border:1.5px solid transparent;border-radius:8px;background:transparent;font-weight:600;text-overflow:ellipsis}
+.campo-aj:not(:disabled){border-color:var(--sc-high)}
+.campo-aj:hover:not(:disabled){border-color:var(--outline)}
+.campo-aj:focus{outline:none;border-color:var(--primary);background:var(--sc-lowest)}
+.campo-aj:disabled{opacity:1;color:inherit;-webkit-text-fill-color:currentColor}
+select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
+.nombre-aj{font-weight:700;padding:0 10px;min-width:0;overflow-wrap:anywhere}
+.foto-btn{display:grid;place-items:center;width:56px;height:56px;padding:0;overflow:hidden;border-radius:8px;border:1.5px dashed var(--outline);background:var(--sc-low);color:var(--on-variant)}
+.foto-btn.con{border:0}
+.foto-btn img{display:block;width:100%;height:100%;object-fit:cover}
+.foto-btn:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;border:0;background:none;font-weight:700;font-size:.8125rem;color:var(--on-variant)}
+.sw i{position:relative;flex:none;width:44px;height:26px;border-radius:999px;background:var(--outline);transition:background-color .15s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw[aria-checked=true]{color:var(--tertiary)}
+.sw[aria-checked=true] i{background:var(--tertiary-container)}
+.sw[aria-checked=true] i::after{transform:translateX(18px)}
+.aj-acc{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.mini{min-height:44px;padding:0 12px;border-radius:8px;border:1.5px solid var(--outline-variant);background:none;font-weight:600;font-size:.875rem;white-space:nowrap}
+.mini:hover{background:var(--sc)}
+.mini.peligro{color:var(--error)}
+.nuevo-aj{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto;gap:10px 12px;align-items:end;padding:14px;margin:8px 0 4px;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra);border-top:3px solid var(--primary)}
+.nuevo-aj label{display:grid;gap:4px;font-size:.8125rem;font-weight:700;color:var(--on-variant)}
+.nuevo-aj input,.nuevo-aj select{min-height:48px;width:100%;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);font-weight:600}
+.nuevo-aj input:focus,.nuevo-aj select:focus{outline:none;border-color:var(--primary)}
+.nuevo-aj .btn{min-height:48px}
+.ini-persona{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--sc-high);font:800 1rem var(--display)}
+.pin-linea{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--outline-variant)}
+.pin-linea input{min-height:44px;width:150px;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);letter-spacing:.2em}
+.pin-linea input:focus{outline:none;border-color:var(--primary)}
+.pin-linea .btn{min-height:44px}
+@media (max-width:900px){
+  .vista-cab{padding:12px 12px 4px}
+  .vista-cuerpo{padding:4px 12px 24px}
+  .fila-plato{grid-template-columns:56px 84px minmax(0,1fr);grid-template-areas:"foto nom nom" "pre pre cat" "sw sw acc"}
+  .fila-plato .foto-c{grid-area:foto}.fila-plato .nom{grid-area:nom}.fila-plato .pre{grid-area:pre}.fila-plato .cat{grid-area:cat}.fila-plato .sw{grid-area:sw}.fila-plato .aj-acc{grid-area:acc}
+  .fila-persona{grid-template-columns:44px minmax(0,1fr) auto}
+  .fila-persona .rol{grid-column:1/3}
+  .fila-persona .aj-acc{grid-column:1/-1}
+  .nuevo-aj{grid-template-columns:1fr 1fr}
+  .nuevo-aj label:first-child,.nuevo-aj .btn{grid-column:1/-1}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
-<body>
+<body data-marca="DeliFood">
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="i-fuego" viewBox="0 0 24 24"><path d="M12 2c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2 0-3-1-5 1-8z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></symbol>
+  <symbol id="i-salir" viewBox="0 0 24 24"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
   <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
   <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
   <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
@@ -353,7 +382,7 @@ html,body{overflow-x:hidden}
 <!-- ============ Entrada ============ -->
 <main id="login">
   <form class="caja-login" id="form-pin" novalidate>
-    <h1>Fonda El Chitreano</h1>
+    <h1>DeliFood</h1>
     <p id="login-texto">Panel de pedidos. Escribe tu PIN de 6 números.</p>
     <label class="sr" for="pin">PIN</label>
     <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" aria-describedby="e-pin" required>
@@ -370,35 +399,76 @@ html,body{overflow-x:hidden}
 
 <!-- ============ Panel ============ -->
 <div id="panel" hidden>
-  <header class="barra">
-    <span class="logo" aria-hidden="true"><svg class="i"><use href="#i-fuego"/></svg></span>
-    <h1>Fonda El Chitreano <small id="modo">Pedidos de hoy</small></h1>
-    <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
-    <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
-    <button class="btn suave" id="btn-cerrados" aria-pressed="false">Cancelados</button>
-    <button class="btn suave" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg></button>
-    <span class="reloj num" id="reloj" aria-hidden="true"></span>
-    <button class="btn suave" id="btn-ajustes" hidden>Ajustes</button>
-    <button class="btn suave" id="btn-salir">Salir</button>
-  </header>
-  <div class="banda" id="banda" role="alert" hidden>
-    <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
-    <button id="banda-ok">Entendido</button>
+  <nav class="lado" aria-label="Secciones">
+    <span class="logo" aria-hidden="true" data-inicial></span>
+    <button type="button" data-vista="pedidos" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-recibo"/></svg>Pedidos<span class="cuenta" id="n-nav" hidden>0</span></button>
+    <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
+    <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
+    <span class="hueco"></span>
+    <button type="button" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg>Sonido</button>
+    <button type="button" id="btn-salir"><svg class="i" aria-hidden="true"><use href="#i-salir"/></svg>Salir</button>
+  </nav>
+  <div class="cuerpo">
+    <header class="barra">
+      <h1>DeliFood <small id="modo">Pedidos de hoy</small></h1>
+      <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
+      <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
+      <span class="reloj num" id="reloj" aria-hidden="true"></span>
+    </header>
+    <div class="banda" id="banda" role="alert" hidden>
+      <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
+      <button id="banda-ok">Entendido</button>
+    </div>
+
+    <div class="vista" id="v-pedidos">
+      <section class="mando" aria-label="Resumen y filtros">
+        <h2>Pedidos en servicio</h2>
+        <div class="metricas" role="group" aria-label="Resumen de hoy">
+          <span class="metrica"><span class="etq">Venta de hoy</span><b id="m-venta">B/. 0.00</b></span>
+          <span class="metrica"><span class="etq">Tiempo medio</span><b id="m-medio">—</b></span>
+          <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
+        </div>
+        <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
+          <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
+        </div>
+        <button class="btn suave" id="btn-cerrados" type="button" aria-pressed="false">Cancelados</button>
+        <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
+        <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
+      </section>
+      <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
+    </div>
+
+    <div class="vista" id="v-menu" hidden>
+      <div class="vista-cab">
+        <h2>Menú</h2>
+        <label class="buscar-p"><span class="sr">Buscar plato</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-plato" placeholder="Buscar plato" autocomplete="off"></label>
+      </div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj" id="f-plato" autocomplete="off" hidden>
+          <label>Plato nuevo<input name="nombre" maxlength="80" required placeholder="Nombre del plato"></label>
+          <label>Precio (B/.)<input name="precio" type="number" inputmode="decimal" min="0" max="999.99" step="0.01" required placeholder="0.00"></label>
+          <label>Categoría<input name="categoria" maxlength="30" list="cats-lista" placeholder="platos, bebidas…"></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <datalist id="cats-lista"></datalist>
+        <p class="t-espera" id="menu-pista" hidden>Marca aquí lo que se agotó: el cliente y el asistente lo ven al momento.</p>
+        <div id="lista-platos"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-equipo" hidden>
+      <div class="vista-cab"><h2>Equipo</h2></div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj" id="f-usuario" autocomplete="off">
+          <label>Persona nueva<input name="nombre" maxlength="30" pattern="[A-Za-z0-9_\-]+" required placeholder="Nombre, sin tildes ni espacios"></label>
+          <label>Rol<select name="rol"><option value="personal">Personal</option><option value="repartidor">Repartidor</option><option value="dueno">Dueño</option></select></label>
+          <label>PIN (6 números)<input name="pin" type="password" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="new-password" required></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <div id="lista-equipo"></div>
+      </div>
+    </div>
   </div>
-  <section class="mando" aria-label="Resumen y filtros">
-    <h2>Pedidos en servicio</h2>
-    <div class="metricas" role="group" aria-label="Resumen de hoy">
-      <span class="metrica"><span class="etq">Venta de hoy</span><b id="m-venta">B/. 0.00</b></span>
-      <span class="metrica"><span class="etq">Tiempo medio</span><b id="m-medio">—</b></span>
-      <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
-    </div>
-    <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
-      <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
-    </div>
-    <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
-    <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
-  </section>
-  <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
 </div>
 
 <aside class="bandeja" id="bandeja" aria-label="Avisos" hidden>
@@ -430,32 +500,6 @@ html,body{overflow-x:hidden}
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
 </dialog>
 
-<dialog id="dlg-aj" class="chico" aria-labelledby="aj-titulo">
-  <div class="dlg-lado aj">
-    <h2 id="aj-titulo">Ajustes</h2>
-    <h3>Personas (panel y repartidores)</h3>
-    <div id="aj-usuarios"></div>
-    <form id="f-usuario" autocomplete="off">
-      <label class="dlg-dato"><span>Nombre (sin tildes ni espacios)</span><input name="nombre" maxlength="30" pattern="[A-Za-z0-9_\-]+" required></label>
-      <label class="dlg-dato"><span>Rol</span><select name="rol"><option value="personal">Personal</option><option value="dueno">Dueño</option><option value="repartidor">Repartidor</option></select></label>
-      <label class="dlg-dato"><span>PIN nuevo (6 números; vacío = no cambiar)</span><input name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password"></label>
-      <label class="si"><input name="activo" type="checkbox" checked> Activo</label>
-      <button class="btn ok">Guardar persona</button>
-    </form>
-    <h3>Menú</h3>
-    <div id="aj-menu"></div>
-    <form id="f-plato" autocomplete="off">
-      <label class="dlg-dato"><span>Id (minúsculas y guiones)</span><input name="id" maxlength="40" pattern="[a-z0-9\-]+" required></label>
-      <label class="dlg-dato"><span>Nombre</span><input name="nombre" maxlength="80"></label>
-      <label class="dlg-dato"><span>Precio (B/.)</span><input name="precio" type="number" min="0" max="999.99" step="0.01"></label>
-      <label class="dlg-dato"><span>Categoría</span><input name="categoria" maxlength="30"></label>
-      <label class="si"><input name="disponible" type="checkbox" checked> Disponible hoy</label>
-      <button class="btn ok">Guardar plato</button>
-    </form>
-  </div>
-  <button class="icono-btn dlg-cerrar" id="aj-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
-</dialog>
-
 <dialog id="dlg-flota" class="dlg-mapa" aria-labelledby="mapa-tit">
   <div class="mapa-cab"><h2 id="mapa-tit">Repartidores en camino</h2><button class="icono-btn" id="mapa-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button></div>
   <div id="mapa" role="img" aria-label="Mapa con la posición actual de los repartidores en camino"></div>
@@ -469,6 +513,8 @@ html,body{overflow-x:hidden}
 "use strict";
 const $ = s => document.querySelector(s);
 const NS = document.querySelector("svg").namespaceURI; // sin URLs en el código
+const MARCA = document.body.dataset.marca || "Restaurante"; // el servidor escribe aquí `marca:` de servicio.yaml
+document.querySelectorAll("[data-inicial]").forEach(e => e.textContent = MARCA.trim().charAt(0).toUpperCase());
 function h(tag, attrs, ...hijos) { // crea nodos; el texto siempre va como texto
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -510,7 +556,7 @@ function siguiente(p) { // acción principal: en una entrega lista, sale con el 
 }
 const NOMBRE_ESTADO = {en_camino:"En camino", cancelado:"Cancelado", pagado:"Pagado", en_preparacion:"En cocina", listo:"Listo", entregado:"Entregado", confirmado:"Nuevos"};
 
-const st = {demo:location.protocol === "file:", pedidos:new Map(), avisos:[], escalados:[], repartidores:[], ultimo:0, primera:true,
+const st = {demo:location.protocol === "file:", vista:"pedidos", rol:"dueno", menu:[], qMenu:"", pedidos:new Map(), avisos:[], escalados:[], repartidores:[], ultimo:0, primera:true,
             nuevos:new Set(), sinLeer:0, cerrados:false, sonido:true, sondeo:0, abierto:null};
 try { st.sonido = localStorage.getItem("panel-sonido") !== "no"; } catch (e) {}
 
@@ -531,12 +577,13 @@ $("#form-pin").addEventListener("submit", async ev => {
       const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
-      $("#btn-ajustes").hidden = j.rol !== "dueno";
+      st.rol = j.rol;
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
+  $("#nav-equipo").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
-  if (st.demo) { $("#modo").textContent = "Demostración con datos de ejemplo"; cargarDemo(); }
+  if (st.demo) cargarDemo();
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
 });
 $("#btn-salir").onclick = async () => {
@@ -596,6 +643,7 @@ pintarSonido();
 
 /* ---------- Datos ---------- */
 async function api(metodo, ruta, cuerpo) {
+  if (st.demo) return demoAjustes(ruta, cuerpo || {});
   const r = await fetch(ruta, {method:metodo, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
   if (r.status === 401) { location.reload(); throw new Error("401"); }
   const j = await r.json().catch(() => ({}));
@@ -670,8 +718,9 @@ function pintar() {
   // contadores y título de la pestaña
   const n = st.nuevos.size;
   $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n; globo(n);
+  $("#n-nav").hidden = !n || st.vista === "pedidos"; $("#n-nav").textContent = n; // pedidos nuevos mientras se está en Menú o Equipo
   $("#n-avisos").hidden = !st.sinLeer; $("#n-avisos").textContent = st.sinLeer;
-  document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · Fonda El Chitreano";
+  document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · " + MARCA;
   if (!$("#bandeja").hidden) pintarAvisos();
 }
 
@@ -698,6 +747,9 @@ function tarjeta(p, col) {
       h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
     entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, repNombre(p.repartidor) ? h("span", {class:"ini-rep", "aria-hidden":"true"}, repNombre(p.repartidor).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()) : icono("persona"),
       repNombre(p.repartidor) || "Sin repartidor",
+      // con pocos repartidores se asigna desde la tarjeta, sin abrir el detalle
+      !repNombre(p.repartidor) && ASIGNABLE.has(p.estado) && st.repartidores.length <= 3 && st.repartidores.map(n =>
+        h("button", {class:"chip-rep", type:"button", "data-clave":"rp" + p.id + n, "aria-label":`Asignar el pedido ${p.id} a ${n}`, on:{click:async () => { await asignar(p, n); pintar(); }}}, n)),
       (p.tiene_ubicacion || p.ubicacion) && h("span", {class:"t-ubic"}, icono("pin"), "Ubicación")),
     h("ul", {class:"t-items"}, (p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre, i.nota ? ` (${i.nota})` : ""))),
     p.notas && h("div", {class:"t-nota"}, "Nota: " + p.notas),
@@ -727,7 +779,7 @@ function acciones(p) {
 async function asignar(p, nombre) {
   const sel = $("#dlg-rep"); sel.disabled = true;
   try {
-    if (st.demo) p.repartidor = nombre || null;
+    if (st.demo) st.pedidos.get(p.id).repartidor = nombre || null;
     else { const r = await api("POST", "/panel/asignar", {pedido_id:p.id, repartidor:nombre}); st.pedidos.set(p.id, r.pedido || {...p, repartidor:nombre || null}); }
     aviso(nombre ? `#${p.id}: lo lleva ${nombre}` : `#${p.id}: sin repartidor`);
   } catch (e) { aviso(e.message, true); sel.value = repNombre(p.repartidor); }
@@ -798,32 +850,93 @@ $("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones
 $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
 
 
-/* ---------- Ajustes (solo dueño; el servidor responde 403 a los demás) ---------- */
-const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
-async function pintarAjustes() {
+/* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
+const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", equipo:"Equipo"};
+function irA(v) {
+  if (v === "equipo" && st.rol !== "dueno") v = "pedidos";
+  st.vista = v;
+  for (const b of document.querySelectorAll(".lado [data-vista]")) b.dataset.vista === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
+  for (const k of Object.keys(TITULO)) $("#v-" + k).hidden = k !== v;
+  $("#modo").textContent = (st.demo ? "Demostración · " : "") + TITULO[v];
+  $("#n-nav").hidden = v === "pedidos" || !st.nuevos.size;
+  if (v === "menu") pintarMenu();
+  if (v === "equipo") pintarEquipo();
+}
+document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
+
+/* Piezas comunes: interruptor de un toque y botón que pide confirmar con un segundo toque */
+function interruptor(on, texto, alCambiar, etiqueta) {
+  const b = h("button", {class:"sw", type:"button", role:"switch", "aria-checked":String(on), "aria-label":etiqueta}, h("i", {"aria-hidden":"true"}), h("span", {}, texto(on)));
+  b.onclick = async () => {
+    const nuevo = b.getAttribute("aria-checked") !== "true"; b.disabled = true;
+    try { if (await alCambiar(nuevo) !== false) { b.setAttribute("aria-checked", String(nuevo)); b.lastChild.textContent = texto(nuevo); } }
+    catch (e) { aviso(e.message, true); }
+    b.disabled = false;
+  };
+  return b;
+}
+function botonSeguro(texto, etiqueta, hacer) {
+  const b = h("button", {class:"mini peligro", type:"button", "aria-label":etiqueta}, texto); let espera = 0;
+  b.onclick = async () => {
+    if (!espera) { b.textContent = "¿Seguro?"; espera = setTimeout(() => { b.textContent = texto; espera = 0; }, 3000); return; }
+    clearTimeout(espera); espera = 0; b.disabled = true;
+    try { await hacer(); } catch (e) { aviso(e.message, true); b.disabled = false; b.textContent = texto; }
+  };
+  return b;
+}
+
+/* ---------- Menú: el dueño edita en la misma fila y se guarda solo; el personal solo marca lo agotado (el servidor responde 403 a lo demás) ---------- */
+async function pintarMenu(recargar = true) {
+  if (recargar) { try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); } }
+  const dueno = st.rol === "dueno", q = plano(st.qMenu), cats = [...new Set(st.menu.map(x => x.categoria || ""))], filas = [];
+  $("#f-plato").hidden = !dueno; $("#menu-pista").hidden = dueno;
+  $("#cats-lista").replaceChildren(...cats.filter(Boolean).map(c => h("option", {value:c})));
+  for (const c of cats) {
+    const items = st.menu.filter(x => (x.categoria || "") === c && (!q || plano(x.nombre).includes(q))); if (!items.length) continue;
+    filas.push(h("h3", {class:"grupo"}, c || "Sin categoría", h("span", {}, " · " + items.length)), ...items.map(x => filaPlato(x, dueno)));
+  }
+  $("#lista-platos").replaceChildren(...(filas.length ? filas : [h("p", {class:"vacia"}, q ? "Ningún plato con ese nombre." : "Aún no hay platos. Agrega el primero arriba.")]));
+}
+function filaPlato(x, dueno) {
+  const precio = () => Number(x.precio).toFixed(2);
+  const campo = (clave, actual, attrs) => { // se guarda al salir del campo o con Enter; si falla, vuelve el valor anterior
+    const i = h("input", {class:"campo-aj", value:actual(), disabled:!dueno, ...attrs});
+    i.addEventListener("keydown", e => { if (e.key === "Enter") i.blur(); });
+    i.addEventListener("change", async () => {
+      const v = i.value.trim();
+      if (v === actual() || (!v && clave !== "categoria")) { i.value = actual(); return; }
+      try {
+        await api("POST", "/panel/dueno/plato", {id:x.id, [clave]:v}); x[clave] = clave === "precio" ? Number(v) : v; i.value = actual(); aviso("Guardado");
+        if (clave === "categoria") pintarMenu(false); // cambia de grupo
+      } catch (e) { aviso(e.message, true); i.value = actual(); }
+    });
+    return i;
+  };
+  const sel = h("input", {type:"file", accept:"image/jpeg,image/png,image/webp", hidden:true});
+  const foto = h("button", {class:"foto-btn" + (x.foto ? " con" : ""), type:"button", disabled:!dueno, "aria-label":(x.foto ? "Cambiar la foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}},
+    x.foto ? h("img", {alt:"", width:56, height:56, loading:"lazy", src:x.foto, srcset:x.foto2x ? `${x.foto} 1x, ${x.foto2x} 2x` : null}) : icono("camara"));
+  sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], foto); };
+  const fila = h("div", {class:"fila-aj fila-plato" + (x.disponible ? "" : " apagada")},
+    h("span", {class:"foto-c"}, sel, foto),
+    campo("nombre", () => x.nombre, {maxlength:80, class:"campo-aj nom", "aria-label":"Nombre del plato"}),
+    campo("precio", precio, {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + x.nombre}),
+    campo("categoria", () => x.categoria || "", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + x.nombre}),
+    interruptor(x.disponible, on => on ? "Disponible" : "Agotado", async on => {
+      await api("POST", "/panel/agotado", {plato:x.id, disponible:on}); x.disponible = on; fila.classList.toggle("apagada", !on);
+    }, x.nombre + ": disponible hoy"),
+    dueno && h("div", {class:"aj-acc"},
+      x.foto && botonSeguro("Quitar foto", "Quitar la foto de " + x.nombre, async () => { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); pintarMenu(); }),
+      botonSeguro("Borrar", "Borrar el plato " + x.nombre, async () => { await api("POST", "/panel/dueno/plato_borrar", {plato:x.id}); aviso(x.nombre + " borrado del menú"); pintarMenu(); })));
+  return fila;
+}
+$("#buscar-plato").addEventListener("input", e => { st.qMenu = e.target.value.trim(); pintarMenu(false); });
+$("#f-plato").onsubmit = async ev => { // sin id: el servidor lo saca del nombre
+  ev.preventDefault(); const f = ev.target;
   try {
-    const [u, m] = await Promise.all([api("GET", "/panel/dueno/usuarios"), api("GET", "/panel/dueno/menu")]);
-    const fu = $("#f-usuario"), fp = $("#f-plato");
-    $("#aj-usuarios").replaceChildren(...u.usuarios.map(x => h("div", {class:"aj-fila"},
-      h("span", {}, h("b", {}, x.nombre), ` · ${NOMBRE_ROL[x.rol] || x.rol}${x.activo ? "" : " · inactivo"}`),
-      h("button", {class:"btn suave", type:"button", on:{click:() => { fu.nombre.value = x.nombre; fu.rol.value = x.rol; fu.activo.checked = x.activo; fu.pin.value = ""; fu.pin.focus(); }}}, "Editar"))));
-    $("#aj-menu").replaceChildren(...m.menu.map(x => h("div", {class:"aj-fila"},
-      miniatura(x),
-      h("span", {}, h("b", {}, x.nombre), ` · ${dinero(x.precio)}${x.disponible ? "" : " · agotado"}`),
-      h("div", {class:"aj-acc"},
-        h("button", {class:"btn suave", type:"button", on:{click:() => { fp.elements.id.value = x.id; fp.nombre.value = x.nombre; fp.precio.value = x.precio; fp.categoria.value = x.categoria || ""; fp.disponible.checked = x.disponible; fp.nombre.focus(); }}}, "Editar"),
-        botonesFoto(x)))));
+    await api("POST", "/panel/dueno/plato", {nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim().toLowerCase()});
+    aviso("Plato agregado"); const cat = f.categoria.value; f.reset(); f.categoria.value = cat; await pintarMenu(); f.nombre.focus(); // listo para el siguiente de la misma categoría
   } catch (e) { aviso(e.message, true); }
-}
-$("#btn-ajustes").onclick = () => { $("#dlg-aj").showModal(); pintarAjustes(); };
-$("#aj-cerrar").onclick = () => $("#dlg-aj").close();
-/* ---- Fotos de platos (bloque propio): miniatura, subir/cambiar y quitar ---- */
-function miniatura(x) {
-  if (!x.foto) return h("span", {class:"aj-foto ini", "aria-hidden":"true"}, (x.nombre.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/) || ["?"])[0].toUpperCase());
-  const i = h("img", {class:"aj-foto", alt:"", width:48, height:48, loading:"lazy", src:x.foto});
-  if (x.foto2x) i.srcset = x.foto + " 1x, " + x.foto2x + " 2x";
-  return i;
-}
+};
 // Reduce la foto en el teléfono (la del celular pesa más de 3 MB): recorte cuadrado de 640 px, WebP o JPEG.
 async function reducirFoto(archivo) {
   const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), lado = Math.min(bmp.width, bmp.height), T = 640;
@@ -837,44 +950,63 @@ async function reducirFoto(archivo) {
   throw new Error("No se pudo preparar la foto. Prueba con otra.");
 }
 async function subirFoto(x, archivo, boton) {
-  const texto = boton.textContent; boton.disabled = true; boton.textContent = "Subiendo…";
+  if (st.demo) return aviso("En la demostración no se guardan fotos");
+  boton.disabled = true;
   try {
     const b = await reducirFoto(archivo);
     const r = await fetch("/panel/dueno/foto?plato=" + encodeURIComponent(x.id), {method:"POST", headers:{"Content-Type":b.type}, body:b});
     if (r.status === 401) return location.reload();
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "No se pudo subir la foto.");
-    aviso("Foto guardada"); await pintarAjustes();
-  } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; boton.textContent = texto; }
+    aviso("Foto guardada"); await pintarMenu();
+  } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; }
 }
-function botonesFoto(x) {
-  const sel = h("input", {type:"file", accept:"image/jpeg,image/png,image/webp", hidden:true});
-  const b = h("button", {class:"btn suave", type:"button", "aria-label":(x.foto ? "Cambiar foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}}, x.foto ? "Cambiar foto" : "Subir foto");
-  sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], b); };
-  const fila = [sel, b];
-  if (x.foto) {
-    const q = h("button", {class:"btn suave", type:"button", "aria-label":"Quitar la foto de " + x.nombre}, "Quitar");
-    let espera = 0;
-    q.onclick = async () => { // doble toque: el primero pide confirmar
-      if (!espera) { q.textContent = "¿Seguro?"; espera = setTimeout(() => { q.textContent = "Quitar"; espera = 0; }, 3000); return; }
-      clearTimeout(espera); q.disabled = true;
-      try { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); pintarAjustes(); }
-      catch (e) { aviso(e.message, true); q.disabled = false; q.textContent = "Quitar"; espera = 0; }
-    };
-    fila.push(q);
+
+/* ---------- Equipo (solo dueño): una fila por persona, agrupadas por rol ---------- */
+const ROLES = [["dueno", "Dueños"], ["personal", "Personal del local"], ["repartidor", "Repartidores"]];
+async function pintarEquipo() {
+  let us; try { us = (await api("GET", "/panel/dueno/usuarios")).usuarios; } catch (e) { return aviso(e.message, true); }
+  const filas = [];
+  for (const [rol, titulo] of ROLES) {
+    const g = us.filter(u => u.rol === rol); if (!g.length) continue;
+    filas.push(h("h3", {class:"grupo"}, titulo, h("span", {}, " · " + g.length)), ...g.map(filaPersona));
   }
-  return fila;
+  $("#lista-equipo").replaceChildren(...filas);
 }
-function enviarAjuste(form, ruta, datos) {
-  form.onsubmit = async ev => {
-    ev.preventDefault();
-    try { await api("POST", ruta, datos(form)); aviso("Guardado"); form.reset(); pintarAjustes(); }
-    catch (e) { aviso(e.message, true); }
+function filaPersona(u) {
+  const guardar = async (cambios, ok) => { await api("POST", "/panel/dueno/usuario", {nombre:u.nombre, ...cambios}); aviso(ok); pintarEquipo(); };
+  let reactivar = false;
+  const pinIn = h("input", {type:"password", inputmode:"numeric", maxlength:6, autocomplete:"new-password", placeholder:"6 números", "aria-label":"PIN nuevo de " + u.nombre});
+  const pinNota = h("span", {class:"t-espera", role:"status"});
+  const enviarPin = async () => {
+    if (!/^\d{6}$/.test(pinIn.value)) { pinNota.textContent = "El PIN tiene 6 números."; return pinIn.focus(); }
+    try { await guardar({pin:pinIn.value, ...(reactivar ? {activo:true} : {})}, reactivar ? u.nombre + " vuelve a estar activo" : "PIN de " + u.nombre + " cambiado"); }
+    catch (e) { pinNota.textContent = e.message; pinIn.focus(); }
   };
+  pinIn.addEventListener("keydown", e => { if (e.key === "Enter") enviarPin(); });
+  const pinCaja = h("div", {class:"pin-linea", hidden:true}, pinIn, h("button", {class:"btn ok", type:"button", on:{click:enviarPin}}, "Guardar PIN"), pinNota);
+  const pedirPin = nota => { pinNota.textContent = nota; pinCaja.hidden = false; pinIn.focus(); };
+  const rol = h("select", {class:"campo-aj rol", "aria-label":"Rol de " + u.nombre}, ROLES.map(([v]) => h("option", {value:v, selected:v === u.rol}, NOMBRE_ROL[v])));
+  rol.onchange = async () => { try { await guardar({rol:rol.value}, u.nombre + " ahora es " + NOMBRE_ROL[rol.value].toLowerCase()); } catch (e) { aviso(e.message, true); rol.value = u.rol; } };
+  return h("div", {class:"fila-aj fila-persona" + (u.activo ? "" : " apagada")},
+    h("span", {class:"ini-persona", "aria-hidden":"true"}, u.nombre.charAt(0).toUpperCase()),
+    h("span", {class:"nombre-aj"}, u.nombre),
+    rol,
+    interruptor(u.activo, on => on ? "Activo" : "Inactivo", async on => {
+      if (on) { reactivar = true; pedirPin("Para reactivar, ponle un PIN nuevo."); return false; } // el servidor lo exige
+      await guardar({activo:false}, u.nombre + " ya no puede entrar");
+    }, u.nombre + ": puede entrar"),
+    h("div", {class:"aj-acc"},
+      h("button", {class:"mini", type:"button", on:{click:() => { reactivar = false; pedirPin(""); }}}, "Cambiar PIN"),
+      botonSeguro("Borrar", "Borrar a " + u.nombre, async () => { await api("POST", "/panel/dueno/usuario_borrar", {nombre:u.nombre}); aviso(u.nombre + " borrado"); pintarEquipo(); })),
+    pinCaja);
 }
-const sinVacios = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
-enviarAjuste($("#f-usuario"), "/panel/dueno/usuario", f => sinVacios({nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim(), activo:f.activo.checked}));
-enviarAjuste($("#f-plato"), "/panel/dueno/plato", f => sinVacios({id:f.elements.id.value.trim(), nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim(), disponible:f.disponible.checked}));
+const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
+$("#f-usuario").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target;
+  try { await api("POST", "/panel/dueno/usuario", {nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim()}); aviso(f.nombre.value.trim() + " agregado"); const r = f.rol.value; f.reset(); f.rol.value = r; await pintarEquipo(); f.nombre.focus(); }
+  catch (e) { aviso(e.message, true); }
+};
 
 /* ---------- Mapa de repartidores en camino (Leaflet autoalojado, carga diferida) ----------
    Solo el punto actual de cada repartidor, sin estela. Siempre con "© OpenStreetMap" a la vista y una lista en texto como alternativa. */
@@ -891,7 +1023,7 @@ function cargarLeaflet() {
 const MAPA = {mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
 const inicialesDe = n => String(n || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 async function pedirFlota() {
-  if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:"Fonda El Chitreano"}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
+  if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:MARCA}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
   return api("GET", "/panel/repartidores_mapa");
 }
 function pintarListaMapa() {
@@ -971,6 +1103,7 @@ async function atendido(e) {
   catch (err) { aviso(err.message, true); }
 }
 function verPedido(id) {
+  if (st.vista !== "pedidos") irA("pedidos");
   const t = $("#pedido-" + id); if (!t) return;
   t.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); t.classList.add("foco");
   const b = t.querySelector("button"); (b || t).focus({preventScroll:true});
@@ -992,11 +1125,28 @@ setInterval(() => { if (!$("#panel").hidden && !document.activeElement.closest("
 /* ---------- Demostración (sin servidor) ---------- */
 // ponytail: datos de ejemplo para el prototipo; con servidor todo sale de /panel/estado.
 let DEMO_IMG = "";
+const DEMO = {
+  menu:[["sancocho", "Sancocho de gallina", 5, "platos"], ["tasajo", "Tasajo con arroz, ensalada y patacones", 7, "platos"], ["guandu", "Arroz con guandú y cerdo", 5.5, "platos"],
+        ["empanadas", "Empanadas de carne (3 u.)", 3, "entradas"], ["chicheme", "Chicheme", 1.75, "bebidas"], ["saril", "Chicha de saril", 1.5, "bebidas"], ["tres-leches", "Tres leches", 3.5, "postres"]]
+    .map(([id, nombre, precio, categoria]) => ({id, nombre, precio, categoria, disponible:id !== "tres-leches", foto:null})),
+  usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true}))
+};
+function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la demostración sin servidor; no valida nada (eso lo hace el servidor)
+  const M = DEMO.menu, U = DEMO.usuarios, fin = ruta.split("/").pop(), plato = M.find(x => x.id === (d.id || d.plato)), persona = U.find(x => x.nombre === d.nombre);
+  if (fin === "menu") return {menu:M.map(x => ({...x}))};
+  if (fin === "usuarios") return {usuarios:U.map(x => ({...x}))};
+  if (fin === "agotado") plato.disponible = d.disponible;
+  if (fin === "plato") { const c = {...d, ...(d.precio != null ? {precio:Number(d.precio)} : {})}; plato ? Object.assign(plato, c) : M.push({id:"p" + Date.now(), categoria:"", disponible:true, foto:null, ...c}); }
+  if (fin === "plato_borrar") M.splice(M.indexOf(plato), 1);
+  if (fin === "usuario") { const {pin, ...c} = d; persona ? Object.assign(persona, c) : U.push({activo:true, ...c}); }
+  if (fin === "usuario_borrar") U.splice(U.indexOf(persona), 1);
+  return {ok:true};
+}
 function cargarDemo() {
   const c = document.createElement("canvas"); c.width = 540; c.height = 960; const g = c.getContext("2d");
   g.fillStyle = "#F4F6F8"; g.fillRect(0, 0, 540, 960); g.fillStyle = "#0B6E4F"; g.fillRect(0, 0, 540, 180);
   g.fillStyle = "#fff"; g.font = "bold 56px sans-serif"; g.fillText("¡Pago enviado!", 40, 115);
-  g.fillStyle = "#222"; g.font = "36px sans-serif"; g.fillText("Para: @elchitreano", 40, 290);
+  g.fillStyle = "#222"; g.font = "36px sans-serif"; g.fillText("Para: @delifood", 40, 290);
   g.font = "bold 88px sans-serif"; g.fillText("B/. 12.57", 40, 420);
   g.font = "32px sans-serif"; g.fillStyle = "#555"; g.fillText("Ref. 88412", 40, 520); g.fillText("Hoy, 12:41 p. m.", 40, 575);
   DEMO_IMG = c.toDataURL("image/png");

@@ -1,0 +1,38 @@
+/* Tema de marca: colores y tipografías de las tres páginas (web de pedidos, panel y repartidor).
+   El servidor lo incrusta en cada página; un restaurante puede traer el suyo en servicios/<slug>/tema.css.
+   Rojo y negro: fondo claro, barras negras y rojo solo para acciones. Verde = pagado/listo, ámbar = atención. */
+@font-face{font-family:"Epilogue";src:url(/estatico/epilogue-v1.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Plus Jakarta Sans";src:url(/estatico/jakarta-v1.woff2) format("woff2");font-weight:200 800;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/estatico/mono-v1.woff2) format("woff2");font-weight:100 800;font-display:swap}
+:root{
+  --surface:#f7f6f6; --sc-lowest:#ffffff; --sc-low:#f2f1f1; --sc:#ecebeb; --sc-high:#e5e3e3; --sc-highest:#dddbdb;
+  --on-surface:#17171a; --on-variant:#57534f; --outline:#85807d; --outline-variant:#d9d5d3;
+  --inverse:#111113; --on-inverse:#f5f4f4;
+  --primary:#c1121f; --primary-container:#e0202d; --on-primary:#ffffff; --primary-fixed:#ffe1df;
+  --secondary:#7a5600; --secondary-container:#ffb81f; --on-secondary-container:#17171a; --secondary-fixed:#ffe7b8;
+  --tertiary:#186a22; --tertiary-container:#358438; --tertiary-fixed:#c9f2c4; --on-tertiary:#ffffff;
+  --error:#ba1a1a; --error-container:#ffdad6;
+  --azul:#005ac1; --azul-suave:#d8e2ff; --violeta:#6b3fa0; --violeta-suave:#ecdcff; --celeste:#00677e; --celeste-suave:#b8eaff;
+  --sombra:0 1px 2px rgba(17,17,19,.06),0 2px 10px rgba(17,17,19,.07);
+  --sombra-2:0 8px 28px rgba(17,17,19,.18);
+  --barra:#111113; --sobre-barra:#f5f4f4; --velo:rgba(247,246,246,.86);
+  --r4:4px; --r8:8px; --r12:12px;
+  --display:"Epilogue",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --texto:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --surface:#121213; --sc-lowest:#1b1b1d; --sc-low:#202022; --sc:#272729; --sc-high:#303032; --sc-highest:#3a3a3d;
+  --on-surface:#ececec; --on-variant:#c8c4c2; --outline:#96918f; --outline-variant:#48454a;
+  --inverse:#050506; --on-inverse:#ececec;
+  --primary:#ff4d57; --primary-container:#e0202d; --on-primary:#1c0003; --primary-fixed:#4a1014;
+  --secondary:#ffc145; --secondary-fixed:#3a2b0b; --on-secondary-container:#241a00;
+  --tertiary:#88d982; --tertiary-container:#358438; --tertiary-fixed:#1e3a21; --on-tertiary:#00390a;
+  --error:#ffb4ab; --error-container:#5c1a14;
+  --azul:#aec6ff; --azul-suave:#1c2b4a; --violeta:#d6baff; --violeta-suave:#2f2142; --celeste:#7fd3ee; --celeste-suave:#0d3340;
+  --sombra:0 1px 2px rgba(0,0,0,.5); --sombra-2:0 8px 28px rgba(0,0,0,.6);
+  --barra:#050506; --velo:rgba(18,18,19,.86);
+}}
+/* Marca sin logo: la inicial del nombre en un cuadro rojo */
+.logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:var(--primary-container);color:#fff;font:800 1.25rem/1 var(--display);flex:none}

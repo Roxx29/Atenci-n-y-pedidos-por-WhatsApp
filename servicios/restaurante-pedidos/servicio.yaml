@@ -1,5 +1,6 @@
-nombre: "Pedidos por WhatsApp — Fonda El Chitreano"
-negocio: "Fonda El Chitreano, Chitré, provincia de Herrera, Panamá"
+nombre: "Pedidos por WhatsApp — DeliFood"
+marca: "DeliFood"   # nombre que ven el cliente, el panel y el repartidor
+negocio: "DeliFood, Chitré, provincia de Herrera, Panamá"
 objetivo: "Responder 24/7, tomar pedidos de entrega o recogida con el total correcto y enviar los datos de pago."
 modelo: claude-opus-5-5
 esfuerzo: low
@@ -19,10 +20,10 @@ pedidos:
       "Chitré": [Chitré cabecera, La Arena, Monagrillo, Llano Bonito, San Juan Bautista]
       "La Villa de Los Santos": [La Villa, Villa de Los Santos]
 pago:
-  yappy: "@elchitreano"
-  transferencia: "Banco General · Ahorros 03-00-00-000000-0 · Fonda El Chitreano S.A."
+  yappy: "@delifood (ejemplo)"
+  transferencia: "Banco General · Ahorros 03-00-00-000000-0 (ejemplo) · DeliFood"
   link: null               # Tilopay/PagueloFacil en v2
-web: {aviso_version: "2026-11-02", aviso: aviso.md}
+web: {aviso_version: "2026-11-10", aviso: aviso.md}
 comprobantes: {borrar_al_marcar: true, max_dias: 7}   # foto del comprobante de Yappy: se borra al marcar pagado o a los 7 días
 herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
 conocimiento: conocimiento.md

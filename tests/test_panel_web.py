@@ -1,9 +1,11 @@
 """Panel web /panel. Ejecutar: python -m unittest tests.test_panel_web"""
 import os
+import threading
 import unittest
 import unittest.mock
 
-from motor import herramientas, panel_web
+from motor import herramientas, panel_web, web
+from motor.nucleo import Servicio
 from tests.test_web import PEDIDO, TEL, Base
 
 PIN = "483920"
@@ -120,6 +122,61 @@ class PanelWeb(Base):
             self.assertEqual(self.js(m, r, cuerpo, cookie=ck2)[0], 403)
         self.assertEqual(self.js("GET", "/panel/dueno/nada", cookie=ck)[0], 404)
         self.assertIn(("Ana", "login"), [(a["usuario"], a["accion"]) for a in self.sv.listar("auditoria")])
+
+    def test_menu_en_fila_agotado_del_personal_y_borrar(self):
+        _, ck = self.login()
+        st, d, _ = self.js("POST", "/panel/dueno/plato", {"nombre": "Arroz con Pollo", "precio": "4.50", "categoria": "platos"}, cookie=ck)  # sin id: sale del nombre
+        self.assertEqual((st, d["plato"]["id"], d["plato"]["precio"]), (200, "arroz-con-pollo", 4.5))
+        self.assertEqual(self.js("POST", "/panel/dueno/plato", {"nombre": "Arroz con pollo", "precio": 5}, cookie=ck)[1]["plato"]["id"], "arroz-con-pollo-2")  # no pisa al otro
+        self.assertEqual(self.js("POST", "/panel/dueno/plato", {"precio": 5}, cookie=ck)[0], 409)  # sin id ni nombre
+        self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)
+        _, ck2 = self.login("918273")
+        self.assertIn("sancocho", [m["id"] for m in self.js("GET", "/panel/menu", cookie=ck2)[1]["menu"]])  # el personal ve el menú
+        self.assertEqual(self.js("POST", "/panel/agotado", {"plato": "sancocho", "disponible": False}, cookie=ck2)[0], 200)  # y marca lo agotado
+        self.assertFalse(next(m for m in self.js("GET", "/menu")[1] if m["id"] == "sancocho")["disponible"])
+        self.assertEqual(self.js("POST", "/panel/agotado", {"plato": "nada", "disponible": False}, cookie=ck2)[0], 404)
+        self.assertEqual(self.js("POST", "/panel/agotado", {"plato": "sancocho", "disponible": "no"}, cookie=ck2)[0], 400)
+        self.assertEqual(self.js("POST", "/panel/dueno/plato_borrar", {"plato": "sancocho"}, cookie=ck2)[0], 403)  # borrar es del dueño
+        self.assertEqual(self.js("GET", "/panel/menu")[0], 401)
+        self.assertEqual(self.js("POST", "/panel/dueno/plato_borrar", {"plato": "arroz-con-pollo-2"}, cookie=ck)[0], 200)
+        self.assertEqual(self.js("POST", "/panel/dueno/plato_borrar", {"plato": "arroz-con-pollo-2"}, cookie=ck)[0], 404)
+        self.assertNotIn("arroz-con-pollo-2", [m["id"] for m in self.js("GET", "/menu")[1]])
+        self.assertIn("plato_borrar:arroz-con-pollo-2", [a["accion"] for a in self.sv.listar("auditoria")])
+
+    def test_borrar_persona(self):
+        _, ck = self.login()
+        self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)
+        _, ck2 = self.login("918273")
+        self.assertEqual(self.js("POST", "/panel/dueno/usuario_borrar", {"nombre": "Ana"}, cookie=ck)[0], 200)
+        self.assertEqual(self.js("GET", "/panel/estado", cookie=ck2)[0], 401)  # su sesión deja de valer
+        self.assertEqual(self.login("918273")[0], 401)
+        self.assertEqual(self.js("POST", "/panel/dueno/usuario_borrar", {"nombre": "Ana"}, cookie=ck)[0], 404)
+        self.assertEqual(self.js("POST", "/panel/dueno/usuario_borrar", {"nombre": "Dueno"}, cookie=ck)[0], 409)  # queda al menos un dueño
+        self.assertIn(("Dueno", "usuario_borrar:Ana"), [(a["usuario"], a["accion"]) for a in self.sv.listar("auditoria")])
+
+    def test_paginas_con_marca_y_tema(self):
+        self.sv.cfg["marca"] = "Café <Luna>"
+        panel_web.guardar_usuario(self.sv, {"nombre": "Juan", "rol": "repartidor", "pin": "739104"}, "prueba")  # sin repartidores /repartidor no existe
+        srv = web.crear_servidor(self.sv, 0, "secreto-de-prueba")  # las páginas se arman al crear el servidor
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
+        self.puerto = srv.server_address[1]
+        for ruta in ("/", "/panel", "/repartidor"):
+            r, raw = self.req("GET", ruta)
+            h = raw.decode()
+            self.assertEqual(r.status, 200, ruta)
+            self.assertIn("Café &lt;Luna&gt;", h)  # nombre de servicio.yaml, escapado
+            self.assertNotIn("DeliFood", h)
+            self.assertIn("--primary:", h)  # tema incrustado
+            self.assertNotIn("estatico/tema.css", h)
+
+    def test_config_publica_y_pago_solo_con_sesion(self):
+        st, d, _ = self.js("GET", "/config")
+        self.assertEqual((st, d["marca"], d["impuesto_pct"]), (200, "DeliFood", self.sv.cfg["pedidos"]["impuesto_pct"]))
+        self.assertEqual(d["envio"], {"": 2.5})  # costo fijo de la configuración de prueba
+        self.assertEqual(web.config_publica(Servicio("servicios/restaurante-pedidos", db=":memory:"))["envio"], {"Chitré": 2.0, "La Villa de Los Santos": 3.0})
+        self.assertNotIn("pago", d)
+        self.assertEqual(self.js("GET", "/config", cookie=self.entrar()[2])[1]["pago"]["yappy"], self.sv.cfg["pago"]["yappy"])
 
 
 if __name__ == "__main__":

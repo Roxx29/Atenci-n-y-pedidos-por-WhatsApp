@@ -15,6 +15,7 @@ import re
 import secrets
 import sys
 import time
+import unicodedata
 from collections.abc import Mapping
 
 from . import herramientas
@@ -228,13 +229,37 @@ def guardar_usuario(sv, d, quien):
     return {"nombre": nombre, "rol": nuevo["rol"], "activo": nuevo["activo"]}
 
 
+def borrar_usuario(sv, nombre, quien):
+    """Borra a una persona (y su aviso de ubicación aceptado). LookupError si no existe; debe quedar un dueño activo."""
+    with sv.pedidos_lock:
+        u = next((u for u in _todos(sv) if u["nombre"] == nombre), None)
+        if not u:
+            raise LookupError(nombre)
+        if u["rol"] == "dueno" and u["activo"] and not any(x["rol"] == "dueno" and x["activo"] and x["nombre"] != nombre for x in _todos(sv)):
+            raise ValueError("Debe quedar al menos un dueño activo")
+        sv._q("DELETE FROM usuarios WHERE nombre=?", (nombre,))
+        sv._q("DELETE FROM aviso_repartidor WHERE nombre=?", (nombre,))
+    auditar(sv, quien, f"usuario_borrar:{nombre}")
+    return {"ok": True}
+
+
 ID_PLATO = re.compile(r"[a-z0-9-]{1,40}")
 
 
+def _id_de_nombre(sv, nombre):
+    """Id libre a partir del nombre: "Arroz con pollo" -> arroz-con-pollo (y -2, -3… si ya existe)."""
+    base = re.sub(r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", nombre).encode("ascii", "ignore").decode().lower()).strip("-")[:36].strip("-") or "plato"
+    iid, n = base, 2
+    while iid in sv.menu:
+        iid, n = f"{base}-{n}", n + 1
+    return iid
+
+
 def guardar_plato(sv, d, quien):
-    """Crea o edita (por id) un plato: {id, nombre?, precio?, categoria?, disponible?}. Precio >= 0 en B/. sin fracción de centavo."""
+    """Crea o edita (por id) un plato: {id?, nombre?, precio?, categoria?, disponible?}. Sin id se crea uno nuevo con id sacado del nombre.
+    Precio >= 0 en B/. sin fracción de centavo."""
     iid, nombre, precio, cat, disp = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible")
-    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
+    if iid is not None and not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
         raise ValueError("Id inválido: 1 a 40 minúsculas, números o -")
     if nombre is not None and not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 80):
         raise ValueError("El nombre no puede estar vacío (máx. 80)")
@@ -250,12 +275,30 @@ def guardar_plato(sv, d, quien):
         if not 0 <= cambios["precio_c"] <= 99_999:
             raise ValueError("El precio debe estar entre 0 y 999.99")
     with sv.pedidos_lock:
-        p = sv.menu.get(iid)
+        p = sv.menu.get(iid) if iid else None
         if not p and not ("nombre" in cambios and "precio_c" in cambios):
             raise ValueError("Para crear un plato hacen falta nombre y precio")
+        iid = iid or _id_de_nombre(sv, cambios["nombre"])
         sv.guardar_plato(iid, {**{k: v for k, v in (p or {"categoria": "", "disponible": True}).items() if k not in ("id", "precio")}, **cambios})
     auditar(sv, quien, f"plato_{'editar' if p else 'crear'}:{iid}")
     return {"ok": True, "plato": next(x for x in menu_json(sv) if x["id"] == iid)}
+
+
+def borrar_plato(sv, quien, iid):
+    """Quita un plato del menú (con su foto). Los pedidos ya hechos guardan su propio nombre y precio."""
+    if not (isinstance(iid, str) and ID_PLATO.fullmatch(iid) and sv.borrar_plato(iid)):
+        raise LookupError(iid)
+    auditar(sv, quien, f"plato_borrar:{iid}")
+    return {"ok": True}
+
+
+def poner_disponible(sv, quien, iid, disponible):
+    """Agotado / disponible con un toque: lo puede hacer cualquiera del panel (la cocina sabe qué se acabó)."""
+    if not (isinstance(iid, str) and iid in sv.menu):
+        raise LookupError(iid)
+    if not isinstance(disponible, bool):
+        raise ValueError("Disponible debe ser sí o no")
+    return guardar_plato(sv, {"id": iid, "disponible": disponible}, quien)
 
 
 def urls_foto(iid, v):
@@ -490,6 +533,10 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return guardar_plato(sv, d or {}, quien)
     if (metodo, ruta) == ("POST", "foto_borrar"):
         return borrar_foto(sv, quien, (d or {}).get("plato"))
+    if (metodo, ruta) == ("POST", "plato_borrar"):
+        return borrar_plato(sv, quien, (d or {}).get("plato"))
+    if (metodo, ruta) == ("POST", "usuario_borrar"):
+        return borrar_usuario(sv, (d or {}).get("nombre"), quien)
     raise LookupError(ruta)
 
 

@@ -2,6 +2,7 @@
 import datetime as dt
 import hashlib
 import hmac
+import html
 import ipaddress
 import json
 import os
@@ -24,7 +25,7 @@ PAGINA = Path(__file__).with_name("web_index.html")
 PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
 PAGINA_REP = Path(__file__).with_name("repartidor.html")
 MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "/repartidor/", "scope": "/repartidor/", "display": "standalone",
-                "background_color": "#ffffff", "theme_color": "#1f6f43", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
+                "background_color": "#ffffff", "theme_color": "#111113", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
 FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")
 LEAFLET = {"leaflet-1.9.4.js": "text/javascript", "leaflet-1.9.4.css": "text/css",
            **{f"images/{f}": "image/png" for f in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png", "layers.png", "layers-2x.png")}}
@@ -42,6 +43,35 @@ VIDA_S = 24 * 3600
 VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
 CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
+
+
+MARCA = "DeliFood"  # nombre escrito en las páginas; se cambia por `marca:` de servicio.yaml al servir
+ENLACE_TEMA = b'<link rel="stylesheet" href="estatico/tema.css">'
+
+
+def marca_de(sv):
+    return str(sv.cfg.get("marca") or MARCA)
+
+
+def armar_pagina(sv, f):
+    """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico) y nombre de marca."""
+    if not f.is_file():
+        return b""
+    tema = sv.dir / "tema.css"
+    css = (tema if tema.is_file() else ESTATICO / "tema.css").read_bytes()
+    return f.read_bytes().replace(ENLACE_TEMA, b"<style>" + css + b"</style>").replace(MARCA.encode(), html.escape(marca_de(sv)).encode())
+
+
+def config_publica(sv, con_pago=False):
+    """Lo que la web de pedidos muestra del restaurante (sale de servicio.yaml, no se escribe en el HTML). Los datos de pago solo con sesión de cliente."""
+    p = sv.cfg.get("pedidos") or {}
+    e = p.get("envio") or {}
+    zonas, costo = e.get("zonas"), e.get("costo") or 0  # mismas tres formas que herramientas._envio: por zona, lista de zonas a costo fijo, o costo fijo ("")
+    envio = dict(zonas) if isinstance(zonas, dict) else {z: costo for z in zonas} if zonas else {"": costo} if costo else {}
+    d = {"marca": marca_de(sv), "horario": sv.cfg.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio}
+    if con_pago:
+        d["pago"] = {k: v for k, v in (sv.cfg.get("pago") or {}).items() if k in ("yappy", "transferencia") and v}
+    return d
 
 
 def secreto_web(carpeta):
@@ -112,10 +142,10 @@ class Limite:
 
 def crear_servidor(sv, puerto=8080, secreto=None):
     secreto = secreto or secreto_web(sv.dir)
-    pagina = PAGINA.read_bytes()
+    pagina = armar_pagina(sv, PAGINA)
     usuarios = panel_web.Usuarios(sv, panel_web.PANEL)  # un PIN por persona (tabla usuarios; semilla PANEL_PIN*)
     acceso, bloqueo = panel_web.Acceso(secreto, usuarios), panel_web.Bloqueo()
-    pagina_panel = PAGINA_PANEL.read_bytes() if PAGINA_PANEL.is_file() else b""
+    pagina_panel, pagina_rep = armar_pagina(sv, PAGINA_PANEL), armar_pagina(sv, PAGINA_REP)
     repartidores = panel_web.Usuarios(sv, panel_web.REPARTO)  # semilla REPARTIDORES; se gestionan desde el panel
     acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
@@ -333,6 +363,18 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                     return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_json(p)}, extra=renovar)
                 if ruta == "/panel/repartidores_mapa" and metodo == "GET":
                     return self._enviar(200, mapa_panel(), extra=renovar)
+                if ruta == "/panel/menu" and metodo == "GET":  # todo el panel ve el menú; editarlo es del dueño
+                    return self._enviar(200, {"menu": panel_web.menu_json(sv)}, extra=renovar)
+                if ruta == "/panel/agotado" and metodo == "POST":  # agotado/disponible: también el personal
+                    d = self._json()
+                    if d is None:
+                        return
+                    try:
+                        return self._enviar(200, panel_web.poner_disponible(sv, quien, d.get("plato"), d.get("disponible")), extra=renovar)
+                    except LookupError:
+                        return self._err(404, "No existe ese plato")
+                    except ValueError as e:
+                        return self._err(400, str(e))
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
                     try:
                         panel_web.atender_escalado(sv, int(partes[3]))
@@ -424,7 +466,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not acc_rep.activo:
                 return self._err(404, "No encontrado")
             if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
-                return self._enviar(200, PAGINA_REP.read_bytes() if PAGINA_REP.is_file() else b"", "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, pagina_rep, "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/repartidor/manifest.webmanifest" and metodo == "GET":
                 return self._enviar(200, MANIFEST_REP, "application/manifest+json")
             if ruta == "/repartidor/sw.js" and metodo == "GET":
@@ -525,6 +567,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 return self._enviar(200, pagina, "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/menu":
                 return self._enviar(200, panel_web.menu_json(sv))
+            if ruta == "/config":
+                return self._enviar(200, config_publica(sv, con_pago=bool(self._cid())))
             if ruta == "/aviso":
                 v, t = aviso_de(sv)
                 return self._enviar(200, {"version": v, "texto": t})

@@ -68,9 +68,9 @@ def conectar(ruta, nube=False):
 class Servicio:
     def __init__(self, carpeta, db=None, cliente=None, cliente_respaldo=None):
         self.dir = Path(carpeta)
-        self.cfg = yaml.safe_load((self.dir / "servicio.yaml").read_text(encoding="utf-8"))
-        self.tz = ZoneInfo(self.cfg.get("zona_horaria", "America/Panama"))
-        self.tools = herramientas.esquemas(self.cfg.get("herramientas", []))
+        self._cfg = yaml.safe_load((self.dir / "servicio.yaml").read_text(encoding="utf-8"))
+        self.tz = ZoneInfo(self._cfg.get("zona_horaria", "America/Panama"))
+        self.tools = herramientas.esquemas(self._cfg.get("herramientas", []))
         ruta = str(db or self.dir / "datos.sqlite")
         self.db, self.nube = conectar(ruta, nube=db is None)
         if ruta != ":memory:" and not self.nube:
@@ -83,6 +83,7 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
             "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
             "CREATE TABLE IF NOT EXISTS comprobantes(nombre TEXT PRIMARY KEY, datos BLOB NOT NULL, creado REAL NOT NULL);"  # fotos de comprobantes de Yappy (antes archivos)
+            "CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL);"  # lo que el dueño cambia desde el panel; pisa esa clave de servicio.yaml
         )
         if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)").fetchall()}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
             self.db.executescript("ALTER TABLE platos ADD COLUMN foto BLOB; ALTER TABLE platos ADD COLUMN foto2x BLOB; ALTER TABLE platos ADD COLUMN foto_v TEXT;")
@@ -101,13 +102,37 @@ class Servicio:
             for it in self._menu_yaml.values():
                 self.guardar_plato(it["id"], {k: v for k, v in it.items() if k not in ("id", "precio")})
         kb = self.dir / self.cfg.get("conocimiento", "conocimiento.md")
-        self._prompt = PROMPT.format(
-            negocio=self.cfg.get("negocio", self.cfg.get("nombre", "el negocio")),
-            objetivo=self.cfg.get("objetivo", ""),
-            horario=json.dumps(self.cfg.get("horario", "no aplica"), ensure_ascii=False),
-            instrucciones=self.cfg.get("instrucciones", ""),
-            conocimiento=kb.read_text(encoding="utf-8") if kb.exists() else "",
-        )  # el menú va al final (tras el conocimiento), leído en cada turno
+        self._kb = kb.read_text(encoding="utf-8") if kb.exists() else ""
+
+    @property
+    def cfg(self):
+        """servicio.yaml con los ajustes del panel encima (tabla ajustes, leída en vivo: otro proceso los ve al momento). Sin ajustes es el dict del yaml tal cual."""
+        a = {k: json.loads(v) for k, v in self._q("SELECT clave, valor FROM ajustes")}
+        return {**self._cfg, **a} if a else self._cfg
+
+    @cfg.setter
+    def cfg(self, v):
+        self._cfg = v
+
+    def poner_ajuste(self, clave, valor):
+        self._q("INSERT OR REPLACE INTO ajustes(clave, valor) VALUES (?,?)", (clave, json.dumps(valor, ensure_ascii=False)))
+
+    @property
+    def _prompt(self):
+        """Se arma en cada turno: horario, cierre manual, teléfono y anuncio pueden cambiar desde el panel. El menú va al final (tras el conocimiento)."""
+        c = self.cfg
+        horario = json.dumps(c.get("horario", "no aplica"), ensure_ascii=False)
+        if c.get("horario") and c.get("menu"):
+            horario += ("\nSe puede pedir para más tarde o para otro día dentro del horario: pasa la hora en hora_deseada como AAAA-MM-DD HH:MM."
+                        " Fuera de horario no digas que no se puede: ofrece programarlo para cuando abra.")
+        if c.get("cerrado"):
+            horario += "\nAHORA EL LOCAL ESTÁ CERRADO TEMPORALMENTE (lo cerró el equipo): no se reciben pedidos hasta que lo abran; díselo al cliente."
+        if c.get("telefono"):
+            horario += f"\nTeléfono del restaurante: {c['telefono']}. Si el cliente quiere hablar con una persona, además de escalar, dile que puede llamar a ese número."
+        if c.get("anuncio"):
+            horario += f"\nAviso del restaurante para los clientes: {c['anuncio']}"
+        return PROMPT.format(negocio=c.get("negocio", c.get("nombre", "el negocio")), objetivo=c.get("objetivo", ""), horario=horario,
+                             instrucciones=c.get("instrucciones", ""), conocimiento=self._kb)
 
     @property
     def menu(self):

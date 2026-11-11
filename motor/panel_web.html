@@ -344,7 +344,29 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .pin-linea input{min-height:44px;width:150px;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);letter-spacing:.2em}
 .pin-linea input:focus{outline:none;border-color:var(--primary)}
 .pin-linea .btn{min-height:44px}
+/* Promociones y Configuración */
+.fila-promo{grid-template-columns:56px minmax(0,1fr) minmax(0,1.4fr) 104px 132px auto}
+.nuevo-aj.promo{grid-template-columns:minmax(0,1.4fr) minmax(0,2fr) minmax(0,.8fr) auto}
+.caja-aj{display:grid;gap:12px;padding:14px;margin:12px 0;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra)}
+.caja-aj .grupo{margin:0}
+.caja-aj label{display:grid;gap:4px;font-size:.8125rem;font-weight:700;color:var(--on-variant)}
+.caja-aj small{font-weight:500}
+.caja-aj input:not([type=checkbox]){min-height:48px;min-width:0;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);color:var(--on-surface);font-weight:600}
+.caja-aj input:focus{outline:none;border-color:var(--primary)}
+.dia-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0 0;border-top:1px solid var(--sc-high)}
+.caja-aj .dia-n{display:flex;align-items:center;gap:10px;width:128px;font-size:.9375rem;color:var(--on-surface)}
+.dia-h input[type=checkbox]{width:22px;height:22px;accent-color:var(--primary)}
+.dia-h input[type=time]{min-height:44px;width:124px}
+.dia-h input:disabled{opacity:.35}
+.config-pie{display:flex;flex-wrap:wrap;align-items:center;gap:12px;position:sticky;bottom:0;padding:12px 0;background:var(--papel)}
+.config-pie .btn{min-height:48px}
+.sw.tienda[aria-checked=false]{color:var(--error)}
+.sw.tienda[aria-checked=false] i{background:var(--error)}
 @media (max-width:900px){
+  .fila-promo{grid-template-areas:"foto nom nom" "cat cat cat" "pre pre sw" "acc acc acc"}
+  .nuevo-aj.promo{grid-template-columns:1fr 1fr}
+  .dia-h .dia-n{width:100%}
+  .dia-h input[type=time]{flex:1;width:auto}
   .vista-cab{padding:12px 12px 4px}
   .vista-cuerpo{padding:4px 12px 24px}
   .fila-plato{grid-template-columns:56px 84px minmax(0,1fr);grid-template-areas:"foto nom nom" "pre pre cat" "sw sw acc"}
@@ -377,6 +399,8 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
   <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-promo" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></symbol>
+  <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
 </svg>
 
 <!-- ============ Entrada ============ -->
@@ -403,7 +427,9 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     <span class="logo" aria-hidden="true" data-inicial></span>
     <button type="button" data-vista="pedidos" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-recibo"/></svg>Pedidos<span class="cuenta" id="n-nav" hidden>0</span></button>
     <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
+    <button type="button" data-vista="promos"><svg class="i" aria-hidden="true"><use href="#i-promo"/></svg>Promos</button>
     <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
+    <button type="button" data-vista="config" id="nav-config" hidden><svg class="i" aria-hidden="true"><use href="#i-ajustes"/></svg>Config.</button>
     <span class="hueco"></span>
     <button type="button" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg>Sonido</button>
     <button type="button" id="btn-salir"><svg class="i" aria-hidden="true"><use href="#i-salir"/></svg>Salir</button>
@@ -431,6 +457,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
         <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
           <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
         </div>
+        <span id="tienda-caja"></span>
         <button class="btn suave" id="btn-cerrados" type="button" aria-pressed="false">Cancelados</button>
         <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
         <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
@@ -453,6 +480,47 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
         <datalist id="cats-lista"></datalist>
         <p class="t-espera" id="menu-pista" hidden>Marca aquí lo que se agotó: el cliente y el asistente lo ven al momento.</p>
         <div id="lista-platos"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-promos" hidden>
+      <div class="vista-cab"><h2>Promociones</h2></div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj promo" id="f-promo" autocomplete="off" hidden>
+          <label>Promoción nueva<input name="nombre" maxlength="80" required placeholder="Ej.: Combo almuerzo"></label>
+          <label>Qué incluye<input name="descripcion" maxlength="200" placeholder="Ej.: sancocho + chicha de saril"></label>
+          <label>Precio (B/.)<input name="precio" type="number" inputmode="decimal" min="0" max="999.99" step="0.01" required placeholder="0.00"></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <p class="t-espera">Una promoción es un combo u oferta con su precio. Sale arriba del todo en la página de pedidos y el asistente la ofrece. Apágala cuando termine y vuelve a encenderla cuando quieras.</p>
+        <div id="lista-promos"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-config" hidden>
+      <div class="vista-cab"><h2>Configuración general</h2></div>
+      <div class="vista-cuerpo">
+        <form id="f-config" autocomplete="off" novalidate>
+          <section class="caja-aj">
+            <h3 class="grupo">Restaurante</h3>
+            <label>Nombre<input name="marca" maxlength="40" required></label>
+            <label>Teléfono del restaurante<input name="telefono" type="tel" inputmode="tel" maxlength="20" placeholder="Ej.: 6123-4567">
+              <small>Los clientes lo ven para llamar, y el asistente lo da cuando alguien pide hablar con una persona.</small></label>
+            <label>Anuncio para los clientes (opcional)<input name="anuncio" maxlength="160" placeholder="Ej.: Hoy cerramos a las 8 p. m.">
+              <small>Sale arriba en la página de pedidos y el asistente lo sabe.</small></label>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Horario</h3>
+            <p class="t-espera" style="margin:0">Marca los días que abres y sus horas. El segundo turno es opcional (almuerzo y cena). Fuera de horario el cliente puede dejar el pedido programado.</p>
+            <div id="horario-dias"></div>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Datos de pago</h3>
+            <label>Yappy<input name="yappy" maxlength="160" placeholder="@turestaurante o número"></label>
+            <label>Transferencia<input name="transferencia" maxlength="160" placeholder="Banco · tipo de cuenta · número · a nombre de"></label>
+          </section>
+          <div class="config-pie"><button class="btn">Guardar cambios</button><span class="t-espera" id="config-nota" role="status"></span></div>
+        </form>
       </div>
     </div>
 
@@ -581,7 +649,7 @@ $("#form-pin").addEventListener("submit", async ev => {
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
-  $("#nav-equipo").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
+  $("#nav-equipo").hidden = $("#nav-config").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
   if (st.demo) cargarDemo();
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
@@ -669,6 +737,7 @@ function recibir(d) {
     if (a.tipo === "sistema") mostrarBanda(a.texto);
   }
   if (d.escalados) st.escalados = d.escalados;
+  if (d.cerrado != null) pintarTienda(d.cerrado);
   if (d.repartidores) st.repartidores = d.repartidores.map(repNombre).filter(Boolean);
   if (d.ultimo != null) st.ultimo = d.ultimo;
   st.primera = false;
@@ -851,9 +920,9 @@ $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg"
 
 
 /* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
-const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", equipo:"Equipo"};
+const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", equipo:"Equipo", config:"Configuración"};
 function irA(v) {
-  if (v === "equipo" && st.rol !== "dueno") v = "pedidos";
+  if ((v === "equipo" || v === "config") && st.rol !== "dueno") v = "pedidos";
   st.vista = v;
   for (const b of document.querySelectorAll(".lado [data-vista]")) b.dataset.vista === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
   for (const k of Object.keys(TITULO)) $("#v-" + k).hidden = k !== v;
@@ -861,6 +930,8 @@ function irA(v) {
   $("#n-nav").hidden = v === "pedidos" || !st.nuevos.size;
   if (v === "menu") pintarMenu();
   if (v === "equipo") pintarEquipo();
+  if (v === "promos") pintarPromos();
+  if (v === "config") pintarConfig();
 }
 document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
 
@@ -888,23 +959,39 @@ function botonSeguro(texto, etiqueta, hacer) {
 /* ---------- Menú: el dueño edita en la misma fila y se guarda solo; el personal solo marca lo agotado (el servidor responde 403 a lo demás) ---------- */
 async function pintarMenu(recargar = true) {
   if (recargar) { try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); } }
-  const dueno = st.rol === "dueno", q = plano(st.qMenu), cats = [...new Set(st.menu.map(x => x.categoria || ""))], filas = [];
+  const dueno = st.rol === "dueno", q = plano(st.qMenu), carta = st.menu.filter(x => !esPromo(x)), cats = [...new Set(carta.map(x => x.categoria || ""))], filas = [];
   $("#f-plato").hidden = !dueno; $("#menu-pista").hidden = dueno;
   $("#cats-lista").replaceChildren(...cats.filter(Boolean).map(c => h("option", {value:c})));
   for (const c of cats) {
-    const items = st.menu.filter(x => (x.categoria || "") === c && (!q || plano(x.nombre).includes(q))); if (!items.length) continue;
+    const items = carta.filter(x => (x.categoria || "") === c && (!q || plano(x.nombre).includes(q))); if (!items.length) continue;
     filas.push(h("h3", {class:"grupo"}, c || "Sin categoría", h("span", {}, " · " + items.length)), ...items.map(x => filaPlato(x, dueno)));
   }
   $("#lista-platos").replaceChildren(...(filas.length ? filas : [h("p", {class:"vacia"}, q ? "Ningún plato con ese nombre." : "Aún no hay platos. Agrega el primero arriba.")]));
 }
-function filaPlato(x, dueno) {
+/* Promociones: son platos de la categoría "promociones" con su descripción; aquí se ven aparte del menú */
+const esPromo = x => plano(x.categoria) === "promociones";
+const repintarCarta = () => st.vista === "promos" ? pintarPromos() : pintarMenu();
+async function pintarPromos() {
+  try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); }
+  const dueno = st.rol === "dueno", ps = st.menu.filter(esPromo);
+  $("#f-promo").hidden = !dueno;
+  $("#lista-promos").replaceChildren(...(ps.length ? ps.map(x => filaPlato(x, dueno, true)) : [h("p", {class:"vacia"}, dueno ? "Aún no hay promociones. Agrega la primera arriba." : "No hay promociones ahora.")]));
+}
+$("#f-promo").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target;
+  try {
+    await api("POST", "/panel/dueno/plato", {nombre:f.nombre.value.trim(), precio:f.precio.value, descripcion:f.descripcion.value.trim(), categoria:"promociones"});
+    aviso("Promoción agregada: ya sale en la página de pedidos"); f.reset(); await pintarPromos(); f.nombre.focus();
+  } catch (e) { aviso(e.message, true); }
+};
+function filaPlato(x, dueno, promo) {
   const precio = () => Number(x.precio).toFixed(2);
   const campo = (clave, actual, attrs) => { // se guarda al salir del campo o con Enter; si falla, vuelve el valor anterior
     const i = h("input", {class:"campo-aj", value:actual(), disabled:!dueno, ...attrs});
     i.addEventListener("keydown", e => { if (e.key === "Enter") i.blur(); });
     i.addEventListener("change", async () => {
       const v = i.value.trim();
-      if (v === actual() || (!v && clave !== "categoria")) { i.value = actual(); return; }
+      if (v === actual() || (!v && clave !== "categoria" && clave !== "descripcion")) { i.value = actual(); return; }
       try {
         await api("POST", "/panel/dueno/plato", {id:x.id, [clave]:v}); x[clave] = clave === "precio" ? Number(v) : v; i.value = actual(); aviso("Guardado");
         if (clave === "categoria") pintarMenu(false); // cambia de grupo
@@ -916,17 +1003,19 @@ function filaPlato(x, dueno) {
   const foto = h("button", {class:"foto-btn" + (x.foto ? " con" : ""), type:"button", disabled:!dueno, "aria-label":(x.foto ? "Cambiar la foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}},
     x.foto ? h("img", {alt:"", width:56, height:56, loading:"lazy", src:x.foto, srcset:x.foto2x ? `${x.foto} 1x, ${x.foto2x} 2x` : null}) : icono("camara"));
   sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], foto); };
-  const fila = h("div", {class:"fila-aj fila-plato" + (x.disponible ? "" : " apagada")},
+  const cPrecio = campo("precio", precio, {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + x.nombre});
+  const fila = h("div", {class:"fila-aj fila-plato" + (promo ? " fila-promo" : "") + (x.disponible ? "" : " apagada")},
     h("span", {class:"foto-c"}, sel, foto),
-    campo("nombre", () => x.nombre, {maxlength:80, class:"campo-aj nom", "aria-label":"Nombre del plato"}),
-    campo("precio", precio, {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + x.nombre}),
-    campo("categoria", () => x.categoria || "", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + x.nombre}),
-    interruptor(x.disponible, on => on ? "Disponible" : "Agotado", async on => {
+    campo("nombre", () => x.nombre, {maxlength:80, class:"campo-aj nom", "aria-label":promo ? "Nombre de la promoción" : "Nombre del plato"}),
+    promo && campo("descripcion", () => x.descripcion || "", {maxlength:200, placeholder:"Qué incluye", class:"campo-aj cat", "aria-label":"Qué incluye " + x.nombre}),
+    cPrecio,
+    !promo && campo("categoria", () => x.categoria || "", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + x.nombre}),
+    interruptor(x.disponible, on => promo ? (on ? "Activa" : "Apagada") : on ? "Disponible" : "Agotado", async on => {
       await api("POST", "/panel/agotado", {plato:x.id, disponible:on}); x.disponible = on; fila.classList.toggle("apagada", !on);
     }, x.nombre + ": disponible hoy"),
     dueno && h("div", {class:"aj-acc"},
-      x.foto && botonSeguro("Quitar foto", "Quitar la foto de " + x.nombre, async () => { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); pintarMenu(); }),
-      botonSeguro("Borrar", "Borrar el plato " + x.nombre, async () => { await api("POST", "/panel/dueno/plato_borrar", {plato:x.id}); aviso(x.nombre + " borrado del menú"); pintarMenu(); })));
+      x.foto && botonSeguro("Quitar foto", "Quitar la foto de " + x.nombre, async () => { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); repintarCarta(); }),
+      botonSeguro("Borrar", "Borrar el plato " + x.nombre, async () => { await api("POST", "/panel/dueno/plato_borrar", {plato:x.id}); aviso(x.nombre + " borrado"); repintarCarta(); })));
   return fila;
 }
 $("#buscar-plato").addEventListener("input", e => { st.qMenu = e.target.value.trim(); pintarMenu(false); });
@@ -958,9 +1047,53 @@ async function subirFoto(x, archivo, boton) {
     if (r.status === 401) return location.reload();
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || "No se pudo subir la foto.");
-    aviso("Foto guardada"); await pintarMenu();
+    aviso("Foto guardada"); await repintarCarta();
   } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; }
 }
+
+/* ---------- Tienda abierta / cerrada a mano (todo el panel) ---------- */
+const swTienda = interruptor(true, on => on ? "Recibiendo pedidos" : "Tienda cerrada", async on => {
+  await api("POST", "/panel/tienda", {cerrado:!on}); st.cerrado = !on;
+  aviso(on ? "Tienda abierta: entran pedidos según el horario" : "Tienda cerrada: no entran pedidos hasta que la abras");
+}, "Recibir pedidos");
+swTienda.classList.add("tienda"); $("#tienda-caja").append(swTienda);
+function pintarTienda(cerrado) {
+  if (swTienda.disabled || st.cerrado === cerrado) return; // a medio cambiar manda el toque
+  st.cerrado = cerrado; swTienda.setAttribute("aria-checked", String(!cerrado)); swTienda.lastChild.textContent = cerrado ? "Tienda cerrada" : "Recibiendo pedidos";
+}
+
+/* ---------- Configuración general (solo dueño): nombre, teléfono, anuncio, horario por día y datos de pago ---------- */
+const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["jue", "Jueves"], ["vie", "Viernes"], ["sab", "Sábado"], ["dom", "Domingo"]];
+async function pintarConfig() {
+  let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
+  const f = $("#f-config");
+  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia;
+  $("#config-nota").textContent = "";
+  $("#horario-dias").replaceChildren(...DIAS_H.map(([d, nombre]) => {
+    const t = a.horario[d] || [], abre = h("input", {type:"checkbox", "data-dia":d}); abre.checked = t.length > 0;
+    const hora = (v, etq) => { const i = h("input", {type:"time", "aria-label":`${nombre}: ${etq}`}); i.value = v || ""; return i; };
+    const ins = [hora(t[0] && t[0][0], "abre"), hora(t[0] && t[0][1], "cierra"), hora(t[1] && t[1][0], "segundo turno, abre"), hora(t[1] && t[1][1], "segundo turno, cierra")];
+    const ver = () => ins.forEach(i => i.disabled = !abre.checked); abre.onchange = ver; ver();
+    return h("div", {class:"dia-h"}, h("label", {class:"dia-n"}, abre, nombre), ins[0], "a", ins[1], h("span", {class:"t-espera"}, "y"), ins[2], "a", ins[3]);
+  }));
+}
+$("#f-config").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target, horario = {}, nota = $("#config-nota");
+  if (!f.marca.value.trim()) { nota.textContent = "Pon el nombre del restaurante."; return f.marca.focus(); }
+  for (const fila of document.querySelectorAll("#horario-dias .dia-h")) {
+    const [abre, a1, b1, a2, b2] = fila.querySelectorAll("input"), turnos = [];
+    if (abre.checked) {
+      if (!a1.value || !b1.value) { nota.textContent = "Pon la hora de abrir y de cerrar de cada día que abres."; return a1.focus(); }
+      turnos.push([a1.value.slice(0, 5), b1.value.slice(0, 5)]);
+      if (a2.value && b2.value) turnos.push([a2.value.slice(0, 5), b2.value.slice(0, 5)]);
+    }
+    horario[abre.dataset.dia] = turnos;
+  }
+  try {
+    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim()}});
+    nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
+  } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
+};
 
 /* ---------- Equipo (solo dueño): una fila por persona, agrupadas por rol ---------- */
 const ROLES = [["dueno", "Dueños"], ["personal", "Personal del local"], ["repartidor", "Repartidores"]];
@@ -1086,9 +1219,10 @@ function pintarAvisos() {
   const irA = id => () => { abrirBandeja(false); verPedido(id); };
   const esc = st.escalados.map(e => h("div", {class:"aviso urgente"}, icono("persona"),
     h("p", {}, h("b", {}, "Necesita una persona: "), e.motivo),
-    h("small", {}, [e.nombre, e.telefono && mascara(e.telefono), e.creado_at && hora(e.creado_at)].filter(Boolean).join(" · ")),
+    h("small", {}, [e.nombre, e.telefono && telLocal(e.telefono), e.creado_at && hora(e.creado_at)].filter(Boolean).join(" · ")),
     h("div", {class:"fila"},
       e.telefono && !/\*/.test(e.telefono) && h("a", {class:"btn suave", href:"tel:+" + String(e.telefono).replace(/\D/g, "")}, "Llamar"),
+      e.telefono && !/\*/.test(e.telefono) && h("a", {class:"btn suave", href:"whatsapp://send?phone=" + String(e.telefono).replace(/\D/g, "")}, "WhatsApp"),
       e.pedido_id && h("button", {class:"btn suave", on:{click:irA(e.pedido_id)}}, "Ver pedido #" + e.pedido_id),
       h("button", {class:"btn ok", on:{click:() => atendido(e)}}, icono("check"), "Atendido"))));
   const avs = st.avisos.slice(0, 50).map(a => h("div", {class:"aviso" + (a.leido ? "" : " sin-leer") + (a.tipo === "sistema" ? " urgente" : "")}, icono(ICONO_AVISO[a.tipo] || "campana"),
@@ -1129,12 +1263,15 @@ const DEMO = {
   menu:[["sancocho", "Sancocho de gallina", 5, "platos"], ["tasajo", "Tasajo con arroz, ensalada y patacones", 7, "platos"], ["guandu", "Arroz con guandú y cerdo", 5.5, "platos"],
         ["empanadas", "Empanadas de carne (3 u.)", 3, "entradas"], ["chicheme", "Chicheme", 1.75, "bebidas"], ["saril", "Chicha de saril", 1.5, "bebidas"], ["tres-leches", "Tres leches", 3.5, "postres"]]
     .map(([id, nombre, precio, categoria]) => ({id, nombre, precio, categoria, disponible:id !== "tres-leches", foto:null})),
-  usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true}))
+  usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true})),
+  ajustes:{marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:""},
+           horario:Object.fromEntries(["lun", "mar", "mie", "jue", "vie", "sab", "dom"].map(d => [d, d === "lun" ? [] : [["11:00", "15:00"], ["18:00", "22:00"]]]))}
 };
 function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la demostración sin servidor; no valida nada (eso lo hace el servidor)
   const M = DEMO.menu, U = DEMO.usuarios, fin = ruta.split("/").pop(), plato = M.find(x => x.id === (d.id || d.plato)), persona = U.find(x => x.nombre === d.nombre);
   if (fin === "menu") return {menu:M.map(x => ({...x}))};
   if (fin === "usuarios") return {usuarios:U.map(x => ({...x}))};
+  if (fin === "ajustes") { const {horario, ...c} = d; Object.assign(DEMO.ajustes, c, horario ? {horario} : {}); return {ajustes:DEMO.ajustes}; }
   if (fin === "agotado") plato.disponible = d.disponible;
   if (fin === "plato") { const c = {...d, ...(d.precio != null ? {precio:Number(d.precio)} : {})}; plato ? Object.assign(plato, c) : M.push({id:"p" + Date.now(), categoria:"", disponible:true, foto:null, ...c}); }
   if (fin === "plato_borrar") M.splice(M.indexOf(plato), 1);

@@ -62,6 +62,12 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .abierto{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:rgba(163,246,156,.14);color:#a3f69c;font-size:.6875rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 .abierto::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;animation:latir 2s ease-in-out infinite}
 .abierto.cerrado{background:rgba(255,255,255,.1);color:var(--on-inverse)}
+.llamar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:999px;border:1.5px solid rgba(255,255,255,.35);color:inherit;font-size:.8125rem;font-weight:700;text-decoration:none;white-space:nowrap}
+.llamar:hover{background:rgba(255,255,255,.1)}
+.anuncio{margin:0;padding:10px 16px;background:var(--secondary-fixed);color:var(--on-surface);font-size:.875rem;font-weight:700;text-align:center}
+.anuncio.cerrado{background:var(--error-container)}
+.plato .desc{display:block;margin:2px 0 4px;font-size:.8125rem;color:var(--on-variant)}
+.promo-cat{color:var(--primary)}
 .abierto.cerrado::before{animation:none;opacity:.6}
 .demo{font-size:.6875rem;padding:4px 10px;border-radius:999px;background:var(--secondary-container);color:#17171a;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .info{margin:0;display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--sc-lowest);border-bottom:1px solid var(--sc-high);color:var(--on-variant);font-size:.8125rem;font-weight:600}
@@ -286,8 +292,10 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
     <span class="logo" aria-hidden="true" data-inicial></span>
     <h1>DeliFood<small id="hola"></small></h1>
     <span class="abierto" id="abierto" role="status" hidden></span>
+    <a class="llamar" id="llamar" hidden>Llamar</a>
     <span class="demo" id="modo-demo" hidden>Demo</span>
   </header>
+  <p class="anuncio" id="anuncio" role="status" hidden></p>
   <p class="info" id="info" hidden><svg class="i" aria-hidden="true"><use href="#i-moto"/></svg><span id="info-txt"></span></p>
   <div class="contenido">
     <section id="menu" class="panel" aria-label="Menú" hidden>
@@ -483,18 +491,26 @@ const NOMBRE_DIA = {lun:"lunes", mar:"martes", mie:"miércoles", jue:"jueves", v
 const NOMBRE_PAGO = {yappy:"Yappy", transferencia:"Transferencia"};
 const mayus = t => t.charAt(0).toUpperCase() + t.slice(1);
 const turnosDe = h => h.turnos || (h.desde && h.hasta ? [[h.desde, h.hasta]] : []);
-function textoHorario(h) { // "Martes a domingo · 11:00–15:00 y 18:00–22:00"
-  const ds = ORDEN_DIAS.filter(d => (h.dias || []).includes(d)); if (!ds.length) return "";
-  const seguidos = ds.every((d, i) => !i || ORDEN_DIAS.indexOf(d) === ORDEN_DIAS.indexOf(ds[i - 1]) + 1);
-  const dias = ds.length === 7 ? "Todos los días" : seguidos && ds.length > 2 ? `${mayus(NOMBRE_DIA[ds[0]])} a ${NOMBRE_DIA[ds[ds.length - 1]]}` : mayus(ds.map(d => NOMBRE_DIA[d]).join(", "));
-  const t = turnosDe(h).map(([a, b]) => `${a}–${b}`).join(" y ");
-  return dias + (t ? " · " + t : "");
+// {dia: [[desde, hasta], ...]}: el panel guarda un horario por día (por_dia); servicio.yaml trae dias + turnos
+const porDia = h => Object.fromEntries(ORDEN_DIAS.map(d => [d, h.por_dia ? h.por_dia[d] || [] : (h.dias || []).includes(d) ? turnosDe(h) : []]));
+function textoHorario(h) { // "Martes a viernes · 11:00–15:00 y 18:00–22:00" y, si otros días tienen otras horas, una línea más por cada grupo
+  const pd = porDia(h), grupos = new Map();
+  for (const d of ORDEN_DIAS) { const t = pd[d].map(([a, b]) => `${a}–${b}`).join(" y "); if (t) grupos.set(t, [...(grupos.get(t) || []), d]); }
+  return [...grupos].map(([t, ds]) => {
+    const seguidos = ds.every((d, i) => !i || ORDEN_DIAS.indexOf(d) === ORDEN_DIAS.indexOf(ds[i - 1]) + 1);
+    const dias = ds.length === 7 ? "Todos los días" : seguidos && ds.length > 2 ? `${mayus(NOMBRE_DIA[ds[0]])} a ${NOMBRE_DIA[ds[ds.length - 1]]}` : mayus(ds.map(d => NOMBRE_DIA[d]).join(", "));
+    return dias + " · " + t;
+  }).join("\n");
 }
 function pintarConfig() {
   const envio = Object.entries(CFG.envio || {}).map(([z, p]) => `${z} ${dinero(p)}`.trim()).join(" · "); // zona "" = costo fijo
   const info = [envio && "Entrega: " + envio, num(CFG.impuesto_pct) ? `Precios sin ITBMS (${CFG.impuesto_pct} %)` : ""].filter(Boolean).join(" · ");
   $("#info-txt").textContent = info; $("#info").hidden = !info;
   $("#horario-txt").textContent = [textoHorario(CFG.horario || {}), envio && "Entrega: " + envio].filter(Boolean).join("\n");
+  const tel = String(CFG.telefono || ""), dig = tel.replace(/\D/g, ""), ll = $("#llamar"); // teléfono del restaurante: lo pone el dueño en el panel
+  ll.hidden = !dig; if (dig) { ll.href = "tel:" + (dig.length === 8 ? "+507" : tel.trim().startsWith("+") ? "+" : "") + dig; ll.setAttribute("aria-label", "Llamar al restaurante: " + tel); }
+  const an = $("#anuncio"), texto = CFG.cerrado ? "Ahora no estamos recibiendo pedidos." + (dig ? " Si necesitas algo, llámanos al " + tel + "." : "") : CFG.anuncio || "";
+  an.textContent = texto; an.hidden = !texto; an.classList.toggle("cerrado", !!CFG.cerrado);
   $("#pago-datos").replaceChildren(...Object.entries(CFG.pago || {}).map(([k, v]) => {
     const fila = document.createElement("div"), s = document.createElement("span"), b = document.createElement("b"), c = document.createElement("button");
     fila.className = "pago"; b.textContent = NOMBRE_PAGO[k] || k; s.append(b, document.createElement("br"), String(v));
@@ -594,21 +610,21 @@ $(".pestanas").addEventListener("keydown", e => {
 
 /* Abierto / cerrado: solo informa, calculado con la hora de Panamá y el horario de /config */
 function pintarAbierto() {
-  const e = $("#abierto"), h = CFG.horario || {}, turnos = turnosDe(h);
+  const e = $("#abierto"), h = CFG.horario || {}, pd = porDia(h);
   let d, ahora;
   try {
     const f = new Intl.DateTimeFormat("en-US", {timeZone:"America/Panama", weekday:"short", hourCycle:"h23", hour:"numeric", minute:"numeric"}).formatToParts(new Date());
     const g = t => f.find(x => x.type === t).value;
     d = {Sun:"dom", Mon:"lun", Tue:"mar", Wed:"mie", Thu:"jue", Fri:"vie", Sat:"sab"}[g("weekday")]; ahora = +g("hour") * 60 + +g("minute");
   } catch (err) { d = null; }
-  if (!d || !h.dias || !turnos.length) { e.hidden = true; return; }
+  if (!d || !ORDEN_DIAS.some(x => pd[x].length)) { e.hidden = true; return; }
   const min = t => { const [a, b] = String(t).split(":"); return +a * 60 + (+b || 0); };
-  const tramo = h.dias.includes(d) && turnos.find(([a, b]) => ahora >= min(a) && ahora < min(b));
+  const tramo = !CFG.cerrado && pd[d].find(([a, b]) => ahora >= min(a) && ahora < min(b)); // cerrado a mano desde el panel: cerrado aunque toque abrir
   e.hidden = false; e.classList.toggle("cerrado", !tramo);
   e.textContent = tramo ? "Abierto" : "Cerrado";
   if (tramo) { const hasta = document.createElement("span"); hasta.className = "hasta"; hasta.textContent = ` · hasta ${tramo[1]}`; e.append(hasta); }
 }
-pintarAbierto(); setInterval(pintarAbierto, 60000);
+pintarAbierto(); setInterval(() => st.demo ? pintarAbierto() : cargarConfig(), 60000); // cada minuto: si el restaurante cierra o cambia el horario, se ve sin recargar
 
 const carro = new Map(); // id del plato → cantidad (solo en este teléfono; el bot sigue confirmando el pedido)
 const sinParentesis = n => n.replace(/ \(.*\)$/, "").toLowerCase();
@@ -628,7 +644,9 @@ function fotoDe(m) { // sin foto no se pinta nada: la tarjeta queda solo con tex
   return i;
 }
 const catDe = m => m.categoria || "otros";
-const categorias = () => [...new Set(MENU.map(catDe))]; // las del menú, en su orden: una categoría nueva del panel aparece sola
+const esPromo = m => catDe(m).toLowerCase() === "promociones";
+const visibles = () => MENU.filter(m => !esPromo(m) || m.disponible); // una promoción apagada no se enseña
+const categorias = () => [...new Set(visibles().map(catDe))].sort((a, b) => (b.toLowerCase() === "promociones") - (a.toLowerCase() === "promociones")); // las del menú, en su orden (promociones arriba): una categoría nueva del panel aparece sola
 const plano = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); // sin tildes ni mayúsculas, para buscar
 const filtro = {cat:"todos", q:""};
 function pintarCategorias() {
@@ -645,15 +663,16 @@ function pintarMenu() {
   const q = plano(filtro.q.trim()); let hubo = false;
   for (const cat of categorias()) {
     if (filtro.cat !== "todos" && filtro.cat !== cat) continue;
-    const items = MENU.filter(m => catDe(m) === cat && (!q || plano(m.nombre).includes(q))); if (!items.length) continue;
+    const items = visibles().filter(m => catDe(m) === cat && (!q || plano(m.nombre + " " + (m.descripcion || "")).includes(q))); if (!items.length) continue;
     hubo = true;
-    const h = document.createElement("h2"); h.textContent = cat; caja.append(h);
+    const h = document.createElement("h2"); h.textContent = cat; if (cat.toLowerCase() === "promociones") h.className = "promo-cat"; caja.append(h);
     const rej = document.createElement("div"); rej.className = "rejilla"; caja.append(rej);
     for (const m of items) {
       const fila = document.createElement("article"); fila.className = "plato" + (m.disponible ? "" : " agotado");
       const txt = document.createElement("div"), nom = document.createElement("h3"), pre = document.createElement("span"), acc = document.createElement("div");
       nom.textContent = m.nombre; pre.className = "precio num"; pre.textContent = dinero(m.precio); acc.className = "acc";
       txt.append(nom, pre, acc); fila.append(txt);
+      if (m.descripcion) { const ds = document.createElement("span"); ds.className = "desc"; ds.textContent = m.descripcion; nom.after(ds); }
       const foto = fotoDe(m); if (foto) fila.append(foto);
       if (!m.disponible) { const ins = document.createElement("span"); ins.className = "insignia"; ins.textContent = "Agotado hoy"; acc.append(ins); }
       else {

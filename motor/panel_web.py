@@ -258,7 +258,9 @@ def _id_de_nombre(sv, nombre):
 def guardar_plato(sv, d, quien):
     """Crea o edita (por id) un plato: {id?, nombre?, precio?, categoria?, disponible?}. Sin id se crea uno nuevo con id sacado del nombre.
     Precio >= 0 en B/. sin fracción de centavo."""
-    iid, nombre, precio, cat, disp = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible")
+    iid, nombre, precio, cat, disp, desc = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible"), d.get("descripcion")
+    if desc is not None and not (isinstance(desc, str) and len(desc) <= 200):
+        raise ValueError("Descripción demasiado larga (máx. 200)")
     if iid is not None and not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
         raise ValueError("Id inválido: 1 a 40 minúsculas, números o -")
     if nombre is not None and not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 80):
@@ -267,7 +269,7 @@ def guardar_plato(sv, d, quien):
         raise ValueError("Categoría demasiado larga (máx. 30)")
     if disp is not None and not isinstance(disp, bool):
         raise ValueError("Disponible debe ser sí o no")
-    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp)) if v is not None}
+    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp), ("descripcion", desc and " ".join(desc.split()))) if v is not None}
     if precio is not None:
         if isinstance(precio, bool) or not isinstance(precio, (int, float, str)):
             raise ValueError("Precio inválido")
@@ -312,6 +314,7 @@ def menu_json(sv):
     fotos = sv.fotos()
     return [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
              "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {}),
+             **({"descripcion": i["descripcion"]} if i.get("descripcion") else {}),
              **urls_foto(i["id"], fotos.get(i["id"]))} for i in sv.menu.values()]
 
 
@@ -445,10 +448,12 @@ def estado_panel(sv, desde=0, repartidores=()):
     todos = sv.listar("aviso")
     avisos = [{"id": a["id"], "tipo": "pago" if a.get("pedido_id") in espera else "pedido", "texto": a["texto"], "pedido_id": a.get("pedido_id")}
               for a in reversed(todos) if a["id"] > desde or a.get("pedido_id") in espera]
-    esc = [{"id": e["id"], "nombre": None, "telefono": _mask(e.get("telefono")), "motivo": e.get("motivo"), "pedido_id": None}
-           for e in sv.listar("escalado") if e.get("estado") == "abierto"]
+    abiertos = [e for e in sv.listar("escalado") if e.get("estado") == "abierto"]
+    # quien pide una persona espera que lo llamen: el panel (con PIN) ve su teléfono completo mientras el aviso está abierto; atendido, deja de salir
+    nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
+    esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")), "telefono": e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
-            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores)}
+            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado"))}
 
 
 def marcar(sv, pedido_id, estado, rol):
@@ -519,6 +524,74 @@ def auditar(sv, usuario, accion, pedido_id=None):
     sv.insertar("auditoria", {"usuario": usuario, "accion": accion, "pedido_id": pedido_id, "at": sv.ahora().isoformat()})
 
 
+HHMM = re.compile(r"([01]\d|2[0-3]):[0-5]\d")
+
+
+def ajustes_json(sv):
+    """Configuración general que el dueño ve y cambia en el panel."""
+    c = sv.cfg
+    pago = c.get("pago") or {}
+    return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")),
+            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {k: pago.get(k) or "" for k in ("yappy", "transferencia")}}
+
+
+def poner_cerrado(sv, quien, cerrado):
+    """Cerrar o abrir la tienda a mano (cualquiera del panel): cerrada no entran pedidos nuevos aunque el horario diga abierto."""
+    if not isinstance(cerrado, bool):
+        raise ValueError("Cerrado debe ser sí o no")
+    sv.poner_ajuste("cerrado", cerrado)
+    auditar(sv, quien, "tienda_cerrar" if cerrado else "tienda_abrir")
+    return {"ok": True, "cerrado": cerrado}
+
+
+def guardar_ajustes(sv, d, quien):
+    """Guarda lo que venga de {marca, telefono, anuncio, cerrado, horario: {dia: [[desde, hasta], ...]}, pago: {yappy, transferencia}}. ValueError legible si algo no vale."""
+    def texto(k, maximo, minimo=0):
+        v = d[k]
+        if not (isinstance(v, str) and minimo <= len(v.strip()) <= maximo):
+            raise ValueError(f"'{k}' no es válido (de {minimo} a {maximo} letras)")
+        return " ".join(v.split())
+    nuevo = {}
+    if "marca" in d:
+        nuevo["marca"] = texto("marca", 40, 1)
+    if "anuncio" in d:
+        nuevo["anuncio"] = texto("anuncio", 160)
+    if "telefono" in d:
+        t = texto("telefono", 20)
+        if t and not (re.fullmatch(r"\+?[\d \-]+", t) and 7 <= sum(c.isdigit() for c in t) <= 15):
+            raise ValueError("El teléfono del restaurante debe tener de 7 a 15 números")
+        nuevo["telefono"] = t
+    if "horario" in d:
+        h = d["horario"]
+        if not (isinstance(h, dict) and set(h) <= set(herramientas.DIAS)):
+            raise ValueError("Horario inválido")
+        por_dia = {}
+        for dia in herramientas.DIAS:
+            turnos = h.get(dia) or []
+            if not (isinstance(turnos, list) and len(turnos) <= 3 and all(isinstance(t, list) and len(t) == 2 and all(isinstance(x, str) and HHMM.fullmatch(x) for x in t) for t in turnos)):
+                raise ValueError(f"Horario del {dia} inválido: horas como 11:00")
+            turnos = sorted(turnos)
+            if any(a >= b for a, b in turnos) or any(turnos[i][1] > turnos[i + 1][0] for i in range(len(turnos) - 1)):
+                raise ValueError(f"Horario del {dia}: cada turno debe abrir antes de cerrar y no pisar al otro")
+            por_dia[dia] = turnos
+        viejo = {k: v for k, v in (sv.cfg.get("horario") or {}).items() if k not in ("dias", "turnos", "desde", "hasta", "por_dia")}
+        nuevo["horario"] = {**viejo, "dias": [x for x in herramientas.DIAS if por_dia[x]], "por_dia": por_dia}
+    if "pago" in d:
+        p = d["pago"]
+        if not (isinstance(p, dict) and set(p) <= {"yappy", "transferencia"} and all(isinstance(v, str) and len(v) <= 160 for v in p.values())):
+            raise ValueError("Datos de pago inválidos (máx. 160 letras cada uno)")
+        nuevo["pago"] = {**(sv.cfg.get("pago") or {}), **{k: " ".join(v.split()) or None for k, v in p.items()}}
+    if "cerrado" in d:
+        if not isinstance(d["cerrado"], bool):
+            raise ValueError("Cerrado debe ser sí o no")
+        nuevo["cerrado"] = d["cerrado"]
+    for k, v in nuevo.items():
+        sv.poner_ajuste(k, v)
+    if nuevo:
+        auditar(sv, quien, "ajustes:" + ",".join(sorted(nuevo)))
+    return {"ok": True, "ajustes": ajustes_json(sv)}
+
+
 def api_dueno(sv, quien, rol, metodo, ruta, d=None):
     """Rutas /panel/dueno/<ruta>, solo rol dueno. PermissionError → 403, LookupError → 404, ValueError → 409."""
     if rol != "dueno":
@@ -537,6 +610,10 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return borrar_plato(sv, quien, (d or {}).get("plato"))
     if (metodo, ruta) == ("POST", "usuario_borrar"):
         return borrar_usuario(sv, (d or {}).get("nombre"), quien)
+    if (metodo, ruta) == ("GET", "ajustes"):
+        return {"ajustes": ajustes_json(sv)}
+    if (metodo, ruta) == ("POST", "ajustes"):
+        return guardar_ajustes(sv, d or {}, quien)
     raise LookupError(ruta)
 
 

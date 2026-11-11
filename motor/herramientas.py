@@ -115,9 +115,14 @@ def buscar(sv, tipo, texto="", telefono=None):
     return [_pedido_para_modelo(p) for p in r] if tipo == "pedido" else r
 
 
+def _llamar(sv):
+    t = sv.cfg.get("telefono")
+    return f" Si prefiere, el cliente puede llamar al restaurante al {t}." if t else ""
+
+
 def escalar_a_humano(sv, telefono, motivo):
     sv.insertar("escalado", {"telefono": telefono, "motivo": motivo, "estado": "abierto"})
-    return {"ok": True, "nota": "Avisado el equipo humano. Dile al cliente que una persona le contactará pronto."}
+    return {"ok": True, "nota": "Avisado el equipo humano. Dile al cliente que una persona le contactará pronto." + _llamar(sv)}
 
 
 # --- pedidos: el dinero va en centavos enteros y lo calcula el código, nunca el modelo ---
@@ -161,7 +166,8 @@ def cargar_menu(carpeta, archivo):
 
 
 def texto_menu(menu):
-    return "\n".join(f"- {i['id']} | {i['nombre']} | {dinero(i['precio_c'])} | {i.get('categoria', '')}" + ("" if i.get("disponible", True) else " | AGOTADO") for i in menu.values())
+    return "\n".join(f"- {i['id']} | {i['nombre']}" + (f" ({_una_linea(i['descripcion'])})" if i.get("descripcion") else "") + f" | {dinero(i['precio_c'])} | {i.get('categoria', '')}"
+                     + ("" if i.get("disponible", True) else " | AGOTADO") for i in menu.values())
 
 
 def _transicion(sv, pedido_id, desde, hacia, extra=None, antes=None):
@@ -169,25 +175,45 @@ def _transicion(sv, pedido_id, desde, hacia, extra=None, antes=None):
     return sv.actualizar(pedido_id, {"estado": hacia, **(extra or {})}, tipo="pedido", desde=desde, antes=antes)
 
 
+HORA_SUELTA = re.compile(r"(hoy|manana)?,?\s*(?:a\s+las?\s+)?(\d{1,2})[:.](\d{2})\s*(?:h|hrs|horas)?\s*([ap])?\.?\s*(?:m\.?)?")
+
+
 def _hora_pedido(sv, hora_deseada):
-    """(hora, texto a guardar): la deseada en formato canónico si viene como AAAA-MM-DD HH:MM; texto libre ('lo antes posible') se guarda tal cual y se usa la hora actual."""
+    """(hora, texto a guardar). Acepta AAAA-MM-DD HH:MM, y también lo que el modelo suele mandar: "13:00", "1:00 p.m.", "mañana 12:00" (hoy o mañana).
+    Texto sin números ('lo antes posible') = ahora. Cualquier otra cosa con números se rechaza: antes se tomaba como "ahora" y el pedido programado
+    fallaba con "local cerrado" aunque la hora pedida fuera buena."""
     ahora = sv.ahora()
     try:
         t = _hora(hora_deseada, sv.tz)
     except ValueError:
-        return ahora, hora_deseada
+        s = _sin_tildes(hora_deseada)
+        if not any(c.isdigit() for c in s):
+            return ahora, hora_deseada
+        m = HORA_SUELTA.fullmatch(s)
+        hh, mm = (int(m[2]), int(m[3])) if m else (99, 0)
+        if m and m[4] and 1 <= hh <= 12:
+            hh = hh % 12 + (12 if m[4] == "p" else 0)
+        if not (hh < 24 and mm < 60):
+            raise ValueError("No entiendo la hora deseada: pásala como AAAA-MM-DD HH:MM (por ejemplo 2026-11-12 12:00) o 'lo antes posible'.")
+        t = ahora.replace(hour=hh, minute=mm) + dt.timedelta(days=m[1] == "manana")
     if t < ahora:
         raise ValueError("La hora deseada ya pasó.")
     return t, f"{t:%Y-%m-%d %H:%M}"
 
 
-def _turnos(sv, dia, cierre_min=0):
-    """Turnos [(abre, último minuto para pedir)] del día: `turnos: [[desde, hasta], ...]` o el desde/hasta simple; [] si no es día de atención."""
-    h = sv.cfg.get("horario") or {}
-    if DIAS[dia.weekday()] not in h.get("dias", DIAS[:5]):
-        return []
+def horario_por_dia(h):
+    """{dia: [[desde, hasta], ...]} de los 7 días ([] = cerrado). Acepta `por_dia` (panel: cada día con su horario), o `dias` + `turnos`, o `dias` + desde/hasta."""
+    h = h or {}
+    if isinstance(h.get("por_dia"), dict):
+        return {d: [list(t) for t in h["por_dia"].get(d) or []] for d in DIAS}
     pares = h.get("turnos") or [[h.get("desde", "08:00"), h.get("hasta", "17:00")]]
-    return [(_hora(f"{dia:%Y-%m-%d} {a}", sv.tz), _hora(f"{dia:%Y-%m-%d} {b}", sv.tz) - dt.timedelta(minutes=cierre_min)) for a, b in pares]
+    return {d: [list(p) for p in pares] if d in h.get("dias", DIAS[:5]) else [] for d in DIAS}
+
+
+def _turnos(sv, dia, cierre_min=0):
+    """Turnos [(abre, último minuto para pedir)] de ese día; [] si no es día de atención."""
+    return [(_hora(f"{dia:%Y-%m-%d} {a}", sv.tz), _hora(f"{dia:%Y-%m-%d} {b}", sv.tz) - dt.timedelta(minutes=cierre_min))
+            for a, b in horario_por_dia(sv.cfg.get("horario"))[DIAS[dia.weekday()]]]
 
 
 MAX_TEXTO, MAX_CANTIDAD, MAX_LINEAS = 200, 50, 30  # topes anti-abuso
@@ -291,11 +317,14 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
         raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     cfg = sv.cfg.get("pedidos") or {}
     if validar_hora:  # ponytail: modificar solo revalida la hora si el cliente da una nueva; la guardada no se vuelve a juzgar
+        if sv.cfg.get("cerrado"):
+            raise ValueError("El local está cerrado temporalmente y no recibe pedidos ahora." + _llamar(sv))
         t, hora_deseada = _hora_pedido(sv, hora_deseada)
         turnos = _turnos(sv, t.date(), cfg.get("cierre_cocina_min", 0))
         if not any(abre <= t <= cierra for abre, cierra in turnos):
-            rango = " y ".join(f"{a:%H:%M} a {c:%H:%M}" for a, c in turnos) or "ninguna"
-            raise ValueError(f"Local cerrado a esa hora (la cocina recibe pedidos de {rango} en días de atención).")
+            rango = " y ".join(f"{a:%H:%M} a {c:%H:%M}" for a, c in turnos)
+            raise ValueError(f"Local cerrado a esa hora ({DIAS[t.weekday()]} {t:%Y-%m-%d %H:%M}): " + (f"ese día la cocina recibe pedidos de {rango}" if rango else "ese día no abre")
+                             + ". Ofrece al cliente programarlo para una hora dentro del horario y pásala como AAAA-MM-DD HH:MM.")
     minimo = _c(cfg.get("pedido_minimo") or 0)
     if subtotal < minimo:
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
@@ -595,6 +624,7 @@ def _s(props, req):
 
 S, O = {"type": "string"}, {"type": "object", "description": "Campos libres clave: valor"}
 FH = {"type": "string", "description": "AAAA-MM-DD HH:MM, hora local"}
+HP = {"type": "string", "description": "Cuándo lo quiere: 'AAAA-MM-DD HH:MM' en hora local (hoy más tarde u otro día: pedido programado) o 'lo antes posible'"}
 
 CATALOGO = {
     "consultar_disponibilidad": (consultar_disponibilidad, "Horas libres para citas en una fecha.", _s({"fecha": {"type": "string", "description": "AAAA-MM-DD"}}, ["fecha"])),
@@ -605,8 +635,8 @@ CATALOGO = {
     "actualizar_registro": (actualizar_registro, "Cambia campos de un registro existente (p. ej. estado de cita a 'confirmada', cobro a 'pagado').", _s({"id": {"type": "integer"}, "cambios": O}, ["id", "cambios"])),
     "buscar": (buscar, "Busca registros del cliente actual de un tipo (cita, lead, cobro...) que contengan un texto. Devuelve los 20 más recientes.", _s({"tipo": S, "texto": S}, ["tipo"])),
     "escalar_a_humano": (escalar_a_humano, "Pasa la conversación a una persona: el cliente lo pide, está molesto, es urgente o no sabes la respuesta.", _s({"motivo": S}, ["motivo"])),
-    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": S, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
-    "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": S, "notas": S}, ["pedido_id"])),
+    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": HP, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
+    "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": HP, "notas": S}, ["pedido_id"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "guardar_ubicacion": (guardar_ubicacion, "Guarda la ubicación de entrega cuando el cliente pega un enlace de Google Maps (o 'lat, lon'). Pasa el enlace EXACTO que escribió; nunca inventes ni calcules coordenadas.", _s({"pedido_id": {"type": "integer"}, "enlace": S}, ["pedido_id", "enlace"])),

@@ -99,7 +99,7 @@ class PanelWeb(Base):
         _, ck = self.login()
         e = self.js("GET", "/panel/estado", cookie=ck)[1]["escalados"]
         self.assertEqual(e[0]["motivo"], "queja")
-        self.assertNotIn(TEL, str(e))
+        self.assertEqual(e[0]["telefono"], TEL)  # completo mientras está abierto: el restaurante tiene que poder llamarlo
         self.assertEqual(self.js("POST", f"/panel/escalado/{eid}/atendido", {}, cookie=ck)[0], 200)
         self.assertEqual(self.js("GET", "/panel/estado", cookie=ck)[1]["escalados"], [])
 
@@ -169,6 +169,34 @@ class PanelWeb(Base):
             self.assertNotIn("DeliFood", h)
             self.assertIn("--primary:", h)  # tema incrustado
             self.assertNotIn("estatico/tema.css", h)
+
+    def test_ajustes_generales_tienda_y_promos(self):
+        _, ck = self.login()
+        self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)
+        _, ck2 = self.login("918273")
+        dias = {d: [["11:00", "15:00"], ["18:00", "22:00"]] for d in herramientas.DIAS}
+        dias["lun"] = []
+        cuerpo = {"marca": "La Fonda", "telefono": "6123-4567", "anuncio": "Hoy 2x1 en chichas", "horario": dias, "pago": {"yappy": "@lafonda", "transferencia": ""}}
+        self.assertEqual(self.js("POST", "/panel/dueno/ajustes", cuerpo, cookie=ck2)[0], 403)  # solo el dueño
+        st, d, _ = self.js("POST", "/panel/dueno/ajustes", cuerpo, cookie=ck)
+        self.assertEqual((st, d["ajustes"]["horario"]["lun"], d["ajustes"]["telefono"]), (200, [], "6123-4567"))
+        c = self.js("GET", "/config")[1]
+        self.assertEqual((c["marca"], c["telefono"], c["anuncio"], c["cerrado"], c["horario"]["por_dia"]["mar"][1]), ("La Fonda", "6123-4567", "Hoy 2x1 en chichas", False, ["18:00", "22:00"]))
+        self.assertIn("La Fonda", self.req("GET", "/")[1].decode())  # el nombre nuevo sale sin reiniciar
+        self.assertEqual(self.sv.cfg["pago"]["yappy"], "@lafonda")
+        for malo in ({"horario": {"mar": [["15:00", "11:00"]]}}, {"horario": {"mar": [["11:00", "15:00"], ["14:00", "20:00"]]}}, {"horario": {"mar": [["25:00", "26:00"]]}},
+                     {"telefono": "abc"}, {"marca": ""}, {"cerrado": "si"}):
+            self.assertEqual(self.js("POST", "/panel/dueno/ajustes", malo, cookie=ck)[0], 409, malo)
+        # cerrar la tienda: también el personal; se ve en el panel y en la web
+        self.assertEqual(self.js("POST", "/panel/tienda", {"cerrado": True}, cookie=ck2)[0], 200)
+        self.assertTrue(self.js("GET", "/panel/estado", cookie=ck2)[1]["cerrado"])
+        self.assertTrue(self.js("GET", "/config")[1]["cerrado"])
+        self.assertEqual(self.js("POST", "/panel/tienda", {"cerrado": False}, cookie=ck2)[0], 200)
+        self.assertIn(("Ana", "tienda_cerrar"), [(a["usuario"], a["accion"]) for a in self.sv.listar("auditoria")])
+        # promoción = plato de la categoría promociones con descripción
+        st, d, _ = self.js("POST", "/panel/dueno/plato", {"nombre": "Combo almuerzo", "precio": "6.50", "categoria": "promociones", "descripcion": "sancocho + chicha"}, cookie=ck)
+        self.assertEqual((st, d["plato"]["descripcion"]), (200, "sancocho + chicha"))
+        self.assertIn("combo-almuerzo | Combo almuerzo (sancocho + chicha) | B/. 6.50 | promociones", herramientas.texto_menu(self.sv.menu))
 
     def test_config_publica_y_pago_solo_con_sesion(self):
         st, d, _ = self.js("GET", "/config")

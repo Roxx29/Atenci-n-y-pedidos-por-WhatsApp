@@ -275,6 +275,34 @@ class Turnos(Base):
         sv.cfg["horario"] = {"dias": ["mar", "mie", "jue", "vie", "sab", "dom"], "turnos": [["11:00", "15:00"], ["18:00", "22:00"]]}
         return sv
 
+    def test_hora_como_la_manda_el_modelo(self):
+        # el bot mandaba "13:00" o "mañana 12:00" y se tomaba como "ahora": a las 9:00 daba "local cerrado" con una hora buena
+        for texto_hora, guardada in (("13:00", "2026-11-03 13:00"), ("1:00 p.m.", "2026-11-03 13:00"), ("hoy a las 12:30", "2026-11-03 12:30"),
+                                     ("mañana 12:00", "2026-11-04 12:00"), ("mañana a las 12:00", "2026-11-04 12:00"), ("2026-11-05 19:00", "2026-11-05 19:00")):
+            with self.subTest(texto_hora):
+                sv = self.sv2()
+                self.crear(sv, hora_deseada=texto_hora)
+                self.assertEqual(sv.listar("pedido")[0]["hora_deseada"], guardada)
+        self.falla(self.sv2(), "No entiendo la hora", hora_deseada="el viernes 12:00")
+        self.falla(self.sv2(ahora=(2026, 11, 3, 16, 8)), "ya pasó", hora_deseada="13:00")
+        self.falla(self.sv2(), "Local cerrado", hora_deseada="lo antes posible")  # a las 9:00 sin hora: sigue cerrado, y el mensaje pide programarlo
+
+    def test_horario_por_dia_y_cierre_manual(self):
+        sv = self.sv2()
+        sv.cfg["horario"] = {"por_dia": {"mar": [["08:00", "10:00"]], "mie": []}}
+        self.assertTrue(self.crear(sv, hora_deseada="lo antes posible")["ok"])  # martes 9:00, abierto solo por la mañana
+        self.assertEqual(herramientas.horario_por_dia(sv.cfg["horario"])["lun"], [])
+        with self.assertRaisesRegex(ValueError, "ese día no abre"):
+            self.crear(sv, "B", hora_deseada="2026-11-04 09:00")
+        sv.poner_ajuste("cerrado", True)
+        sv.poner_ajuste("telefono", "6123-4567")
+        with self.assertRaisesRegex(ValueError, "cerrado temporalmente.*6123-4567"):
+            self.crear(sv, "C", hora_deseada="lo antes posible")
+        self.assertIn("CERRADO TEMPORALMENTE", sv.system)
+        self.assertIn("6123-4567", sv.system)
+        sv.poner_ajuste("cerrado", False)
+        self.assertTrue(self.crear(sv, "C", hora_deseada="lo antes posible")["ok"])
+
     def test_varios_turnos(self):
         for dia, h, ok in (("03", "14:30", True), ("03", "14:31", False), ("03", "16:00", False), ("03", "18:00", True), ("03", "21:30", True), ("03", "21:31", False),
                            ("03", "10:59", False), ("04", "12:00", True), ("02", "12:00", False), ("09", "12:00", False)):

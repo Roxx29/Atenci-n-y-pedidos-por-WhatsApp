@@ -68,7 +68,9 @@ def config_publica(sv, con_pago=False):
     e = p.get("envio") or {}
     zonas, costo = e.get("zonas"), e.get("costo") or 0  # mismas tres formas que herramientas._envio: por zona, lista de zonas a costo fijo, o costo fijo ("")
     envio = dict(zonas) if isinstance(zonas, dict) else {z: costo for z in zonas} if zonas else {"": costo} if costo else {}
-    d = {"marca": marca_de(sv), "horario": sv.cfg.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio}
+    c = sv.cfg
+    d = {"marca": marca_de(sv), "horario": c.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio,
+         "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado"))}
     if con_pago:
         d["pago"] = {k: v for k, v in (sv.cfg.get("pago") or {}).items() if k in ("yappy", "transferencia") and v}
     return d
@@ -142,10 +144,8 @@ class Limite:
 
 def crear_servidor(sv, puerto=8080, secreto=None):
     secreto = secreto or secreto_web(sv.dir)
-    pagina = armar_pagina(sv, PAGINA)
     usuarios = panel_web.Usuarios(sv, panel_web.PANEL)  # un PIN por persona (tabla usuarios; semilla PANEL_PIN*)
     acceso, bloqueo = panel_web.Acceso(secreto, usuarios), panel_web.Bloqueo()
-    pagina_panel, pagina_rep = armar_pagina(sv, PAGINA_PANEL), armar_pagina(sv, PAGINA_REP)
     repartidores = panel_web.Usuarios(sv, panel_web.REPARTO)  # semilla REPARTIDORES; se gestionan desde el panel
     acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
@@ -293,7 +293,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or os.environ.get("PANEL_PUBLICO") == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
-                return self._enviar(200, pagina_panel, "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", CSP)])  # en cada visita: el nombre se cambia desde el panel
             if ruta == "/panel/entrar" and metodo == "POST":
                 if bloqueo.bloqueada(ip):
                     return self._err(429, "Demasiados intentos; espere 5 minutos")
@@ -373,6 +373,14 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                         return self._enviar(200, panel_web.poner_disponible(sv, quien, d.get("plato"), d.get("disponible")), extra=renovar)
                     except LookupError:
                         return self._err(404, "No existe ese plato")
+                    except ValueError as e:
+                        return self._err(400, str(e))
+                if ruta == "/panel/tienda" and metodo == "POST":  # cerrar o abrir a mano: también el personal
+                    d = self._json()
+                    if d is None:
+                        return
+                    try:
+                        return self._enviar(200, panel_web.poner_cerrado(sv, quien, d.get("cerrado")), extra=renovar)
                     except ValueError as e:
                         return self._err(400, str(e))
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
@@ -466,7 +474,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if not acc_rep.activo:
                 return self._err(404, "No encontrado")
             if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
-                return self._enviar(200, pagina_rep, "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, armar_pagina(sv, PAGINA_REP), "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/repartidor/manifest.webmanifest" and metodo == "GET":
                 return self._enviar(200, MANIFEST_REP, "application/manifest+json")
             if ruta == "/repartidor/sw.js" and metodo == "GET":
@@ -564,7 +572,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             if limite.excede(("ip", self._ip()), 60):
                 return self._err(429, "Demasiadas peticiones")
             if ruta == "/":
-                return self._enviar(200, pagina, "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, armar_pagina(sv, PAGINA), "text/html", [("Content-Security-Policy", CSP)])
             if ruta == "/menu":
                 return self._enviar(200, panel_web.menu_json(sv))
             if ruta == "/config":

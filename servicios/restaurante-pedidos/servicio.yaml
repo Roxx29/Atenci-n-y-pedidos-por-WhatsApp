@@ -9,6 +9,7 @@ horario:
   dias: [mar, mie, jue, vie, sab, dom]   # cerrado los lunes
   turnos: [["11:00", "15:00"], ["18:00", "22:00"]]   # almuerzo y cena
 menu: menu.yaml
+modulos: [estadisticas]   # extras contratados (se venden aparte); quitar la línea para apagarlos. Solo se activan aquí, no desde el panel
 pedidos:
   impuesto_pct: 7          # poner 0 si el restaurante no cobra ITBMS aparte
   pedido_minimo: 0

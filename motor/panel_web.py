@@ -6,6 +6,8 @@ Las reglas de estado son las de herramientas.marcar_pedido / cancelar_pedido.
 
   python -m motor.panel_web 123456      # imprime un PANEL_PIN_HASH
 """
+import collections
+import datetime as dt
 import hashlib
 import hmac
 import io
@@ -453,7 +455,7 @@ def estado_panel(sv, desde=0, repartidores=()):
     nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
     esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")), "telefono": e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
-            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado"))}
+            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado")), "modulos": modulos(sv)}
 
 
 def marcar(sv, pedido_id, estado, rol):
@@ -592,6 +594,58 @@ def guardar_ajustes(sv, d, quien):
     return {"ok": True, "ajustes": ajustes_json(sv)}
 
 
+def modulos(sv):
+    """Extras que el restaurante contrató: se activan solo en servicio.yaml (`modulos: [estadisticas]`), nunca desde el panel."""
+    return [m for m in (sv.cfg.get("modulos") or []) if m in ("estadisticas",)]
+
+
+def estadisticas(sv, dias=30):
+    """Módulo extra «estadisticas»: ventas y comportamiento de los últimos 7, 30 o 90 días contra el periodo anterior. Sin teléfonos ni nombres."""
+    if "estadisticas" not in modulos(sv):
+        raise LookupError("estadisticas")
+    dias = dias if dias in (7, 30, 90) else 30
+    hoy = sv.ahora().date()
+    ini = hoy - dt.timedelta(days=dias - 1)
+    ant = ini - dt.timedelta(days=dias)
+    dia = lambda p: (p.get("estado_at") or p.get("creado_at") or "")[:10]
+    todos = sv.listar("pedido")
+    entregados = [p for p in todos if p["estado"] == "entregado"]
+    cur = [p for p in entregados if ini.isoformat() <= dia(p) <= hoy.isoformat()]
+    prev = [p for p in entregados if ant.isoformat() <= dia(p) < ini.isoformat()]
+    perdidos = [p for p in todos if p["estado"] in ("cancelado", "caducado") and ini.isoformat() <= dia(p) <= hoy.isoformat()]
+    suma = lambda ps: sum(p["total_c"] for p in ps)
+    ventas, ventas_ant = suma(cur), suma(prev)
+    por_dia = collections.OrderedDict(((ini + dt.timedelta(days=i)).isoformat(), [0, 0]) for i in range(dias))
+    for p in cur:
+        por_dia[dia(p)][0] += p["total_c"]; por_dia[dia(p)][1] += 1
+    horas = [0] * 24
+    for p in cur:
+        try: horas[int((p.get("creado_at") or "")[11:13])] += 1
+        except ValueError: pass
+    platos = collections.defaultdict(lambda: [0, 0])
+    for p in cur:
+        for l in p["lineas"]:
+            platos[l["nombre"]][0] += l["cantidad"]; platos[l["nombre"]][1] += l["precio_c"] * l["cantidad"]
+    minutos = []
+    for p in cur:
+        try: minutos.append((dt.datetime.fromisoformat(p["estado_at"]) - dt.datetime.fromisoformat(p["creado_at"])).total_seconds() / 60)
+        except (KeyError, ValueError, TypeError): pass
+    veces = collections.Counter(p.get("telefono") for p in entregados if p.get("telefono"))
+    clientes = {p.get("telefono") for p in cur if p.get("telefono")}
+    cuenta = lambda clave: dict(collections.Counter(p.get(clave) or "—" for p in cur))
+    zonas = collections.Counter(p.get("zona") for p in cur if p.get("modalidad") == "entrega" and p.get("zona"))
+    cambio = lambda a, b: None if not b else round((a - b) * 100 / b, 1)
+    return {"dias": dias, "desde": ini.isoformat(), "ventas": dinero(ventas), "ventas_cambio": cambio(ventas, ventas_ant),
+            "pedidos": len(cur), "pedidos_cambio": cambio(len(cur), len(prev)),
+            "ticket": dinero(ventas // len(cur)) if cur else dinero(0), "perdidos": len(perdidos),
+            "minutos_medio": round(sum(minutos) / len(minutos)) if minutos else None,
+            "clientes": len(clientes), "clientes_repiten": sum(1 for t in clientes if veces[t] > 1),
+            "por_dia": [{"fecha": f, "ventas": dinero(v[0]), "centavos": v[0], "pedidos": v[1]} for f, v in por_dia.items()],
+            "por_hora": horas, "modalidad": cuenta("modalidad"), "metodo": cuenta("metodo"),
+            "zonas": [{"zona": z, "pedidos": n} for z, n in zonas.most_common(5)],
+            "platos": [{"nombre": n, "cantidad": v[0], "ingresos": dinero(v[1])} for n, v in sorted(platos.items(), key=lambda x: (-x[1][0], x[0]))[:8]]}
+
+
 def api_dueno(sv, quien, rol, metodo, ruta, d=None):
     """Rutas /panel/dueno/<ruta>, solo rol dueno. PermissionError → 403, LookupError → 404, ValueError → 409."""
     if rol != "dueno":
@@ -614,6 +668,8 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return {"ajustes": ajustes_json(sv)}
     if (metodo, ruta) == ("POST", "ajustes"):
         return guardar_ajustes(sv, d or {}, quien)
+    if (metodo, ruta) == ("POST", "estadisticas"):
+        return estadisticas(sv, (d or {}).get("dias"))
     raise LookupError(ruta)
 
 

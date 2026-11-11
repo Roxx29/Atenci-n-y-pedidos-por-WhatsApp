@@ -87,3 +87,4 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-11 — Legal: los avisos "necesita una persona" ahora enseñan el teléfono completo del cliente a todo el panel (pedido del usuario para poder llamar); revisar que el aviso de privacidad lo cubra (legal-datos)
 - [ ] 2026-11-10 — Probar el rediseño en móvil y tablet reales: web (entrada dentro de la pestaña Pedir), panel (barra abajo, filas de Menú y Equipo) y modo oscuro (usuario)
 - [ ] 2026-11-10 — Web y panel sin favicon (404 en /favicon.ico): servir uno con la inicial o el logo (programador-rapido)
+- Módulos extra (estadísticas hecho): pensar el catálogo de extras y precio (p. ej. reportes por correo/WhatsApp, exportar a Excel, descuentos automáticos). Decidir si DeliFood lo tiene incluido o se cobra aparte (usuario)

@@ -377,6 +377,22 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
   .nuevo-aj{grid-template-columns:1fr 1fr}
   .nuevo-aj label:first-child,.nuevo-aj .btn{grid-column:1/-1}
 }
+/* Módulo Estadísticas */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0 12px}
+.kpi{display:grid;gap:2px;padding:12px 14px;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra)}
+.kpi b{font:500 1.375rem var(--mono)}
+.kpi small{font-size:.8125rem;font-weight:700;color:var(--on-variant)}
+.kpi small.sube{color:var(--tertiary)}.kpi small.baja{color:var(--error)}
+.barras{display:flex;align-items:flex-end;gap:2px;height:120px}
+.barras i{flex:1;min-height:2px;background:var(--primary);border-radius:3px 3px 0 0}
+.barras i.pico{background:var(--secondary-container)}
+.eje{display:flex;justify-content:space-between;margin-top:4px;font-size:.75rem;color:var(--on-variant)}
+.rank{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.rank li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;font-weight:600}
+.rank .fondo{grid-column:1/-1;height:6px;border-radius:3px;background:var(--sc-high)}
+.rank .fondo i{display:block;height:100%;border-radius:3px;background:var(--primary)}
+.rank span{color:var(--on-variant);font:500 .9375rem var(--mono)}
+.dos-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 /* Teléfono: todo el cuerpo se desplaza junto (solo la cabecera y la barra de abajo quedan fijas) para no perder pantalla */
 @media (max-width:700px){
   .cuerpo{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -413,6 +429,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
   <symbol id="i-promo" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></symbol>
+  <symbol id="i-grafica" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
   <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
 </svg>
 
@@ -441,6 +458,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     <button type="button" data-vista="pedidos" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-recibo"/></svg>Pedidos<span class="cuenta" id="n-nav" hidden>0</span></button>
     <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
     <button type="button" data-vista="promos"><svg class="i" aria-hidden="true"><use href="#i-promo"/></svg>Promos</button>
+    <button type="button" data-vista="stats" id="nav-stats" hidden><svg class="i" aria-hidden="true"><use href="#i-grafica"/></svg>Estadíst.</button>
     <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
     <button type="button" data-vista="config" id="nav-config" hidden><svg class="i" aria-hidden="true"><use href="#i-ajustes"/></svg>Config.</button>
     <span class="hueco"></span>
@@ -508,6 +526,14 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
         <p class="t-espera">Una promoción es un combo u oferta con su precio. Sale arriba del todo en la página de pedidos y el asistente la ofrece. Apágala cuando termine y vuelve a encenderla cuando quieras.</p>
         <div id="lista-promos"></div>
       </div>
+    </div>
+
+    <div class="vista" id="v-stats" hidden>
+      <div class="vista-cab">
+        <h2>Estadísticas</h2>
+        <div class="seg" role="group" aria-label="Periodo" id="stats-seg"><button type="button" aria-pressed="false" data-d="7">7 días</button><button type="button" aria-pressed="true" data-d="30">30 días</button><button type="button" aria-pressed="false" data-d="90">90 días</button></div>
+      </div>
+      <div class="vista-cuerpo" id="stats-cuerpo"></div>
     </div>
 
     <div class="vista" id="v-config" hidden>
@@ -664,7 +690,7 @@ $("#form-pin").addEventListener("submit", async ev => {
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
   $("#nav-equipo").hidden = $("#nav-config").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
-  if (st.demo) cargarDemo();
+  if (st.demo) { cargarDemo(); pintarModulos(["estadisticas"]); }
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
 });
 $("#btn-salir").onclick = async () => {
@@ -751,6 +777,7 @@ function recibir(d) {
   }
   if (d.escalados) st.escalados = d.escalados;
   if (d.cerrado != null) pintarTienda(d.cerrado);
+  if (d.modulos) pintarModulos(d.modulos);
   if (d.repartidores) st.repartidores = d.repartidores.map(repNombre).filter(Boolean);
   if (d.ultimo != null) st.ultimo = d.ultimo;
   st.primera = false;
@@ -933,9 +960,9 @@ $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg"
 
 
 /* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
-const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", equipo:"Equipo", config:"Configuración"};
+const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", stats:"Estadísticas", equipo:"Equipo", config:"Configuración"};
 function irA(v) {
-  if ((v === "equipo" || v === "config") && st.rol !== "dueno") v = "pedidos";
+  if (((v === "equipo" || v === "config") && st.rol !== "dueno") || (v === "stats" && $("#nav-stats").hidden)) v = "pedidos";
   st.vista = v;
   for (const b of document.querySelectorAll(".lado [data-vista]")) b.dataset.vista === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
   for (const k of Object.keys(TITULO)) $("#v-" + k).hidden = k !== v;
@@ -945,6 +972,7 @@ function irA(v) {
   if (v === "equipo") pintarEquipo();
   if (v === "promos") pintarPromos();
   if (v === "config") pintarConfig();
+  if (v === "stats") pintarStats();
 }
 document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
 
@@ -1077,6 +1105,51 @@ function pintarTienda(cerrado) {
 
 /* ---------- Configuración general (solo dueño): nombre, teléfono, anuncio, horario por día y datos de pago ---------- */
 const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["jue", "Jueves"], ["vie", "Viernes"], ["sab", "Sábado"], ["dom", "Domingo"]];
+/* ---------- Módulo extra: Estadísticas (el dueño lo ve solo si el restaurante lo contrató) ---------- */
+function pintarModulos(m) {
+  $("#nav-stats").hidden = st.rol !== "dueno" || !m.includes("estadisticas");
+  if (st.vista === "stats" && $("#nav-stats").hidden) irA("pedidos");
+}
+const cambioTxt = c => c == null ? "" : (c > 0 ? "▲ " : c < 0 ? "▼ " : "= ") + Math.abs(c) + " % vs. periodo anterior";
+async function pintarStats(dias) {
+  if (dias) st.statsDias = dias;
+  const n = st.statsDias || 30;
+  for (const b of $("#stats-seg").children) b.setAttribute("aria-pressed", String(Number(b.dataset.d) === n));
+  let e; try { e = await api("POST", "/panel/dueno/estadisticas", {dias:n}); } catch (x) { return aviso(x.message, true); }
+  const kpi = (etq, valor, nota, clase) => h("div", {class:"kpi"}, h("small", {}, etq), h("b", {}, valor), nota ? h("small", {class:clase || ""}, nota) : null);
+  const clase = c => c > 0 ? "sube" : c < 0 ? "baja" : "";
+  const grupo = (titulo, ...c) => h("section", {class:"caja-aj"}, h("h3", {class:"grupo"}, titulo), ...c);
+  const barras = (vals, etiquetas, resaltar) => {
+    const tope = Math.max(...vals, 1), cont = h("div", {class:"barras", role:"img", "aria-label":etiquetas.join(", ")});
+    vals.forEach((v, i) => { const b = h("i", {title:etiquetas[i]}); b.style.height = Math.max(v * 100 / tope, 1.5) + "%"; if (i === resaltar) b.className = "pico"; cont.append(b); });
+    return cont;
+  };
+  const rank = (filas, tope) => h("ul", {class:"rank"}, ...filas.map(([nom, dato, v]) => { const f = h("i", {}); f.style.width = (v * 100 / tope) + "%"; return h("li", {}, nom, h("span", {}, dato), h("div", {class:"fondo"}, f)); }));
+  const cuerpo = [h("div", {class:"kpis"},
+    kpi("Ventas", e.ventas, cambioTxt(e.ventas_cambio), clase(e.ventas_cambio)),
+    kpi("Pedidos entregados", String(e.pedidos), cambioTxt(e.pedidos_cambio), clase(e.pedidos_cambio)),
+    kpi("Ticket medio", e.ticket),
+    kpi("Tiempo medio", e.minutos_medio == null ? "—" : e.minutos_medio + " min", "del pedido a la entrega"),
+    kpi("Clientes", String(e.clientes), e.clientes_repiten + " ya habían comprado antes"),
+    kpi("Cancelados o caducados", String(e.perdidos)))];
+  if (!e.pedidos) cuerpo.push(h("p", {class:"t-espera"}, "Aún no hay pedidos entregados en este periodo. Las estadísticas se llenan solas a medida que se entregan pedidos."));
+  else {
+    const pico = e.por_hora.indexOf(Math.max(...e.por_hora));
+    cuerpo.push(
+      grupo("Ventas por día", barras(e.por_dia.map(x => x.centavos), e.por_dia.map(x => `${x.fecha}: ${x.ventas} (${x.pedidos} pedidos)`)),
+        h("div", {class:"eje"}, h("span", {}, e.por_dia[0].fecha), h("span", {}, e.por_dia[e.por_dia.length - 1].fecha))),
+      grupo("Horas con más pedidos", barras(e.por_hora, e.por_hora.map((v, i) => `${i}:00 — ${v} pedidos`), pico),
+        h("div", {class:"eje"}, h("span", {}, "0 h"), h("span", {}, "6 h"), h("span", {}, "12 h"), h("span", {}, "18 h"), h("span", {}, "23 h")),
+        h("p", {class:"t-espera"}, `Hora pico: ${pico}:00 a ${pico + 1}:00.`)),
+      h("div", {class:"dos-col"},
+        grupo("Lo más pedido", rank(e.platos.map(p => [p.nombre, `${p.cantidad} · ${p.ingresos}`, p.cantidad]), e.platos[0].cantidad)),
+        grupo("Cómo piden", rank(Object.entries(e.modalidad).map(([k, v]) => [k === "entrega" ? "A domicilio" : k === "recogida" ? "Para recoger" : k, String(v), v]), e.pedidos),
+          ...(e.zonas.length ? [h("h3", {class:"grupo"}, "Zonas de entrega"), rank(e.zonas.map(z => [z.zona, String(z.pedidos), z.pedidos]), e.zonas[0].pedidos)] : []))));
+  }
+  $("#stats-cuerpo").replaceChildren(...cuerpo);
+}
+$("#stats-seg").onclick = ev => { const b = ev.target.closest("[data-d]"); if (b) pintarStats(Number(b.dataset.d)); };
+
 async function pintarConfig() {
   let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
   const f = $("#f-config");
@@ -1284,6 +1357,9 @@ function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la d
   const M = DEMO.menu, U = DEMO.usuarios, fin = ruta.split("/").pop(), plato = M.find(x => x.id === (d.id || d.plato)), persona = U.find(x => x.nombre === d.nombre);
   if (fin === "menu") return {menu:M.map(x => ({...x}))};
   if (fin === "usuarios") return {usuarios:U.map(x => ({...x}))};
+  if (fin === "estadisticas") { const n = d.dias || 30, v = i => 20 + ((i * 37) % 60); return {dias:n, ventas:"B/. 1,240.50", ventas_cambio:12.4, pedidos:96, pedidos_cambio:-3.1, ticket:"B/. 12.92", minutos_medio:34, perdidos:5, clientes:61, clientes_repiten:23,
+    por_dia:Array.from({length:n}, (_, i) => ({fecha:"2026-11-" + String(1 + i % 28).padStart(2, "0"), ventas:"B/. " + v(i), centavos:v(i) * 100, pedidos:v(i) % 9})), por_hora:[0,0,0,0,0,0,0,0,0,1,2,9,14,8,3,1,2,6,12,15,9,3,0,0],
+    modalidad:{entrega:58, recogida:38}, metodo:{}, zonas:[{zona:"Chitré", pedidos:41}, {zona:"La Villa de Los Santos", pedidos:17}], platos:[{nombre:"Sancocho", cantidad:48, ingresos:"B/. 216.00"}, {nombre:"Tasajo con arroz", cantidad:31, ingresos:"B/. 186.00"}]}; }
   if (fin === "ajustes") { const {horario, ...c} = d; Object.assign(DEMO.ajustes, c, horario ? {horario} : {}); return {ajustes:DEMO.ajustes}; }
   if (fin === "agotado") plato.disponible = d.disponible;
   if (fin === "plato") { const c = {...d, ...(d.precio != null ? {precio:Number(d.precio)} : {})}; plato ? Object.assign(plato, c) : M.push({id:"p" + Date.now(), categoria:"", disponible:true, foto:null, ...c}); }

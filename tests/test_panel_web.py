@@ -198,6 +198,27 @@ class PanelWeb(Base):
         self.assertEqual((st, d["plato"]["descripcion"]), (200, "sancocho + chicha"))
         self.assertIn("combo-almuerzo | Combo almuerzo (sancocho + chicha) | B/. 6.50 | promociones", herramientas.texto_menu(self.sv.menu))
 
+    def test_modulo_estadisticas(self):
+        _, ck = self.login()
+        self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)
+        _, ck2 = self.login("918273")
+        self.sv.cfg.pop("modulos", None)  # sin contratar: no hay datos ni pestaña
+        self.assertEqual(self.js("POST", "/panel/dueno/estadisticas", {}, cookie=ck)[0], 404)
+        self.assertEqual(self.js("GET", "/panel/estado", cookie=ck)[1]["modulos"], [])
+        self.sv.cfg["modulos"] = ["estadisticas", "otro"]
+        self.assertEqual(self.js("GET", "/panel/estado", cookie=ck)[1]["modulos"], ["estadisticas"])
+        self.assertEqual(self.js("POST", "/panel/dueno/estadisticas", {}, cookie=ck2)[0], 403)  # solo el dueño
+        for _ in range(2):
+            pid = self.pedido()
+            for est in ("pagado", "en_preparacion", "listo", "entregado"):
+                herramientas.marcar_pedido(self.sv, pid, est)
+        st, d, _ = self.js("POST", "/panel/dueno/estadisticas", {"dias": 7}, cookie=ck)
+        self.assertEqual((st, d["dias"], d["pedidos"], len(d["por_dia"])), (200, 7, 2, 7))
+        self.assertEqual(sum(x["pedidos"] for x in d["por_dia"]), 2)
+        self.assertEqual(d["platos"][0]["cantidad"], sum(l["cantidad"] for l in self.sv.listar("pedido")[0]["lineas"]) * 2)
+        self.assertNotIn(TEL, str(d))  # nada de teléfonos
+        self.assertEqual(self.js("POST", "/panel/dueno/estadisticas", {"dias": 5}, cookie=ck)[1]["dias"], 30)
+
     def test_config_publica_y_pago_solo_con_sesion(self):
         st, d, _ = self.js("GET", "/config")
         self.assertEqual((st, d["marca"], d["impuesto_pct"]), (200, "DeliFood", self.sv.cfg["pedidos"]["impuesto_pct"]))

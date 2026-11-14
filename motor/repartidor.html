@@ -21,6 +21,8 @@
   --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
   --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed); --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed);
   --r:12px;
+  /* movimiento: solo transform/opacity, ease-out, 140-220 ms */
+  --ease-out:cubic-bezier(.23,1,.32,1);--t-press:140ms;--t-ui:200ms;--t-vista:220ms;--dy:10px;--dx:16px;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -37,8 +39,8 @@ h1,h2{font-family:var(--display);letter-spacing:-.01em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;padding:0 18px;border-radius:var(--r);border:0;font-weight:800;font-size:1.25rem;text-decoration:none;background:var(--achiote);color:var(--sobre-achiote);transition:transform .08s,background .12s}
-.btn:active{transform:scale(.98)}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;padding:0 18px;border-radius:var(--r);border:0;font-weight:800;font-size:1.25rem;text-decoration:none;background:var(--achiote);color:var(--sobre-achiote);transition:transform var(--t-press) var(--ease-out),background .12s,opacity var(--t-ui) var(--ease-out)}
+.btn:active{transform:scale(.97)}
 .btn:hover{background:var(--achiote-osc)}
 .btn.ok{background:var(--hoja)} .btn.ok:hover{background:var(--hoja-osc)}
 .btn.sec{background:var(--fondo);color:var(--tinta);border:2px solid var(--tinta)}
@@ -55,7 +57,8 @@ svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 #pin:focus{outline:none;border-color:var(--achiote)}
 .teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
 .teclado button{min-height:68px;border-radius:var(--r);border:2px solid var(--linea);background:var(--fondo);font-size:1.625rem;font-weight:700}
-.teclado button:active{background:var(--papel)}
+.teclado button{transition:transform var(--t-press) var(--ease-out),background .12s}
+.teclado button:active{background:var(--papel);transform:scale(.94)}
 .teclado .btn{border:0;font-size:1.25rem;background:var(--achiote)}
 .teclado .btn:active{background:var(--achiote-osc)}
 .error{color:var(--achiote);font-weight:700;min-height:1.4em;margin:0}
@@ -74,7 +77,8 @@ svg.i{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:2.2;stro
 main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .lista{display:grid;gap:12px;list-style:none;margin:0;padding:0}
 .pedido{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;width:100%;padding:16px;border-radius:var(--r);border:2px solid var(--linea);background:var(--fondo);text-align:left;box-shadow:0 2px 8px rgba(30,18,12,.08)}
-.pedido:active{background:var(--papel)}
+.pedido{transition:transform var(--t-press) var(--ease-out),background .12s}
+.pedido:active{background:var(--papel);transform:scale(.98)}
 .pedido.nuevo{border-color:var(--maiz);box-shadow:0 0 0 4px var(--maiz-suave)}
 .pedido .n{grid-row:span 3;font-size:2.5rem;font-weight:900;line-height:1}
 .pedido .nombre{font-size:1.375rem;font-weight:800;overflow-wrap:break-word}
@@ -109,7 +113,7 @@ main{padding:14px 12px max(24px,env(safe-area-inset-bottom))}
 .pie p{margin:0;text-align:center;font-weight:700}
 .espera{color:var(--tinta-2);font-weight:700;text-align:center;min-height:56px;display:grid;place-items:center}
 
-.toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:5;padding:16px;border-radius:var(--r);background:var(--tinta);color:var(--fondo);font-weight:700;text-align:center;transform:translateY(-150%);visibility:hidden;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.toast{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 12px);z-index:5;padding:16px;border-radius:var(--r);background:var(--tinta);color:var(--fondo);font-weight:700;text-align:center;transform:translateY(-150%);visibility:hidden;transition:transform var(--t-ui) var(--ease-out)}
 .toast.ver{transform:none;visibility:visible}
 .toast.mal{background:var(--achiote)}
 /* ---------- Rediseño brasa ---------- */
@@ -175,10 +179,22 @@ dialog.aviso-ub h2{font-size:1.5rem;margin-bottom:10px}
 dialog.aviso-ub p.texto{white-space:pre-wrap;font-size:1rem;margin:0 0 14px;max-height:50vh;overflow-y:auto}
 dialog.aviso-ub label{display:flex;gap:12px;align-items:center;font-weight:700;min-height:48px;margin-bottom:12px}
 dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
+@keyframes entra{from{opacity:0;transform:translateY(var(--dy))}}
+@keyframes vista{from{opacity:0;transform:translateX(var(--dx))}}
+@keyframes vista-atras{from{opacity:0;transform:translateX(calc(var(--dx) * -1))}}
+@keyframes hoja{from{opacity:0;transform:translateY(40%)}}
+.entra{animation:entra var(--t-vista) var(--ease-out) both;animation-delay:calc(var(--i,0) * 50ms)}
+.v-in{animation:vista var(--t-vista) var(--ease-out) both}
+.v-atras{animation:vista-atras var(--t-vista) var(--ease-out) both}
+.hoja-in{display:grid;gap:10px;animation:hoja var(--t-ui) var(--ease-out) both}
+.velo{position:fixed;inset:0;z-index:1;background:rgba(26,28,30,.45);opacity:0;pointer-events:none;transition:opacity var(--t-ui) var(--ease-out)}
+.velo.ver{opacity:1;pointer-events:auto}
+.pie{z-index:2}
+.esq{height:92px;border-radius:var(--r);background:var(--sc-high);animation:latir 1.2s ease-in-out infinite}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
 @media (max-width:380px){.mets{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:640px){main,.pie{max-width:560px;margin-inline:auto}.pie{left:50%;right:auto;width:560px;transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){:root{--dy:0px;--dx:0px}.hoja-in{animation-name:entra}.btn:active,.teclado button:active,.pedido:active{transform:none}.en-serv::before,.esq{animation:none!important}}
 </style>
 </head>
 <body data-marca="DeliFood">
@@ -225,7 +241,7 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
       </div>
     </section>
     <h2 class="sec-tit">Mis entregas</h2>
-    <ul class="lista" id="lista" aria-live="polite"></ul>
+    <ul class="lista" id="lista" aria-live="polite"><li class="esq" aria-hidden="true"></li><li class="esq" aria-hidden="true"></li></ul>
     <div class="vacio" id="vacio" hidden><b>Sin pedidos por ahora</b>Cuando te asignen uno aparece aquí y el teléfono vibra.</div>
   </main>
 </div>
@@ -243,6 +259,7 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
     <section class="bloque"><h2>Dirección</h2><p class="dir" id="d-dir"></p><p id="d-zona"></p><p class="nota" id="d-notas"></p><p class="fuera" id="d-fuera" hidden>Ubicación fuera de la zona de entrega: confirma con el cliente.</p></section>
     <section class="bloque"><h2>Lleva</h2><ul class="items" id="d-items"></ul><div class="total"><span>Total</span><span class="num" id="d-total"></span></div></section>
   </main>
+  <div class="velo" id="velo"></div>
   <div class="pie" id="d-pie"></div>
 </div>
 
@@ -278,7 +295,7 @@ const aCobrar = p => num(p.cobrar) > 0 ? p.cobrar : p.total;
 const ESTADO = {en_preparacion:"En cocina", listo:"Listo para recoger", en_camino:"En camino"};
 const ORDEN = {en_camino:0, listo:1, en_preparacion:2};
 
-const st = {demo:location.protocol === "file:", pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0};
+const st = {demo:location.protocol === "file:", pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0, vistos:new Set()};
 
 /* ---------- PWA ---------- */
 if ("serviceWorker" in navigator && !st.demo) navigator.serviceWorker.register("/repartidor/sw.js", {scope:"/repartidor/"}).catch(() => {});
@@ -367,8 +384,11 @@ async function cargar() {
 function ver(cual) {
   $("#vista-lista").hidden = cual !== "lista"; $("#detalle").hidden = cual !== "detalle";
   if (cual === "lista") st.abierto = null;
+  const el = $(cual === "lista" ? "#vista-lista" : "#detalle"); // reinicia la animación de entrada
+  el.classList.remove("v-in", "v-atras"); void el.offsetWidth; el.classList.add(cual === "lista" ? "v-atras" : "v-in");
   window.scrollTo(0, 0);
 }
+$("#velo").onclick = () => { const p = st.pedidos.find(x => x.id === st.abierto); if (p) pintarPie(p); };
 $("#btn-atras").onclick = () => { ver("lista"); pintarLista(); };
 window.addEventListener("popstate", () => { if (!$("#detalle").hidden) { ver("lista"); pintarLista(); } });
 
@@ -383,7 +403,8 @@ function pintarTurno() {
 function pintarLista() {
   pintarTurno();
   $("#vacio").hidden = st.pedidos.length > 0;
-  $("#lista").replaceChildren(...st.pedidos.map(p => h("li", {},
+  let k = 0;
+  $("#lista").replaceChildren(...st.pedidos.map(p => h("li", st.vistos.has(p.id) ? {} : (st.vistos.add(p.id), {class:"entra", style:"--i:" + Math.min(k++, 6)}), // solo entran los nuevos, no en cada sondeo
     h("button", {class:"pedido" + (st.nuevos.has(p.id) ? " nuevo" : "") + (p.estado === "en_camino" ? " en-camino" : ""), on:{click:() => abrir(p.id)}, "aria-label":`Pedido ${p.id}, ${p.nombre}, ${p.zona || ""}, ${pagado(p) ? "pagado" : "cobrar " + dinero(aCobrar(p))}, ${ESTADO[p.estado]}`},
       h("span", {class:"n num"}, "#" + p.id),
       h("span", {class:"nombre"}, p.nombre),
@@ -428,9 +449,10 @@ function accesos(p) {
     tel ? h("a", {class:"btn sec", href:"tel:+" + tel}, icono("tel"), "Contactar") : null);
 }
 function pintarPie(p, confirmar) {
-  if (confirmar) return ponerPie(p, 
+  $("#velo").classList.toggle("ver", !!confirmar);
+  if (confirmar) return ponerPie(p, h("div", {class:"hoja-in"},
     h("p", {}, "¿Ya cobraste " + dinero(aCobrar(p)) + " en efectivo?"),
-    h("div", {class:"fila"}, h("button", {class:"btn ok", on:{click:() => marcar(p, "entregado", true)}}, "Sí, cobré y entregué"), h("button", {class:"btn sec", on:{click:() => pintarPie(p)}}, "Volver")));
+    h("div", {class:"fila"}, h("button", {class:"btn ok", on:{click:() => marcar(p, "entregado", true)}}, "Sí, cobré y entregué"), h("button", {class:"btn sec", on:{click:() => pintarPie(p)}}, "Volver"))));
   if (puede(p, "en_camino")) return ponerPie(p, h("button", {class:"btn", on:{click:() => marcar(p, "en_camino")}}, icono("moto"), "Recogí el pedido · En camino"));
   if (puede(p, "entregado")) return ponerPie(p, h("button", {class:"btn ok", on:{click:() => pagado(p) ? marcar(p, "entregado") : pintarPie(p, true)}}, icono("check"), "Entregado"));
   ponerPie(p, h("p", {class:"espera"}, p.estado === "en_preparacion" ? "Aún en cocina. Te avisamos cuando esté listo." : "Esperando al restaurante."));

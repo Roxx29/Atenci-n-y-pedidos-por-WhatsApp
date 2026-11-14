@@ -9,6 +9,7 @@
 <link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="estatico/tema.css">
 <style>
+:root{--m-out:cubic-bezier(.23,1,.32,1);--m-rapido:.16s;--m-medio:.22s}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--surface);color:var(--on-surface);font:15px/1.5 var(--texto);-webkit-text-size-adjust:100%}
@@ -25,12 +26,12 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .etq{font-size:.6875rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 
 /* Botones */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r8);border:0;font-weight:700;font-size:.9375rem;background:var(--primary);color:var(--on-primary);transition:transform .12s,background-color .15s,color .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r8);border:0;font-weight:700;font-size:.9375rem;background:var(--primary);color:var(--on-primary);transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s}
 .btn:hover{background:var(--primary-container);color:#fff}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-sec{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
 .btn-sec:hover{background:var(--primary-fixed);color:var(--primary)}
-.btn:active,.pedir:active,.enviar:active,.sug:active{transform:scale(.97)}
+.btn:active,.pedir:active,.enviar:active,.sug:active,.cats button:active,.pestanas button:active,.copiar:active,.icono:active,.plato .paso button:active{transform:scale(.97)}
 
 /* ---------- Entrada (panel de la pestaña Pedir hasta identificarse) ---------- */
 #entrada{overflow-y:auto;padding:24px 16px 32px;background:var(--surface)}
@@ -79,7 +80,7 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 
 /* Pestañas */
 .pestanas{order:-1;display:flex;background:var(--sc-lowest);border-bottom:1px solid var(--sc-high);flex:none}
-.pestanas button{flex:1;min-height:48px;border:0;background:none;font-weight:700;font-size:.875rem;color:var(--on-variant);border-bottom:3px solid transparent;position:relative;transition:color .15s,border-color .15s}
+.pestanas button{flex:1;min-height:48px;border:0;background:none;font-weight:700;font-size:.875rem;color:var(--on-variant);border-bottom:3px solid transparent;position:relative;transition:transform var(--m-rapido) var(--m-out),color .15s,border-color .15s}
 .pestanas button[aria-selected=true]{color:var(--primary);border-bottom-color:var(--primary)}
 .punto{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--primary-container);margin-left:6px;vertical-align:middle}
 
@@ -97,7 +98,7 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .buscar input{padding-left:44px;border-radius:999px}
 .cats{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px}
 .cats::-webkit-scrollbar{display:none}
-.cats button{flex:none;min-height:44px;padding:0 18px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:700;font-size:.875rem;color:var(--on-variant);text-transform:capitalize;transition:background-color .15s,color .15s,border-color .15s}
+.cats button{transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s,border-color .15s;flex:none;min-height:44px;padding:0 18px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:700;font-size:.875rem;color:var(--on-variant);text-transform:capitalize;transition:background-color .15s,color .15s,border-color .15s}
 .cats button[aria-pressed=true]{background:var(--on-surface);border-color:var(--on-surface);color:var(--surface)}
 #menu h2{font-size:1.25rem;font-weight:700;margin:20px 0 12px;text-transform:capitalize}
 #lista-menu>h2:first-child{margin-top:8px}
@@ -111,13 +112,13 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .plato .insignia{padding:4px 10px;border-radius:999px;background:var(--sc-high);color:var(--on-variant);font-size:.6875rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .plato.agotado h3,.plato.agotado .precio{color:var(--outline)}
 .plato.agotado .foto{filter:grayscale(1);opacity:.6}
-.pedir{min-height:44px;padding:0 20px;border-radius:999px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);font-weight:700;font-size:.875rem;transition:transform .12s,background-color .15s,color .15s}
+.pedir{min-height:44px;padding:0 20px;border-radius:999px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);font-weight:700;font-size:.875rem;transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s}
 .pedir:hover{background:var(--primary);color:var(--on-primary)}
 .plato .paso{display:inline-flex;align-items:center;min-height:44px;border-radius:999px;background:var(--primary);color:var(--on-primary)}
-.plato .paso button{width:44px;height:44px;border:0;border-radius:50%;background:none;color:inherit;font-size:1.375rem;font-weight:700;line-height:1}
+.plato .paso button{transition:transform var(--m-rapido) var(--m-out);width:44px;height:44px;border:0;border-radius:50%;background:none;color:inherit;font-size:1.375rem;font-weight:700;line-height:1}
 .plato .paso output{min-width:1.6em;text-align:center;font-family:var(--mono);font-weight:500;font-size:1.0625rem}
 .vacio-busca{padding:32px 0;text-align:center;color:var(--on-variant)}
-.carro{position:sticky;bottom:0;margin:16px -16px -16px;padding:12px 16px max(12px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;background:var(--inverse);color:var(--on-inverse);box-shadow:0 -6px 20px rgba(0,0,0,.18);animation:entra .22s cubic-bezier(.16,1,.3,1)}
+.carro{position:sticky;bottom:0;margin:16px -16px -16px;padding:12px 16px max(12px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;background:var(--inverse);color:var(--on-inverse);box-shadow:0 -6px 20px rgba(0,0,0,.18);animation:entra var(--m-medio) var(--m-out)}
 .carro p{margin:0;flex:1;min-width:0;line-height:1.25}
 .carro p span{font-size:.75rem;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
 .carro p b{display:block;font:500 1.25rem var(--mono)}
@@ -157,12 +158,12 @@ table.items tr.tot td{font-weight:700;font-size:1rem}
 .ubic-ok{display:flex;gap:6px;align-items:center;margin:0 14px 12px;color:var(--tertiary);font-weight:700}
 .sugerencias{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:4px 12px 8px}
 .sugerencias::-webkit-scrollbar{display:none}
-.sug{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:600;font-size:.8125rem;color:var(--on-surface);transition:transform .12s,background-color .15s,border-color .15s}
+.sug{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:600;font-size:.8125rem;color:var(--on-surface);transition:transform var(--m-rapido) var(--m-out),background-color .15s,border-color .15s}
 .sug:hover{border-color:var(--primary);background:var(--primary-fixed)}
 .componer{display:flex;gap:8px;align-items:flex-end;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:var(--sc-lowest);border-top:1px solid var(--sc-high)}
 .componer textarea{resize:none;max-height:140px;border-radius:24px;padding:12px 18px;background:var(--sc-low);border-color:transparent}
 .componer textarea:focus{border-color:var(--primary);background:var(--sc-lowest)}
-.enviar{width:48px;height:48px;border-radius:50%;border:0;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;flex:none;transition:transform .12s,background-color .15s}
+.enviar{width:48px;height:48px;border-radius:50%;border:0;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;flex:none;transition:transform var(--m-rapido) var(--m-out),background-color .15s}
 .enviar:hover{background:var(--primary-container);color:#fff}
 .enviar:disabled{opacity:.5}
 
@@ -202,7 +203,7 @@ progress{width:100%;height:6px;accent-color:var(--primary)}
 .recibido p{margin:0}
 .enlace{background:none;border:0;padding:0;min-height:44px;color:var(--primary);font-weight:700;text-decoration:underline;text-underline-offset:3px}
 .espera{display:block;font-size:.75rem}
-.copiar{min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--outline-variant);background:none;font-weight:700;font-size:.8125rem;flex:none}
+.copiar{transition:transform var(--m-rapido) var(--m-out),background-color .15s;min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--outline-variant);background:none;font-weight:700;font-size:.8125rem;flex:none}
 .copiar:hover{background:var(--sc-low)}
 #pago-datos[hidden]+.comprobante{border-top:0;margin-top:0;padding-top:0}
 dialog.hoja{margin:auto auto 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border:0;border-radius:20px 20px 0 0;padding:24px 16px max(20px,env(safe-area-inset-bottom));background:var(--sc-lowest);color:var(--on-surface)}
@@ -215,24 +216,40 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
 .hoja summary{font-weight:700;color:var(--primary);min-height:44px;display:flex;align-items:center}
 #ubic-aviso-texto{white-space:pre-wrap;max-height:40vh;overflow-y:auto;font-size:.875rem;color:var(--on-variant);background:var(--sc-low);border-radius:var(--r12);padding:12px}
 .comprobante .error{margin:0;min-height:0}
-.icono{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font-weight:600}
+.icono{transition:transform var(--m-rapido) var(--m-out),background-color .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font-weight:600}
 .icono:hover{background:var(--sc-high)}
 
 /* Movimiento (solo transform/opacity) */
 @keyframes entra{from{opacity:0;transform:translateY(8px)}}
 @keyframes punto{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
-@keyframes pulso{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--primary) 40%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+@keyframes anillo{from{opacity:.5;transform:scale(1)}to{opacity:0;transform:scale(1.5)}}
+@keyframes fade{from{opacity:0}}
+@keyframes entra-yo{from{opacity:0;transform:translateX(10px) scale(.97)}}
+@keyframes entra-bot{from{opacity:0;transform:translateX(-10px) scale(.97)}}
 #mapa-cli{height:260px;border-radius:var(--r12);margin-top:12px;background:var(--sc);z-index:0}
 .pin-rep span,.pin-yo span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .pin-yo span{background:var(--inverse);color:#fff}
 .pin-rep.viejo span{background:#6f6f73;border-style:dashed}
 .leaflet-container{font-family:var(--texto)}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
-.burbuja,.fila-bot,.sistema,.escribiendo,.resumen,.plato{animation:entra .22s cubic-bezier(.16,1,.3,1)}
+.burbuja,.sistema,.escribiendo,.resumen{animation:entra var(--m-medio) var(--m-out)}
+.fila-bot{animation:entra-bot var(--m-medio) var(--m-out);transform-origin:left bottom}
+.yo{animation:entra-yo var(--m-medio) var(--m-out);transform-origin:right bottom}
+.fila-bot .burbuja{animation:none}
+.plato{animation:entra var(--m-medio) var(--m-out) backwards}
+.plato:nth-child(2){animation-delay:40ms}.plato:nth-child(3){animation-delay:80ms}.plato:nth-child(4){animation-delay:120ms}.plato:nth-child(5){animation-delay:160ms}.plato:nth-child(n+6){animation-delay:200ms}
+#lista-menu.quieto .plato{animation:none}
+#menu:not([hidden]),#chat:not([hidden]),#estado:not([hidden]),#entrada:not([hidden]),#mapa-cli:not([hidden]),.resumen .det:not([hidden]){animation:fade var(--m-medio) var(--m-out)}
+#mapa-cli:not(.leaflet-container){animation:latir 1.4s ease-in-out infinite}
+.pin-rep{transition:transform 1s linear}
+.pin-rep span{transition:background-color .3s}
+.plato .foto{transition:opacity var(--m-medio) var(--m-out)}
+.plato .foto.carga{opacity:0}
 .puntos{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
 .puntos i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:punto 1.1s infinite}
 .puntos i:nth-child(2){animation-delay:.15s}.puntos i:nth-child(3){animation-delay:.3s}
-.actual .marca-paso{animation:pulso 1.8s ease-out infinite}
+.actual .marca-paso{position:relative}
+.actual .marca-paso::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--primary);animation:anillo 1.8s var(--m-out) infinite}
 
 .abierto .hasta{display:none}
 @media (min-width:560px){.abierto .hasta{display:inline}}
@@ -261,7 +278,13 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
   .buscar{margin:12px 0 4px}
   .cats{position:sticky;top:0;z-index:2;padding-block:8px;background:var(--surface)}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (prefers-reduced-motion:reduce){ /* solo fundidos: sin desplazamientos, escalas ni bucles */
+  @keyframes entra{from{opacity:0}}@keyframes entra-yo{from{opacity:0}}@keyframes entra-bot{from{opacity:0}}
+  .plato{animation-delay:0s!important}
+  .btn:active,.pedir:active,.enviar:active,.sug:active,.cats button:active,.pestanas button:active,.copiar:active,.icono:active,.plato .paso button:active{transform:none}
+  .puntos i,.abierto::before,.actual .marca-paso::after,#mapa-cli:not(.leaflet-container){animation:none}
+  .pin-rep,.aviso{transition:none}
+}
 </style>
 </head>
 <body data-marca="DeliFood">
@@ -654,7 +677,7 @@ function pintarCarro() {
 function fotoDe(m) { // sin foto no se pinta nada: la tarjeta queda solo con texto
   if (!m.foto) return null;
   const i = document.createElement("img"); i.className = "foto"; i.alt = ""; i.loading = "lazy"; i.decoding = "async"; i.width = 104; i.height = 104; i.src = m.foto2x || m.foto; // la de 320 se ve nítida en pantallas densas
-  i.onerror = () => i.remove(); // foto rota: fuera
+  i.classList.add("carga"); i.onload = () => i.classList.remove("carga"); i.onerror = () => i.remove(); // foto rota: fuera
   return i;
 }
 const catDe = m => m.categoria || "otros";
@@ -672,8 +695,8 @@ function pintarCategorias() {
     caja.append(b);
   }
 }
-function pintarMenu() {
-  const caja = $("#lista-menu"); caja.textContent = "";
+function pintarMenu(escribiendo) { // al teclear en el buscador no se repite la entrada escalonada
+  const caja = $("#lista-menu"); caja.textContent = ""; caja.classList.toggle("quieto", !!escribiendo);
   const q = plano(filtro.q.trim()); let hubo = false;
   for (const cat of categorias()) {
     if (filtro.cat !== "todos" && filtro.cat !== cat) continue;
@@ -706,7 +729,7 @@ function pintarMenu() {
   if (!hubo) { const v = document.createElement("p"); v.className = "vacio-busca"; v.textContent = "No encontramos ese plato. Prueba con otra palabra o escríbele al asistente."; caja.append(v); }
   pintarCarro();
 }
-$("#buscar-menu").addEventListener("input", e => { filtro.q = e.target.value; pintarMenu(); });
+$("#buscar-menu").addEventListener("input", e => { filtro.q = e.target.value; pintarMenu(true); });
 $("#sugerencias").addEventListener("click", e => {
   const b = e.target.closest(".sug"); if (!b || st.ocupado) return;
   $("#texto").value = b.textContent; $("#componer").requestSubmit();

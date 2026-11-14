@@ -10,6 +10,11 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 
 ## Próximo por hacer
+- [ ] 2026-11-14 — Mejorar animaciones/pulido de web, panel y repartidor (3 programadores, sonnet) (capitan)
+- [ ] 2026-11-14 — Varios locales (cadena): diseño en diseno/multi-local.md por arquitecto (fable); luego aprobar e implementar (capitan)
+- [ ] 2026-11-14 — Usuario: responder las 8 decisiones del final de diseno/multi-local.md (ruta C, dueño único o franquicias, WhatsApp por local, precio del módulo…) (arquitecto)
+- [ ] 2026-11-14 — `python -m motor web` (lo que arranca el Dockerfile) no monta el webhook de WhatsApp ni el envío de recordatorios; solo `motor servir`. En la nube hoy no hay WhatsApp: montarlo en el servidor web (F3 de multi-local, sirve también con un solo local) (arquitecto)
+- [ ] 2026-11-14 — legal-datos: cadena de un dueño vs franquicias y panel Central con agregados (Ley 81) (arquitecto)
 - [x] 2026-11-02 — Definir el proyecto: restaurante; v1 = responder preguntas, tomar pedidos, pasar a humano, cobrar (capitan)
 - [x] 2026-11-02 — Diseñar `restaurante-pedidos` sobre el motor: diseno/restaurante-pedidos.md (agenteservicios)
 - [x] 2026-11-02 — Dónde va el motor: se copia a este repo; Investigacion-de-servicios no se toca (capitan)

@@ -2,6 +2,8 @@
 
 Lo último que se agregó, cambió o actualizó en el proyecto. Lo más reciente arriba. Formato: `- AAAA-MM-DD — qué cambió (autor)`.
 
+- 2026-11-14 — Animaciones y pulido en web del cliente, panel y repartidor: entradas escalonadas, feedback al pulsar, FLIP en el tablero, hoja de cobro, diálogos y gráficos animados; solo transform/opacity y respeta movimiento reducido (capitan, programador x3)
+- 2026-11-14 — Diseño de varios locales (cadena) en `diseno/multi-local.md`: se recomienda un solo proceso con una carpeta/BD por local, rutas `/<slug>/` y panel Central de solo lectura; módulo extra `multilocal`; fases F1..F5. Pendiente de aprobar; sin código (arquitecto)
 - 2026-11-13 — Resumen del pedido en el chat: cada plato como «2 - Hamburguesa» con su precio total justo debajo (B/. 10.00), una línea en blanco entre platos, y al final Subtotal, ITBMS, Envío y Total. 266 pruebas OK (capitan)
 - 2026-11-13 — El asistente de la web ya NO pide el nombre: la web lo manda ("[Nombre del cliente: X]") y lo usa para el pedido; solo lo pregunta si no llega (capitan)
 - 2026-11-11 — Pago en EFECTIVO en entregas a domicilio: el cliente lo elige en la web (botón «Pagar en efectivo al recibir») o se lo pide al asistente (herramienta `pagar_efectivo`); el pedido pasa a cocina sin esperar pago, el panel lo marca «Efectivo: cobra el repartidor B/. X» y avisa. El repartidor ve «Cobrar en efectivo B/. X» y no puede marcar Entregado sin confirmar «Sí, cobré y entregué»; al hacerlo el panel recibe el aviso «Juan cobró B/. X en efectivo» y queda guardado quién y cuánto. Recoger no admite efectivo. El dueño lo activa o apaga en Configuración › Datos de pago. 266 pruebas OK (capitan)

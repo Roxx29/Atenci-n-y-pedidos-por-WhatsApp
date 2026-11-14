@@ -15,6 +15,9 @@
   --achiote:var(--primary); --achiote-osc:var(--primary-container); --achiote-suave:var(--primary-fixed); --sobre-achiote:var(--on-primary);
   --maiz:var(--secondary-container); --maiz-suave:var(--secondary-fixed); --hoja:var(--tertiary); --hoja-osc:var(--tertiary-container); --hoja-suave:var(--tertiary-fixed);
   --r:12px;
+  /* movimiento: corto y sobrio (panel de uso intenso), solo transform/opacity */
+  --m-ease:cubic-bezier(.23,1,.32,1); --m-mueve:cubic-bezier(.77,0,.175,1);
+  --m-rapido:120ms; --m-medio:180ms;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -34,9 +37,13 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 *{scrollbar-color:var(--linea) transparent}
 
 /* Botones */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 18px;border-radius:10px;border:0;font-weight:700;font-size:1.0625rem;background:var(--achiote);color:var(--sobre-achiote);transition:background .12s,transform .08s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 18px;border-radius:10px;border:0;font-weight:700;font-size:1.0625rem;background:var(--achiote);color:var(--sobre-achiote);transition:background .12s,transform var(--m-rapido) var(--m-ease)}
 .btn:hover{background:var(--achiote-osc);color:#fff}
-.btn:active{transform:scale(.98)}
+.btn:active{transform:scale(.97)}
+/* feedback al pulsar */
+.mini,.icono-btn,.seg button,.teclado button,.miniatura,.t-abrir,.chip-rep,.banda button{transition:transform var(--m-rapido) var(--m-ease),background-color .12s}
+.mini:active,.icono-btn:active,.seg button:active,.teclado button:active,.miniatura:active,.chip-rep:active,.banda button:active{transform:scale(.97)}
+.t-abrir:active{transform:scale(.99)}
 .btn.ok{background:var(--hoja);color:var(--on-tertiary)} .btn.ok:hover{background:var(--hoja-osc);color:#fff}
 .btn.sec{background:var(--superficie);color:var(--achiote);border:2px solid var(--achiote)}
 .btn.sec:hover{background:var(--achiote-suave);color:var(--achiote)}
@@ -64,7 +71,8 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 /* Barra lateral: cada cosa en su sitio (Pedidos · Menú · Equipo) */
 .lado{display:flex;flex-direction:column;gap:4px;width:88px;padding:12px 8px;background:var(--barra);color:var(--sobre-barra)}
 .lado .logo{margin:2px auto 14px}
-.lado button{position:relative;display:grid;justify-items:center;gap:4px;min-height:64px;padding:8px 4px;border:0;border-radius:10px;background:none;color:inherit;font-weight:700;font-size:.75rem;opacity:.72;transition:background-color .12s,opacity .12s}
+.lado button{position:relative;display:grid;justify-items:center;gap:4px;min-height:64px;padding:8px 4px;border:0;border-radius:10px;background:none;color:inherit;font-weight:700;font-size:.75rem;opacity:.72;transition:background-color .12s,opacity .12s,transform var(--m-rapido) var(--m-ease)}
+.lado button:active{transform:scale(.96)}
 .lado button:hover{background:rgba(255,255,255,.08);opacity:1}
 .lado button[aria-current=page]{background:var(--primary-container);color:#fff;opacity:1}
 .lado .hueco{flex:1}
@@ -72,6 +80,9 @@ svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .lado :focus-visible{outline-color:#fff}
 .cuerpo{display:flex;flex-direction:column;min-width:0;min-height:0}
 .vista{flex:1;min-height:0;display:flex;flex-direction:column}
+/* cambio de pestaña: entra con un fundido corto (no hay salida: el otro panel se oculta al instante) */
+.vista:not([hidden]){animation:vista-entra var(--m-medio) var(--m-ease)}
+@keyframes vista-entra{from{opacity:0;transform:translateY(4px)}}
 header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--barra);color:var(--sobre-barra)}
 .barra h1{font-family:var(--display);font-size:1.375rem;margin-right:auto;white-space:nowrap}
 .barra h1 small{font:500 .875rem var(--texto);opacity:.75;margin-left:8px}
@@ -100,9 +111,12 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 
 /* Tarjeta */
 .tarjeta{grid-template-columns:minmax(0,1fr);min-width:0;background:var(--superficie);border-radius:var(--r);box-shadow:var(--sombra);padding:12px 14px;display:grid;gap:8px;border:2px solid transparent;transition:border-color .2s,box-shadow .2s}
-.tarjeta.nuevo{border-color:var(--maiz);box-shadow:0 0 0 4px var(--maiz-suave),var(--sombra);animation:llamar 1.2s ease-out 3}
+.tarjeta.nuevo{border-color:var(--maiz);box-shadow:0 0 0 4px var(--maiz-suave),var(--sombra)}
 .tarjeta.foco{border-color:var(--achiote)}
-@keyframes llamar{0%{box-shadow:0 0 0 0 var(--maiz),var(--sombra)}100%{box-shadow:0 0 0 12px rgba(233,185,73,0),var(--sombra)}}
+/* pulso discreto del aviso nuevo: un anillo que se expande y se desvanece (transform + opacity) */
+.tarjeta.nuevo::after{content:"";position:absolute;inset:-2px;border-radius:calc(var(--r) + 2px);border:2px solid var(--maiz);pointer-events:none;animation:llamar 1.2s var(--m-ease) 2}
+@keyframes llamar{from{opacity:.7;transform:scale(1)}to{opacity:0;transform:scale(1.04)}}
+.tarjeta{transition:border-color .2s,box-shadow .2s,transform var(--m-rapido) var(--m-ease)}
 .t-cab{display:flex;align-items:flex-start;gap:8px}
 .t-num{font-size:1.5rem;font-weight:800}
 .t-nombre{font-weight:700;font-size:1.0625rem;min-width:0;overflow-wrap:break-word;max-width:100%}
@@ -148,7 +162,7 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 .compacta .t-num{font-size:1.125rem}
 
 /* Bandeja de avisos */
-.bandeja{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--superficie);box-shadow:-8px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:10;transform:translateX(105%);transition:transform .25s cubic-bezier(.16,1,.3,1)}
+.bandeja{position:fixed;top:0;right:0;bottom:0;width:min(420px,100%);background:var(--superficie);box-shadow:-8px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:10;transform:translateX(105%);transition:transform .22s var(--m-ease)}
 .bandeja.abierta{transform:none}
 .bandeja>header{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--linea)}
 .bandeja h2{font-family:var(--display);font-size:1.375rem;margin-right:auto}
@@ -168,6 +182,12 @@ header.barra{display:flex;align-items:center;gap:12px;padding:10px 16px;backgrou
 /* Comprobante grande */
 dialog{border:0;padding:10px;border-radius:16px;width:min(1000px,calc(100% - 32px));max-height:calc(100% - 32px);background:var(--superficie);color:var(--tinta);box-shadow:0 24px 64px rgba(0,0,0,.35)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
+/* hojas: entran y salen con fundido + 8px de subida (modal centrado, sin escala) */
+dialog{opacity:0;transform:translateY(8px);transition:opacity var(--m-medio) var(--m-ease),transform var(--m-medio) var(--m-ease),overlay var(--m-medio) allow-discrete,display var(--m-medio) allow-discrete}
+dialog[open]{opacity:1;transform:none}
+dialog::backdrop{opacity:0;transition:opacity var(--m-medio) var(--m-ease),overlay var(--m-medio) allow-discrete,display var(--m-medio) allow-discrete}
+dialog[open]::backdrop{opacity:1}
+@starting-style{dialog[open]{opacity:0;transform:translateY(8px)}dialog[open]::backdrop{opacity:0}}
 .dlg{display:grid;grid-template-columns:1fr 340px;max-height:calc(100vh - 52px)}
 .dlg.sin-img{grid-template-columns:1fr}
 dialog.chico{width:min(480px,calc(100% - 32px))}
@@ -187,7 +207,7 @@ dialog.chico{width:min(480px,calc(100% - 32px))}
 .confirmar p{margin:0 0 10px;font-weight:600}
 
 /* Mensaje corto */
-.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,calc(100% + 40px));visibility:hidden;display:flex;align-items:center;gap:10px;padding:14px 18px;border-radius:12px;background:var(--tinta);color:var(--papel);font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:20;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,calc(100% + 40px));visibility:hidden;display:flex;align-items:center;gap:10px;padding:14px 18px;border-radius:12px;background:var(--tinta);color:var(--papel);font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:20;transition:transform var(--m-medio) var(--m-ease)}
 .toast.ver{transform:translate(-50%,0);visibility:visible}
 .toast.mal{background:var(--achiote)}
 
@@ -312,6 +332,7 @@ html,body{overflow-x:hidden}
 .fila-aj{display:grid;align-items:center;gap:8px 12px;padding:10px 12px;margin-bottom:8px;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra)}
 .fila-plato{grid-template-columns:56px minmax(0,1fr) 104px 160px 132px auto}
 .fila-persona{grid-template-columns:44px minmax(0,1fr) 160px 116px auto}
+.fila-aj>*{transition:opacity var(--m-medio) var(--m-ease)}
 .fila-aj.apagada>:not(.sw):not(.aj-acc):not(.pin-linea){opacity:.55}
 .campo-aj{min-height:44px;width:100%;min-width:0;padding:0 10px;border:1.5px solid transparent;border-radius:8px;background:transparent;font-weight:600;text-overflow:ellipsis}
 .campo-aj:not(:disabled){border-color:var(--sc-high)}
@@ -325,8 +346,9 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .foto-btn img{display:block;width:100%;height:100%;object-fit:cover}
 .foto-btn:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
 .sw{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;border:0;background:none;font-weight:700;font-size:.8125rem;color:var(--on-variant)}
-.sw i{position:relative;flex:none;width:44px;height:26px;border-radius:999px;background:var(--outline);transition:background-color .15s}
-.sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .15s}
+.sw i{position:relative;flex:none;width:44px;height:26px;border-radius:999px;background:var(--outline);transition:background-color .15s,transform var(--m-rapido) var(--m-ease)}
+.sw:active i{transform:scale(.95)}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform var(--m-medio) var(--m-ease)}
 .sw[aria-checked=true]{color:var(--tertiary)}
 .sw[aria-checked=true] i{background:var(--tertiary-container)}
 .sw[aria-checked=true] i::after{transform:translateX(18px)}
@@ -389,6 +411,11 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .barras{display:flex;align-items:flex-end;gap:2px;height:120px}
 .barras i{flex:1;min-height:2px;background:var(--primary);border-radius:3px 3px 0 0}
 .barras i.pico{background:var(--secondary-container)}
+/* gráficos: crecen desde la base al aparecer (transform), con un escalonado corto puesto por JS */
+.barras i{transform-origin:bottom;animation:crece-y .35s var(--m-ease) backwards}
+.rank .fondo i{transform-origin:left;animation:crece-x .35s var(--m-ease) backwards}
+@keyframes crece-y{from{transform:scaleY(0)}}
+@keyframes crece-x{from{transform:scaleX(0)}}
 .eje{display:flex;justify-content:space-between;margin-top:4px;font-size:.75rem;color:var(--on-variant)}
 .rank{display:grid;gap:10px;margin:0;padding:0;list-style:none}
 .rank li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;font-weight:600}
@@ -814,6 +841,24 @@ function pintarMetricas() {
   $("#m-medio").textContent = n ? Math.round(suma / n) + " min" : "—";
   $("#m-activos").textContent = todos.filter(p => !CERRADOS.has(p.estado)).length;
 }
+/* FLIP del tablero: el tablero se reconstruye entero, así que se mide cada tarjeta antes (por su aria-labelledby)
+   y después se anima del sitio viejo al nuevo con WAAPI (transform/opacity, 180 ms). Las tarjetas nuevas entran con un fundido. */
+const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
+function posTarjetas() {
+  const m = new Map();
+  for (const t of document.querySelectorAll("#tablero .tarjeta")) { const r = t.getBoundingClientRect(); if (r.width) m.set(t.getAttribute("aria-labelledby"), r); }
+  return m;
+}
+function animarTarjetas(antes) {
+  if (SIN_MOVIMIENTO.matches || !antes.size) return; // primera pintura o movimiento reducido: sin animar
+  for (const t of document.querySelectorAll("#tablero .tarjeta")) {
+    const a = antes.get(t.getAttribute("aria-labelledby")), r = t.getBoundingClientRect();
+    if (!r.width) continue;
+    const o = {duration:180, easing:"cubic-bezier(.23,1,.32,1)"};
+    if (!a) t.animate([{opacity:0, transform:"translateY(8px)"}, {opacity:1, transform:"none"}], o);
+    else if (Math.abs(a.left - r.left) > 1 || Math.abs(a.top - r.top) > 1) t.animate([{transform:`translate(${a.left - r.left}px,${a.top - r.top}px)`}, {transform:"none"}], o);
+  }
+}
 function pintar() {
   pintarMetricas();
   const foco = document.activeElement && document.activeElement.dataset.clave; // conservar el foco al repintar
@@ -827,7 +872,9 @@ function pintar() {
       h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
       lista));
   }
+  const antes = posTarjetas();
   tablero.replaceChildren(...cols);
+  animarTarjetas(antes);
   if (foco) { const e = document.querySelector(`[data-clave="${foco}"]`); if (e) e.focus(); }
   // contadores y título de la pestaña
   const n = st.nuevos.size;
@@ -1128,7 +1175,7 @@ async function pintarStats(dias) {
   const grupo = (titulo, ...c) => h("section", {class:"caja-aj"}, h("h3", {class:"grupo"}, titulo), ...c);
   const barras = (vals, etiquetas, resaltar) => {
     const tope = Math.max(...vals, 1), cont = h("div", {class:"barras", role:"img", "aria-label":etiquetas.join(", ")});
-    vals.forEach((v, i) => { const b = h("i", {title:etiquetas[i]}); b.style.height = Math.max(v * 100 / tope, 1.5) + "%"; if (i === resaltar) b.className = "pico"; cont.append(b); });
+    vals.forEach((v, i) => { const b = h("i", {title:etiquetas[i]}); b.style.height = Math.max(v * 100 / tope, 1.5) + "%"; if (i === resaltar) b.className = "pico"; b.style.animationDelay = Math.min(i * 10, 200) + "ms"; cont.append(b); });
     return cont;
   };
   const rank = (filas, tope) => h("ul", {class:"rank"}, ...filas.map(([nom, dato, v]) => { const f = h("i", {}); f.style.width = (v * 100 / tope) + "%"; return h("li", {}, nom, h("span", {}, dato), h("div", {class:"fondo"}, f)); }));

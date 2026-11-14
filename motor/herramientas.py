@@ -335,8 +335,8 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
 
 
 def _resumen(d):
-    return "\n".join([f"{l['cantidad']} - {l['nombre']}" + (f" ({l['nota']})" if l["nota"] else "") for l in d["lineas"]]
-                     + ["", f"Subtotal: {dinero(d['subtotal_c'])}"] + ([f"ITBMS: {dinero(d['itbms_c'])}"] if d["itbms_c"] else [])
+    return "\n".join([f"{l['cantidad']} - {l['nombre']}" + (f" ({l['nota']})" if l["nota"] else "") + f"\n{dinero(l['importe_c'])}\n" for l in d["lineas"]]
+                     + [f"Subtotal: {dinero(d['subtotal_c'])}"] + ([f"ITBMS: {dinero(d['itbms_c'])}"] if d["itbms_c"] else [])
                      + ([f"Envío: {dinero(d['envio_c'])}"] if d["modalidad"] == "entrega" else []) + [f"Total: {dinero(d['total_c'])}"]
                      + ([f"Notas: {d['notas']}"] if d.get("notas") else []))
 

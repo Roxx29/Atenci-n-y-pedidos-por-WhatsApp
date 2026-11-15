@@ -17,9 +17,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import panel_web, ubicacion
+from . import clientes, panel_web, ubicacion
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
+from .nucleo import Servicio
 
 PAGINA = Path(__file__).with_name("web_index.html")
 PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
@@ -143,11 +144,47 @@ class Limite:
             return False
 
 
+class _Base(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def _enviar(self, codigo, cuerpo, tipo="application/json", extra=()):
+        if not isinstance(cuerpo, bytes):
+            cuerpo = json.dumps(cuerpo, ensure_ascii=False).encode()
+        self.send_response(codigo)
+        self.send_header("Content-Type", tipo + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(cuerpo)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
+        for k, v in extra:
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(cuerpo)
+
+    def _err(self, codigo, msg):
+        self.close_connection = True
+        if not self.__dict__.get("_leido"):  # leer el cuerpo antes de cerrar: si no, Windows manda RST y el cliente pierde la respuesta
+            try:
+                largo = int(self.headers.get("Content-Length") or 0)
+                if 0 < largo <= 65536:  # los cuerpos enormes no se esperan
+                    self.rfile.read(largo)
+            except (OSError, ValueError):
+                pass
+        self._leido = True
+        self._enviar(codigo, {"error": msg})
+
+
 def crear_servidor(sv, puerto=8080, secreto=None):
-    secreto = secreto or secreto_web(sv.dir)
-    usuarios = panel_web.Usuarios(sv, panel_web.PANEL)  # un PIN por persona (tabla usuarios; semilla PANEL_PIN*)
+    return ThreadingHTTPServer(("0.0.0.0", puerto), crear_manejador(sv, secreto))
+
+
+def crear_manejador(sv, secreto=None, env=None):
+    """La clase que atiende a UN servicio; todo su estado (sesiones, límites, posiciones) queda cerrado sobre `sv`.
+    `env`: de dónde salen PIN, repartidores y lat/lon (por defecto os.environ; en `alojar`, solo las variables de ese cliente)."""
+    secreto, env = secreto or secreto_web(sv.dir), os.environ if env is None else env
+    usuarios = panel_web.Usuarios(sv, panel_web.PANEL, env)  # un PIN por persona (tabla usuarios; semilla PANEL_PIN*)
     acceso, bloqueo = panel_web.Acceso(secreto, usuarios), panel_web.Bloqueo()
-    repartidores = panel_web.Usuarios(sv, panel_web.REPARTO)  # semilla REPARTIDORES; se gestionan desde el panel
+    repartidores = panel_web.Usuarios(sv, panel_web.REPARTO, env)  # semilla REPARTIDORES; se gestionan desde el panel
     acc_rep = panel_web.Acceso(secreto, repartidores, "repartidor", "/repartidor", inactivo=panel_web.VIDA_S)  # sesión de turno: 12 h, sin bloqueo por inactividad
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
@@ -178,7 +215,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
     def mapa_panel():
         rutas, quedan, t = en_ruta()
         try:  # RESTAURANTE_LAT/LON (.env): opcional; sin ellos o inválidos, null
-            lat, lon = ubicacion.validar(float(os.environ["RESTAURANTE_LAT"]), float(os.environ["RESTAURANTE_LON"]))
+            lat, lon = ubicacion.validar(float(env["RESTAURANTE_LAT"]), float(env["RESTAURANTE_LON"]))
             rest = {"lat": lat, "lon": lon, "nombre": sv.cfg.get("nombre") or "Restaurante"}
         except (KeyError, ValueError):
             rest = None
@@ -199,36 +236,8 @@ def crear_servidor(sv, puerto=8080, secreto=None):
     def pedidos_de(cid):
         return [p for p in sv.listar("pedido") if p["telefono"] == cid]
 
-    class H(BaseHTTPRequestHandler):
-        timeout = TIMEOUT_S
-
-        def log_message(self, *a):
-            pass
-
-        def _enviar(self, codigo, cuerpo, tipo="application/json", extra=()):
-            if not isinstance(cuerpo, bytes):
-                cuerpo = json.dumps(cuerpo, ensure_ascii=False).encode()
-            self.send_response(codigo)
-            self.send_header("Content-Type", tipo + "; charset=utf-8")
-            self.send_header("Content-Length", str(len(cuerpo)))
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Cache-Control", "no-store")
-            for k, v in extra:
-                self.send_header(k, v)
-            self.end_headers()
-            self.wfile.write(cuerpo)
-
-        def _err(self, codigo, msg):
-            self.close_connection = True
-            if not self.__dict__.get("_leido"):  # leer el cuerpo antes de cerrar: si no, Windows manda RST y el cliente pierde la respuesta
-                try:
-                    largo = int(self.headers.get("Content-Length") or 0)
-                    if 0 < largo <= 65536:  # los cuerpos enormes no se esperan
-                        self.rfile.read(largo)
-                except (OSError, ValueError):
-                    pass
-            self._leido = True
-            self._enviar(codigo, {"error": msg})
+    class H(_Base):
+        timeout = TIMEOUT_S  # se lee al crear el manejador
 
         def _del_tunel(self):
             """TUNEL=1 y la conexión viene de este mismo PC (cloudflared): se pueden creer sus cabeceras CF-*."""
@@ -289,9 +298,11 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
 
         def _panel(self, metodo, ruta):
-            """Rutas /panel*: solo LAN (o PANEL_PUBLICO=1) y solo con PIN configurado; el resto de peticiones ni lo ven."""
+            """Rutas /panel*: solo LAN (o PANEL_PUBLICO=1) y solo con PIN configurado; el resto de peticiones ni lo ven.
+            PANEL_PUBLICO: en `motor web`, la del proceso. En `alojar` se fija por cliente con PANEL_PUBLICO_<SLUG> (1 abre, 0 cierra)
+            y la del proceso es solo el valor por defecto de quien no tenga la suya."""
             ip = self._ip()
-            if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or os.environ.get("PANEL_PUBLICO") == "1")):
+            if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or env.get("PANEL_PUBLICO", os.environ.get("PANEL_PUBLICO")) == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
                 return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", CSP)])  # en cada visita: el nombre se cambia desde el panel
@@ -302,6 +313,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if d is None:
                     return
                 pin = d.get("pin")
+                time.sleep(bloqueo.retraso())  # antes de comprobar: si solo esperase el fallo, la tardanza delataría el PIN malo
                 quien = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
                 if not quien:
                     bloqueo.fallo(ip)
@@ -489,6 +501,7 @@ def crear_servidor(sv, puerto=8080, secreto=None):
                 if d is None:
                     return
                 pin = d.get("pin")
+                time.sleep(bloqueo_rep.retraso())
                 nombre = acc_rep.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
                 if not nombre:
                     bloqueo_rep.fallo(ip)
@@ -783,7 +796,113 @@ def crear_servidor(sv, puerto=8080, secreto=None):
             cambiados = [p for p in pedidos_de(cid) if antes.get(p["id"]) != p]
             self._enviar(200, {"respuesta": r, "pedido": formato_pedido(cambiados[-1]) if cambiados else None})
 
-    return ThreadingHTTPServer(("0.0.0.0", puerto), H)
+    return H
+
+
+LOCALES = ("127.0.0.1", "::1")  # desde dónde se atiende /_ask
+
+
+def secreto_cliente(c):
+    """Secreto de cookies propio de cada cliente: HMAC(maestro, slug). El maestro es WEB_SECRET o el .web_secret de su carpeta;
+    aunque dos clientes lo compartan (WEB_SECRET común, carpeta copiada), una cookie firmada para uno no vale en otro."""
+    return hmac.new(secreto_web(c.carpeta).encode(), b"cliente:" + c.slug.encode(), hashlib.sha256).hexdigest()
+
+
+def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
+    """Un servidor para todos los clientes activos de `lista` (clientes.cargar). Cada uno con su Servicio, su BD, su secreto y sus
+    variables; se elige por la cabecera Host (dominio exacto o, sin PROXY=1, <slug>.localhost) en CADA petición. Lo demás es 404.
+    `ruta`: el clientes.yaml de donde salió `lista`; cuando cambia en disco se vuelve a leer sin reiniciar (pausar, reactivar, alta).
+    `al_abrir(sv)`: se llama con cada Servicio que se abre, también los que entran en caliente.
+    Escucha en ALOJAR_HOST (por defecto 127.0.0.1: solo el Caddy de esta máquina; en un contenedor, 0.0.0.0)."""
+    servicios, manejadores, cerrojo = {}, {}, threading.Lock()
+    por_host, dominios, activos, visto = {}, set(), [], None
+
+    def huella():
+        try:
+            st = os.stat(ruta)
+            return st.st_mtime_ns, st.st_size
+        except OSError:
+            return None  # sin archivo: se sigue con lo que había
+
+    def aplicar(lista):
+        """Los ya abiertos conservan su instancia (BD, sesiones, límites); un pausado solo deja de estar en el mapa de hosts.
+        ponytail: carpeta o variables de un cliente ya abierto no cambian en caliente (pide reinicio); un pausado sigue con la BD abierta."""
+        nonlocal por_host, dominios, activos
+        hosts = {}
+        for c in lista:
+            if c.activo:
+                if c.slug not in manejadores:
+                    env = clientes.entorno(c.slug)
+                    sv = Servicio(c.carpeta, env=env)
+                    manejadores[c.slug], servicios[c.slug] = crear_manejador(sv, secreto_cliente(c), env), sv
+                    if al_abrir:
+                        al_abrir(sv)
+                hosts[c.dominio] = manejadores[c.slug]
+                if os.environ.get("PROXY") != "1":  # atajo para probar en este PC; tras un proxy sería un segundo nombre que nadie vigila
+                    hosts[c.slug + ".localhost"] = manejadores[c.slug]
+        por_host, dominios, activos = hosts, {c.dominio for c in lista if c.activo}, [servicios[c.slug] for c in lista if c.activo]
+
+    def recargar():
+        nonlocal visto
+        if ruta is None or huella() in (visto, None):
+            return
+        with cerrojo:
+            h = huella()
+            if h in (visto, None):
+                return
+            visto = h  # también si está roto: no se reintenta en cada petición, solo cuando vuelva a cambiar
+            try:
+                aplicar(clientes.cargar(ruta))
+            except Exception as e:  # a medio escribir o inválido: se conserva la lista anterior
+                print(f"[alojar] {ruta} no se pudo recargar; sigue la lista anterior: {e}")
+
+    aplicar(lista)
+    visto = huella() if ruta is not None else None
+
+    class D(_Base):
+        timeout = TIMEOUT_S
+
+        def _caddy(self):
+            """¿Pregunta el propio Caddy? Desde esta máquina; o, con PROXY=1 (Caddy en otro contenedor), desde la red privada."""
+            ip = self.client_address[0]
+            return ip in LOCALES or (os.environ.get("PROXY") == "1" and panel_web.es_lan(ip))
+
+        def _despachar(self):
+            recargar()
+            ruta, _, consulta = self.path.partition("?")
+            reenviada = bool(self.headers.get("X-Forwarded-For"))
+            if reenviada and self.client_address[0] in LOCALES and os.environ.get("PROXY") != "1":
+                # Un proxy en esta máquina sin PROXY=1: `_ip()` daría 127.0.0.1 a todo el mundo (panel abierto como si fuera la LAN,
+                # y bloqueo de PIN y límites compartidos entre todos los visitantes). No se sirve nada hasta que se configure.
+                return self._err(500, "Configuración: hay un proxy delante (llega X-Forwarded-For) y falta PROXY=1 en el .env del servidor")
+            if self.command == "GET" and ruta == "/_ask" and self._caddy() and not reenviada:
+                # Caddy (on-demand TLS) pregunta desde esta máquina antes de emitir un certificado. Lo que el propio Caddy reenvía
+                # de fuera también llega desde 127.0.0.1, pero con X-Forwarded-For: eso no se contesta aquí.
+                return self._enviar(200, {"ok": True}) if (parse_qs(consulta).get("domain") or [""])[0].lower() in dominios else self._err(404, "No encontrado")
+            if self.command == "GET" and ruta == "/salud":  # monitor de la plataforma: llega sin dominio de cliente
+                if not self._caddy() or reenviada:  # desde internet: barato y sin decir nada (un SELECT por cliente a petición de cualquiera, no)
+                    return self._enviar(200, {"ok": True})
+                try:
+                    for sv in activos:
+                        sv._q("SELECT 1")
+                    return self._enviar(200, {"ok": True})
+                except Exception:
+                    return self._enviar(503, {"ok": False})
+            h = por_host.get((self.headers.get("Host") or "").strip().lower().partition(":")[0].rstrip("."))
+            if not h:  # desconocido o pausado: la misma respuesta, sin decir cuál
+                return self._err(404, "No encontrado")
+            self.__dict__.pop("_leido", None)
+            self.__class__ = h  # el manejador del cliente atiende esta petición...
+            try:
+                getattr(self, "do_" + self.command)()
+            finally:
+                self.__class__ = D  # ...y la siguiente de la misma conexión se vuelve a despachar (Caddy reutiliza conexiones entre dominios)
+
+        do_GET = do_POST = _despachar
+
+    srv = ThreadingHTTPServer((os.environ.get("ALOJAR_HOST") or "127.0.0.1", puerto), D)
+    srv.servicios = servicios  # todos los abiertos, también los pausados después
+    return srv
 
 
 def _ip_local():
@@ -810,6 +929,15 @@ def iniciar_purga(sv, cada=3600):
 
     threading.Thread(target=bucle, daemon=True).start()
     return parar
+
+
+def alojar(ruta="clientes.yaml", puerto=8080):
+    srv = crear_alojamiento(clientes.cargar(ruta), puerto, ruta, al_abrir=iniciar_purga)
+    if os.environ.get("PROXY") != "1":
+        for slug in srv.servicios:
+            print(f"  {slug}: http://{slug}.localhost:{srv.server_address[1]}/")
+    print(f"Alojando {len(srv.servicios)} cliente(s) en {srv.server_address[0]}:{srv.server_address[1]}")
+    srv.serve_forever()
 
 
 def servir(sv, puerto=8080):

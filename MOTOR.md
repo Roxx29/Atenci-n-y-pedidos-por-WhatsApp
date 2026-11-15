@@ -55,6 +55,9 @@ python -m motor servir servicios/clinica-citas 8080   # producción (WhatsApp)
 
 **Riesgo v1:** el teléfono no se verifica; quien escribe un teléfono ajeno entra con ese cid. Resolver con verificación por WhatsApp/SMS.
 
+## Varios clientes en un proceso (`alojar`)
+`python -m motor alojar [clientes.yaml] [puerto]`: un proceso sirve a todos los clientes activos de `clientes.yaml` (formato en `clientes.ejemplo.yaml`; validación en `motor/clientes.py`). Se elige cliente por la cabecera Host en cada petición: dominio exacto o `<slug>.localhost`; lo demás (y los pausados) recibe el mismo 404. Cada cliente tiene su `Servicio`, su BD, sus límites y sus sesiones; el secreto de cookies es HMAC(`WEB_SECRET` o su `.web_secret`, slug). Sus variables llevan el slug como sufijo en mayúsculas y con `_` (`PANEL_PIN_DELIFOOD`, `PANEL_PIN_HASH_…`, `PANEL_PIN_PERSONAL_…`, `REPARTIDORES_…`, `REPARTIDOR_PIN_…`, `RESTAURANTE_LAT_…`/`LON_…`, `TURSO_DATABASE_URL_…`/`TURSO_AUTH_TOKEN_…`); las mismas sin sufijo NO se leen en `alojar`. Siguen siendo del proceso: `WEB_SECRET`, `PROXY`, `PROXY_SALTOS`, `PANEL_PUBLICO`, `TUNEL` y las claves del modelo. `GET /_ask?domain=X` responde 200 solo si X es el dominio de un cliente activo (para el TLS bajo demanda de Caddy): se atiende desde 127.0.0.1, o desde la red privada con `PROXY=1`, y nunca si trae `X-Forwarded-For`. `GET /salud` comprueba todas las BD. Alta, baja o pausa de un cliente = editar `clientes.yaml` y reiniciar.
+
 ## Decisiones
 
 - **Modelo `claude-opus-5-5` con esfuerzo `low`**: el chat necesita poco razonamiento. Cada servicio puede cambiarlo en `servicio.yaml`. Los *fallbacks* del servidor están activados: si el modelo rechaza una petición, la API reintenta con otro modelo.

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Consola del operador</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1115;--card:#171a21;--line:#262b36;--tx:#e8eaf0;--mut:#8b93a5;--ac:#6ea8fe;--ok:#4cc38a;--warn:#f0b429;--bad:#ef6b6b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+h1{font-size:20px;margin:0}
+button,input{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:40px}
+button{cursor:pointer;transition:transform .15s ease,opacity .15s ease}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.5}
+button.p{background:var(--ac);color:#0b1020;border-color:var(--ac);font-weight:600}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+#login{max-width:320px;margin:20vh auto;display:grid;gap:10px}
+#login input{width:100%}
+.err{color:var(--bad);min-height:1.4em;margin:0}
+.grid{display:grid;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;animation:in .25s ease both}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
+.nom{font-weight:600;font-size:16px}
+.dom{color:var(--mut);font-size:13px;overflow-wrap:anywhere}
+.pill{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}
+.pill.on{color:var(--ok);border-color:var(--ok)}.pill.off{color:var(--warn);border-color:var(--warn)}
+.m{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0}
+.m b{display:block;font-size:17px}.m span{color:var(--mut);font-size:12px}
+.mods{color:var(--mut);font-size:13px;margin-bottom:10px;overflow-wrap:anywhere}
+.acc{display:flex;gap:8px;flex-wrap:wrap}
+.warn{color:var(--warn)}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(360px,92vw)}
+dialog::backdrop{background:#0009}
+dialog form{display:grid;gap:10px}
+#msg{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;opacity:0;transition:opacity .2s;pointer-events:none}
+#msg.v{opacity:1}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<form id="login" hidden>
+  <h1>Consola del operador</h1>
+  <label for="clave">Clave</label>
+  <input id="clave" type="password" autocomplete="current-password" required>
+  <button class="p">Entrar</button>
+  <p class="err" id="lerr" role="alert"></p>
+</form>
+<section id="app" hidden>
+  <header><h1>Clientes</h1><button class="p" id="nuevo">Nuevo cliente</button><button id="salir">Salir</button></header>
+  <div class="grid" id="lista"></div>
+</section>
+</main>
+<dialog id="dlg">
+  <form method="dialog" id="fnuevo">
+    <label for="slug">Identificador (a-z, 0-9, guiones)</label>
+    <input id="slug" pattern="[a-z0-9\-]{1,40}" required>
+    <label for="dom">Dominio</label>
+    <input id="dom" required>
+    <p class="err" id="nerr" role="alert"></p>
+    <div class="acc"><button class="p">Crear</button><button type="button" id="cancela">Cancelar</button></div>
+  </form>
+</dialog>
+<div id="msg" role="status"></div>
+<script>
+const $=id=>document.getElementById(id);
+const B=n=>"B/. "+(n/100).toFixed(2);
+const kb=n=>n>1048576?(n/1048576).toFixed(1)+" MB":Math.round(n/1024)+" KB";
+async function api(m,u,d){
+  const r=await fetch(u,{method:m,headers:{"Content-Type":"application/json"},body:d?JSON.stringify(d):undefined});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401&&u!=="/api/entrar"){mostrar(false)}
+  if(!r.ok)throw new Error(j.error||"error");
+  return j;
+}
+function aviso(t){const m=$("msg");m.textContent=t;m.classList.add("v");setTimeout(()=>m.classList.remove("v"),2500)}
+function mostrar(ok){$("login").hidden=ok;$("app").hidden=!ok}
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
+function medida(v,l){const d=el("div");d.append(el("b","",v),el("span","",l));return d}
+function tarjeta(c){
+  const k=el("article","card"),t=el("div","top"),n=el("div");
+  n.append(el("div","nom",c.slug),el("div","dom",c.dominio||"sin dominio"));
+  t.append(n,el("span","pill "+(c.activo?"on":"off"),c.activo?"Activo":"Pausado"));
+  const m=el("div","m");
+  m.append(medida(c.hoy,"pedidos hoy"),medida(c.ultimo?c.ultimo.replace("T"," ").slice(0,16):"—","último pedido"),
+    medida(B(c.ventas_mes),"ventas del mes"),medida(kb(c.bytes),"base de datos"),medida(c.avisos,"avisos pendientes"));
+  const mo=el("div","mods","Módulos: "+(c.modulos.join(", ")||"ninguno"));
+  if(c.error)mo.append(el("span","warn"," · error en "+c.error));
+  const a=el("div","acc"),p=el("button","",c.activo?"Pausar":"Activar"),r=el("button","","Copia de seguridad");
+  p.onclick=()=>accion(p,()=>api("POST","/api/clientes/"+c.slug+"/pausa",{activo:!c.activo}),null);
+  r.onclick=()=>accion(r,()=>api("POST","/api/clientes/"+c.slug+"/respaldo"),j=>"Copia: "+j.archivo);
+  a.append(p,r);k.append(t,m,mo,a);return k;
+}
+async function accion(b,f,msg){
+  b.disabled=true;
+  try{const j=await f();aviso(msg?msg(j):"Hecho");await cargar()}catch(e){aviso(e.message)}finally{b.disabled=false}
+}
+async function cargar(){
+  try{const j=await api("GET","/api/clientes");mostrar(true);
+    const l=$("lista");l.replaceChildren(...j.clientes.map(tarjeta));
+    if(!j.clientes.length)l.append(el("p","dom","Aún no hay clientes."))
+  }catch(e){mostrar(false)}
+}
+$("login").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
+  try{await api("POST","/api/entrar",{clave:$("clave").value});$("clave").value="";cargar()}catch(x){$("lerr").textContent=x.message}};
+$("salir").onclick=async()=>{await api("POST","/api/salir").catch(()=>{});mostrar(false)};
+$("nuevo").onclick=()=>$("dlg").showModal();
+$("cancela").onclick=()=>$("dlg").close();
+$("fnuevo").onsubmit=async e=>{e.preventDefault();$("nerr").textContent="";
+  try{await api("POST","/api/clientes",{slug:$("slug").value,dominio:$("dom").value});$("dlg").close();$("slug").value=$("dom").value="";aviso("Cliente creado");cargar()}
+  catch(x){$("nerr").textContent=x.message}};
+cargar();
+</script>
+</body>
+</html>

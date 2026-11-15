@@ -1,0 +1,136 @@
+"""Consola del operador. Ejecutar: python -m unittest tests.test_operador"""
+import datetime as dt
+import http.client
+import json
+import os
+import sqlite3
+import tempfile
+import threading
+import unittest
+from http.server import ThreadingHTTPServer
+from pathlib import Path
+
+import yaml
+
+from motor import clientes, operador
+
+CLAVE = "clave-larga-1234"
+TEL = "50760001111"
+
+
+class Consola(unittest.TestCase):
+    def setUp(self):
+        t = tempfile.TemporaryDirectory(); self.addCleanup(t.cleanup)
+        self.raiz = Path(t.name)
+        pl = self.raiz / "servicios" / "_plantilla"; pl.mkdir(parents=True)
+        (pl / "servicio.yaml").write_text("nombre: x\n", encoding="utf-8")
+        a = self.raiz / "servicios" / "uno"; a.mkdir()
+        (a / "servicio.yaml").write_text("modulos: [estadisticas]\n", encoding="utf-8")
+        hoy = dt.datetime.now().isoformat(timespec="minutes")
+        con = sqlite3.connect(a / "datos.sqlite")
+        con.execute("CREATE TABLE registros(id INTEGER PRIMARY KEY, tipo TEXT, datos TEXT, creado TEXT)")
+        for tipo, d in [("pedido", {"estado": "entregado", "total_c": 1250, "creado_at": hoy, "estado_at": hoy, "telefono": TEL, "nombre": "Ana Secreta"}),
+                        ("pedido", {"estado": "nuevo", "total_c": 500, "creado_at": hoy}),
+                        ("escalado", {"estado": "abierto", "telefono": TEL})]:
+            con.execute("INSERT INTO registros(tipo,datos,creado) VALUES(?,?,?)", (tipo, json.dumps(d), hoy))
+        con.commit(); con.close()
+        self.ruta = self.raiz / "clientes.yaml"
+        self.ruta.write_text(yaml.safe_dump({"clientes": {"uno": {"carpeta": "servicios/uno", "dominio": "uno.com", "activo": True}}}), encoding="utf-8")
+        self.op = operador.Operador(self.ruta, CLAVE, plantilla=pl)
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), operador.handler(self.op))
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.addCleanup(self.srv.server_close); self.addCleanup(self.srv.shutdown)
+
+    def req(self, m, u, d=None, ck="", xff=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_port)
+        h = {"Content-Type": "application/json", "Cookie": ck}
+        if xff:
+            h["X-Forwarded-For"] = xff
+        c.request(m, u, json.dumps(d) if d is not None else None, h)
+        r = c.getresponse(); b = r.read()
+        return r.status, (json.loads(b) if b[:1] == b"{" else b), r.getheader("Set-Cookie")
+
+    def sesion(self):
+        return self.req("POST", "/api/entrar", {"clave": CLAVE})[2].split(";")[0]
+
+    def test_sin_clave_no_arranca(self):
+        with self.assertRaises(SystemExit):
+            operador.Operador(self.ruta, "")
+
+    def test_login_cookie_y_bloqueo(self):
+        self.assertEqual(self.req("GET", "/api/clientes")[0], 401)
+        st, _, ck = self.req("POST", "/api/entrar", {"clave": CLAVE})
+        self.assertEqual(st, 200); self.assertIn("HttpOnly", ck)
+        self.assertEqual(self.req("GET", "/api/clientes", ck="operador=9999999999.falsa")[0], 401)
+        self.assertEqual(self.req("GET", "/api/clientes", ck=ck.split(";")[0])[0], 200)
+        for _ in range(5):
+            self.assertEqual(self.req("POST", "/api/entrar", {"clave": "mala"})[0], 401)
+        self.assertEqual(self.req("POST", "/api/entrar", {"clave": CLAVE})[0], 429)
+
+    def test_bloqueo_por_ip(self):
+        os.environ["PROXY"] = "1"; self.addCleanup(os.environ.pop, "PROXY", None)
+        for _ in range(5):
+            self.assertEqual(self.req("POST", "/api/entrar", {"clave": "mala"}, xff="9.9.9.9, 1.1.1.1")[0], 401)
+        self.assertEqual(self.req("POST", "/api/entrar", {"clave": CLAVE}, xff="x, 1.1.1.1")[0], 429)  # mismo IP real (el último)
+        self.assertEqual(self.req("POST", "/api/entrar", {"clave": CLAVE}, xff="1.1.1.1, 2.2.2.2")[0], 200)  # otra IP no bloqueada
+
+    def test_clave_corta(self):
+        with self.assertRaises(SystemExit):
+            operador.Operador(self.ruta, "a" * 15)
+
+    def test_cookie_secure_y_salir(self):
+        self.assertNotIn("Secure", self.req("POST", "/api/entrar", {"clave": CLAVE})[2])
+        self.op.seguro = True
+        ck = self.req("POST", "/api/entrar", {"clave": CLAVE})[2]
+        self.assertIn("Secure", ck)
+        sesion = ck.split(";")[0]
+        st, _, borra = self.req("POST", "/api/salir", {}, sesion)
+        self.assertEqual(st, 200); self.assertIn("Max-Age=0", borra)
+
+    def test_lista_solo_agregados(self):
+        st, j, _ = self.req("GET", "/api/clientes", ck=self.sesion())
+        c = j["clientes"][0]
+        self.assertEqual((c["hoy"], c["ventas_mes"], c["avisos"], c["modulos"]), (2, 1250, 1, ["estadisticas"]))
+        self.assertGreater(c["bytes"], 0)
+        txt = json.dumps(j)
+        self.assertNotIn(TEL, txt); self.assertNotIn("Secreta", txt)
+
+    def test_pausa_y_nuevo(self):
+        ck = self.sesion()
+        self.assertEqual(self.req("POST", "/api/clientes/uno/pausa", {"activo": False}, ck)[0], 200)
+        self.assertFalse(self.req("GET", "/api/clientes", ck=ck)[1]["clientes"][0]["activo"])
+        self.assertEqual(self.req("POST", "/api/clientes", {"slug": "dos", "dominio": "dos.com"}, ck)[0], 200)
+        self.assertTrue((self.raiz / "servicios" / "dos" / "servicio.yaml").exists())
+        self.assertEqual([c.slug for c in clientes.cargar(self.ruta)], ["uno", "dos"])  # el archivo real sigue cargable
+        self.assertEqual(self.req("POST", "/api/clientes", {"slug": "dos", "dominio": "x.com"}, ck)[0], 400)  # slug duplicado
+
+    def test_alta_invalida_deja_todo_igual(self):
+        ck, antes = self.sesion(), self.ruta.read_text(encoding="utf-8")
+        for d in ({"slug": "dos", "dominio": "uno.com"}, {"slug": "dos"}, {"slug": "dos", "dominio": "https://x.com"}):  # dominio repetido / vacío / mal formado
+            self.assertEqual(self.req("POST", "/api/clientes", d, ck)[0], 400)
+            self.assertEqual(self.ruta.read_text(encoding="utf-8"), antes)
+            self.assertFalse((self.raiz / "servicios" / "dos").exists())
+
+    def test_slug_invalido_y_traversal(self):
+        ck = self.sesion()
+        for s in ("../x", "A", "a/b", "", "a" * 41):
+            self.assertEqual(self.req("POST", "/api/clientes", {"slug": s}, ck)[0], 400)
+        self.assertEqual(self.req("POST", "/api/clientes/..%2Funo/respaldo", {}, ck)[0], 400)
+        self.assertEqual(self.req("POST", "/api/clientes/nadie/respaldo", {}, ck)[0], 400)
+
+    def test_respaldo(self):
+        st, j, _ = self.req("POST", "/api/clientes/uno/respaldo", {}, self.sesion())
+        self.assertEqual(st, 200)
+        copia = self.raiz / "backups" / "uno" / j["archivo"]
+        con = sqlite3.connect(copia)
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM registros").fetchone()[0], 3)
+        con.close()
+
+    def test_post_exige_json(self):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_port)
+        c.request("POST", "/api/entrar", "clave=x", {"Content-Type": "text/plain"})
+        self.assertEqual(c.getresponse().status, 415)
+
+
+if __name__ == "__main__":
+    unittest.main()

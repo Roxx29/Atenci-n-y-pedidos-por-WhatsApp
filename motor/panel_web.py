@@ -63,20 +63,22 @@ def pin_valido(texto, hash_, etiqueta):
     return bool(texto or hash_)
 
 
-def env_panel():
-    roles = {}
+def env_panel(env=None):
+    """`env`: de dónde salen los PIN (por defecto os.environ; en `motor alojar`, solo los del cliente)."""
+    roles, env = {}, os.environ if env is None else env
     for rol, p, h in (("dueno", "PANEL_PIN", "PANEL_PIN_HASH"), ("personal", "PANEL_PIN_PERSONAL", "PANEL_PIN_PERSONAL_HASH")):
-        texto, hash_ = os.environ.get(p) or None, os.environ.get(h) or None
+        texto, hash_ = env.get(p) or None, env.get(h) or None
         if pin_valido(texto, hash_, p):
             roles[rol] = (texto, hash_)
     return roles
 
 
-def env_repartidores():
+def env_repartidores(env=None):
     """{nombre: (pin, hash)} de REPARTIDORES="Juan:482913,Pedro:pbkdf2$..." (y REPARTIDOR_PIN = un repartidor llamado Repartidor). Nombres A-Za-z0-9_-; PIN únicos."""
-    crudo = [x.strip().partition(":")[::2] for x in os.environ.get("REPARTIDORES", "").split(",") if ":" in x]
-    if os.environ.get("REPARTIDOR_PIN"):
-        crudo.append(("Repartidor", os.environ["REPARTIDOR_PIN"]))
+    env = os.environ if env is None else env
+    crudo = [x.strip().partition(":")[::2] for x in env.get("REPARTIDORES", "").split(",") if ":" in x]
+    if env.get("REPARTIDOR_PIN"):
+        crudo.append(("Repartidor", env["REPARTIDOR_PIN"]))
     out, vistos = {}, set()
     for nombre, pin in crudo:
         nombre, pin = nombre.strip(), pin.strip()
@@ -144,9 +146,9 @@ NOMBRE = re.compile(r"[A-Za-z0-9_-]{1,30}")  # va en la cookie (sin puntos)
 class Usuarios(Mapping):
     """Usuarios activos de esos roles (tabla usuarios: nombre, rol, pin_hash, activo), leídos en vivo: {nombre: (None, pin_hash)}."""
 
-    def __init__(self, sv, roles):
+    def __init__(self, sv, roles, env=None):
         self.sv, self.de = sv, set(roles)
-        sembrar_usuarios(sv)
+        sembrar_usuarios(sv, env)
 
     def _d(self):
         return {u["nombre"]: (None, u["pin_hash"]) for u in _todos(self.sv) if u["activo"] and u["rol"] in self.de}
@@ -180,10 +182,10 @@ def _pin_en_uso(sv, pin, excepto=None):
     return any([_coincide(pin, None, u["pin_hash"]) for u in _todos(sv) if u["activo"] and u["nombre"] != excepto])
 
 
-def sembrar_usuarios(sv):
+def sembrar_usuarios(sv, env=None):
     """Importa PANEL_PIN* (usuarios Dueno / Personal) y REPARTIDORES del .env si ese nombre aún no está en la BD; nunca pisa la BD. Solo guarda el hash."""
-    semillas = [(n, r, *env_panel().get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
-    semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores().items()]
+    semillas = [(n, r, *env_panel(env).get(r, (None, None))) for n, r in (("Dueno", "dueno"), ("Personal", "personal"))]
+    semillas += [(n, "repartidor", t, h) for n, (t, h) in env_repartidores(env).items()]
     with sv.pedidos_lock:
         existentes = {u["nombre"]: u for u in _todos(sv)}
         for nombre, rol, texto, hash_ in semillas:
@@ -384,21 +386,39 @@ def lista_usuarios(sv):
 
 
 class Bloqueo:
-    """5 fallos de PIN desde una IP → bloqueo de 5 min."""
+    """5 fallos de PIN desde una IP (IPv6: desde su /64, que es lo que tiene un solo abonado) → bloqueo de 5 min.
+    Además, TOPE fallos entre TODAS las IP en VENTANA_S → cada intento espera `retraso()` s antes de comprobarse: frena el ataque
+    repartido entre muchas IP sin dejar fuera al dueño (bloquear aquí sería regalar un «apagar el panel» a cualquiera)."""
+    TOPE, VENTANA_S, RETRASO_S = 20, 300, 2
 
     def __init__(self):
-        self.fallos, self.hasta = {}, {}
+        self.fallos, self.hasta, self.recientes = {}, {}, collections.deque(maxlen=self.TOPE)
+
+    @staticmethod
+    def _clave(ip):
+        try:
+            return str(ipaddress.ip_network(ip + "/64", strict=False).network_address) if ":" in ip else ip
+        except ValueError:
+            return ip
 
     def bloqueada(self, ip):
-        return self.hasta.get(ip, 0) > time.time()
+        return self.hasta.get(self._clave(ip), 0) > time.time()
+
+    def retraso(self):
+        """Segundos que debe esperar un intento ahora (0 si no hay ataque).
+        ponytail: espera fija y sin cola; intentos en paralelo esperan a la vez. Si hace falta, serializar con un Lock."""
+        r = self.recientes
+        return self.RETRASO_S if len(r) == self.TOPE and r[0] > time.time() - self.VENTANA_S else 0
 
     def fallo(self, ip):
+        ip = self._clave(ip)
+        self.recientes.append(time.time())
         self.fallos[ip] = self.fallos.get(ip, 0) + 1
         if self.fallos[ip] >= 5:
             self.fallos[ip], self.hasta[ip] = 0, time.time() + 300
 
     def acierto(self, ip):
-        self.fallos.pop(ip, None)
+        self.fallos.pop(self._clave(ip), None)
 
 
 def acciones_de(p):

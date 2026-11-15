@@ -8,3 +8,5 @@ despliegue/logs/
 datos-nube.db*
 *.whl
 .claude/worktrees/
+
+clientes.yaml

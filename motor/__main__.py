@@ -9,7 +9,10 @@
   python -m motor panel [carpeta]          panel gráfico del restaurante (tkinter)
   python -m motor migrar <carpeta> [--forzar]  copia datos.sqlite a Turso (TURSO_DATABASE_URL y TURSO_AUTH_TOKEN)
   python -m motor recordatorios <carpeta>  envía una vez los mensajes programados vencidos
+  python -m motor alojar [clientes.yaml] [puerto]    varios clientes en un proceso, cada uno en su dominio (por defecto 8080)
+  python -m motor operador [clientes.yaml] [puerto]  consola del operador (por defecto 8081)
 """
+import importlib
 import sys
 import tempfile
 from pathlib import Path
@@ -26,6 +29,21 @@ def main(argv, cliente=None):  # cliente: inyectable en pruebas (solo "probar")
     if argv[:1] == ["panel"]:
         from .panel import main as panel  # import diferido: no carga tkinter en los demás comandos
         return panel(argv[1:])
+    if argv[:1] in (["alojar"], ["operador"]):
+        resto = argv[1:]
+        ruta = resto.pop(0) if resto and not resto[0].isdigit() else "clientes.yaml"
+        puerto = int(resto[0]) if resto else 8080 if argv[0] == "alojar" else 8081
+        try:
+            if argv[0] == "alojar":
+                from . import web
+                return web.alojar(ruta, puerto)
+            try:
+                operador = importlib.import_module(".operador", __package__)  # import diferido
+            except ImportError as e:
+                raise SystemExit(f"La consola del operador aún no está instalada (falta motor/operador.py): {e}")
+            return operador.servir(ruta, puerto)
+        except (OSError, ValueError) as e:  # sin clientes.yaml o con algo que mezclaría clientes: no arranca
+            raise SystemExit(f"Error en {ruta}: {e}")
     if len(argv) < 2:
         raise SystemExit(__doc__)
     cmd, carpeta = argv[0], argv[1]

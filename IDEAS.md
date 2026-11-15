@@ -10,6 +10,17 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 
 ## Próximo por hacer
+- [ ] 2026-11-14 — Revisión legal-datos de las copias de seguridad del VPS (datos personales sin cifrar, retención) (capitan)
+- [ ] 2026-11-14 — WhatsApp multi-cliente (F3): enrutar por phone_number_id en `alojar` y enviar con el env del cliente (revisor)
+- [ ] 2026-11-14 — `alojar`: WhatsApp por cliente (F3): montar el webhook y enrutar por `phone_number_id` (`WHATSAPP_PHONE_ID` ya no está en `ENV_POR_CLIENTE`) (programador)
+- [x] 2026-11-14 — `alojar`: recargar `clientes.yaml` sin reiniciar (programador)
+- [ ] 2026-11-14 — `alojar`: en caliente no cambian la carpeta ni las variables de un cliente ya abierto (pide reinicio) y un pausado sigue con la BD abierta (programador)
+- [ ] 2026-11-14 — `Bloqueo.retraso`: espera fija sin cola (intentos en paralelo esperan a la vez); serializar con Lock si se ve un ataque repartido real (programador)
+- [ ] 2026-11-14 — docker-compose del VPS: poner `ALOJAR_HOST=0.0.0.0` y `PROXY=1` en el contenedor de `alojar` (devops)
+- [ ] 2026-11-14 — `alojar`: revisión de seguridad con `revisor` antes de integrar; el puerto 8080 no debe quedar abierto a internet (solo Caddy), y en el VPS hacen falta PROXY=1 y PANEL_PUBLICO=1 para que el panel funcione tras el proxy (programador)
+- [ ] 2026-11-14 — `alojar`: `www.<dominio>` no se reconoce (solo el dominio exacto); añadir alias si algún cliente lo pide (programador)
+- [ ] 2026-11-14 — Consola del operador: mostrar coste de IA y errores por cliente (capitan)
+- [ ] 2026-11-14 — Aclaración: «multi-local» = ~20 CLIENTES distintos; hacer consola del operador (alta de cliente, estado, módulos, copias) sobre la ruta C; ver diseno/multi-local.md (usuario/capitan)
 - [ ] 2026-11-14 — Mejorar animaciones/pulido de web, panel y repartidor (3 programadores, sonnet) (capitan)
 - [ ] 2026-11-14 — Varios locales (cadena): diseño en diseno/multi-local.md por arquitecto (fable); luego aprobar e implementar (capitan)
 - [ ] 2026-11-14 — Usuario: responder las 8 decisiones del final de diseno/multi-local.md (ruta C, dueño único o franquicias, WhatsApp por local, precio del módulo…) (arquitecto)

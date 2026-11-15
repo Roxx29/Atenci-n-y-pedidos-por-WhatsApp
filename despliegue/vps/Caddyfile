@@ -1,0 +1,22 @@
+{
+	email {$EMAIL_ACME}
+	on_demand_tls {
+		# 200 solo si el dominio es de un cliente activo (evita emitir certificados a cualquiera)
+		ask http://alojar:8080/_ask
+	}
+}
+
+# Consola del operador: solo tu dominio, certificado normal
+operador.{$OPERADOR_DOMINIO} {
+	@fuera not remote_ip {$OPERADOR_IPS}
+	respond @fuera 403
+	reverse_proxy operador:8081
+}
+
+# Todos los dominios de clientes
+https:// {
+	tls {
+		on_demand
+	}
+	reverse_proxy alojar:8080
+}

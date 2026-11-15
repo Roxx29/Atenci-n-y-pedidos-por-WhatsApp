@@ -1,0 +1,265 @@
+"""Consola del operador: panel APARTE solo para el dueño del sistema (lista de clientes, alta, pausa, copias).
+Solo agregados: nunca teléfonos, nombres ni datos personales de los clientes finales (Ley 81).
+Uso: OPERADOR_CLAVE=... python -m motor operador [clientes.yaml] [puerto]"""
+import datetime as dt
+import hashlib
+import hmac
+import ipaddress
+import json
+import os
+import re
+import shutil
+import sqlite3
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import yaml
+
+from . import clientes
+
+SLUG = re.compile(r"[a-z0-9-]{1,40}")
+HTML = Path(__file__).with_name("operador.html")
+SESION = 8 * 3600
+MAX_FALLOS, BLOQUEO = 5, 300
+
+
+class Operador:
+    def __init__(self, ruta_clientes, clave, raiz=None, plantilla=None, seguro=False):
+        if not clave or len(clave) < 16:
+            raise SystemExit("OPERADOR_CLAVE es obligatoria (mínimo 16 caracteres): la consola no arranca sin ella.")
+        # plantilla: del repo (/app/servicios/_plantilla en Docker), no del volumen de datos
+        self.plantilla = Path(plantilla) if plantilla else Path(__file__).resolve().parent.parent / "servicios" / "_plantilla"
+        self.seguro = seguro  # cookie Secure (consola detrás de TLS)
+        self.ruta = Path(ruta_clientes).resolve()
+        self.raiz = Path(raiz).resolve() if raiz else self.ruta.parent
+        self.cargar = clientes.cargar
+        self.clave = clave.encode()
+        # secreto de firma: WEB_SECRET o aleatorio por arranque (las sesiones caducan al reiniciar)
+        self.firma_key = (os.environ.get("WEB_SECRET") or "").encode() or os.urandom(32)
+        self.fallos = {}  # ip -> [fallos, bloqueado_hasta]
+        self.lock = threading.Lock()
+
+    # --- acceso ---
+    def entrar(self, clave, ip=""):
+        """-> cookie o None; LookupError si esa IP está bloqueada."""
+        with self.lock:
+            ahora = time.time()
+            self.fallos = {k: v for k, v in self.fallos.items() if v[1] > ahora or v[0]}  # sin entradas muertas
+            f = self.fallos.setdefault(ip, [0, 0.0])
+            if ahora < f[1]:
+                raise LookupError("bloqueado")
+            if hmac.compare_digest(hashlib.sha256(clave.encode()).digest(), hashlib.sha256(self.clave).digest()):
+                self.fallos.pop(ip, None)
+                return self._cookie()
+            f[0] += 1
+            if f[0] >= MAX_FALLOS:
+                f[0], f[1] = 0, ahora + BLOQUEO
+            return None
+
+    def _atrib(self, v, vida):
+        return f"{v}; HttpOnly; SameSite=Strict; Path=/; Max-Age={vida}" + ("; Secure" if self.seguro else "")
+
+    def cookie_salir(self):
+        return self._atrib("operador=", 0)
+
+    def _firma(self, exp):
+        return hmac.new(self.firma_key, str(exp).encode(), hashlib.sha256).hexdigest()
+
+    def _cookie(self):
+        exp = int(time.time()) + SESION
+        return self._atrib(f"operador={exp}.{self._firma(exp)}", SESION)
+
+    def valida(self, cabecera):
+        for par in (cabecera or "").split(";"):
+            k, _, v = par.strip().partition("=")
+            if k == "operador":
+                exp, _, f = v.partition(".")
+                return exp.isdigit() and int(exp) > time.time() and hmac.compare_digest(f, self._firma(exp))
+        return False
+
+    # --- YAML ---
+    def _yaml(self):
+        """clientes.yaml como dict con `clientes: {slug: {carpeta, dominio, activo}}` (mapa, como clientes.cargar)."""
+        d = yaml.safe_load(self.ruta.read_text(encoding="utf-8")) if self.ruta.exists() else None
+        d = d if isinstance(d, dict) else {}
+        if not isinstance(d.get("clientes"), dict):
+            d["clientes"] = {}
+        return d
+
+    def _guardar(self, d):
+        tmp = self.ruta.with_suffix(".tmp")
+        tmp.write_text(yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf-8")
+        os.replace(tmp, self.ruta)
+
+    def _carpeta(self, slug):
+        """Carpeta del cliente solo si el slug es válido y está dentro de la raíz."""
+        if not SLUG.fullmatch(slug or ""):
+            raise ValueError("slug inválido: usa a-z, 0-9 y guiones")
+        c = next((c for c in self.cargar(self.ruta) if c.slug == slug), None)
+        if c is None:
+            raise LookupError("cliente desconocido")
+        return Path(c.carpeta).resolve()
+
+    # --- datos (solo lectura, solo agregados) ---
+    def _metricas(self, carpeta):
+        m = {"hoy": 0, "ultimo": None, "ventas_mes": 0, "bytes": 0, "avisos": 0, "modulos": [], "error": None}
+        try:
+            cfg = yaml.safe_load((carpeta / "servicio.yaml").read_text(encoding="utf-8")) or {}
+            m["modulos"] = [str(x) for x in (cfg.get("modulos") or [])]
+        except (OSError, yaml.YAMLError):
+            m["error"] = "servicio.yaml"
+        bd = carpeta / "datos.sqlite"
+        if not bd.exists():
+            return m
+        m["bytes"] = bd.stat().st_size
+        hoy = dt.date.today().isoformat()
+        try:
+            con = sqlite3.connect(f"{bd.as_uri()}?mode=ro", uri=True, timeout=3)
+            try:
+                for tipo, d in con.execute("SELECT tipo, datos FROM registros WHERE tipo IN ('pedido','escalado')"):
+                    p = json.loads(d)
+                    if tipo == "escalado":
+                        m["avisos"] += p.get("estado") == "abierto"
+                        continue
+                    creado = p.get("creado_at") or ""
+                    m["hoy"] += creado[:10] == hoy
+                    m["ultimo"] = max(m["ultimo"] or "", creado) or None
+                    if p.get("estado") == "entregado" and (p.get("estado_at") or creado)[:7] == hoy[:7]:
+                        m["ventas_mes"] += int(p.get("total_c") or 0)
+            finally:
+                con.close()
+        except (sqlite3.Error, ValueError):
+            m["error"] = "base de datos"
+        return m
+
+    def listar(self):
+        out = []
+        for c in self.cargar(self.ruta):
+            out.append({"slug": c.slug, "dominio": c.dominio or "", "activo": bool(c.activo), **self._metricas(Path(c.carpeta))})
+        return out
+
+    # --- acciones ---
+    def nuevo(self, slug, dominio=""):
+        if not SLUG.fullmatch(slug or ""):
+            raise ValueError("slug inválido: usa a-z, 0-9 y guiones")
+        d = self._yaml()
+        if slug in d["clientes"]:
+            raise FileExistsError("ya existe")
+        destino = self.raiz / "servicios" / slug
+        if destino.exists():
+            raise FileExistsError("ya existe la carpeta")
+        orig = self.ruta.read_bytes() if self.ruta.exists() else None
+        d["clientes"][slug] = {"carpeta": f"servicios/{slug}", "dominio": str(dominio).strip().lower()[:100], "activo": True}
+        try:
+            shutil.copytree(self.plantilla, destino)
+            self._guardar(d)
+            self.cargar(self.ruta)  # mismas reglas que al arrancar (dominio único, carpeta...): si falla, se deshace todo
+        except Exception:
+            shutil.rmtree(destino, ignore_errors=True)
+            self.ruta.write_bytes(orig) if orig is not None else self.ruta.unlink(missing_ok=True)
+            raise
+
+    def pausar(self, slug, activo):
+        self._carpeta(slug)
+        d = self._yaml()
+        d["clientes"][slug]["activo"] = bool(activo)
+        self._guardar(d)
+
+    def respaldo(self, slug):
+        bd = self._carpeta(slug) / "datos.sqlite"
+        if not bd.exists():
+            raise FileNotFoundError("sin base de datos")
+        dest = self.raiz / "backups" / slug
+        dest.mkdir(parents=True, exist_ok=True)
+        fin = dest / f"{dt.datetime.now():%Y-%m-%d_%H%M%S}.sqlite"
+        src = sqlite3.connect(f"{bd.as_uri()}?mode=ro", uri=True, timeout=10)
+        dst = sqlite3.connect(fin)
+        try:
+            src.backup(dst)
+        finally:
+            dst.close(); src.close()
+        return fin.name
+
+
+def handler(op):
+    class H(BaseHTTPRequestHandler):
+        server_version = "operador"
+        timeout = 15  # conexión lenta/colgada: se suelta
+
+        def _ip(self):
+            """IP real: con PROXY=1 el último valor de X-Forwarded-For (lo añade Caddy; el primero lo escribe el cliente)."""
+            if os.environ.get("PROXY") == "1":
+                try:
+                    return str(ipaddress.ip_address((self.headers.get("X-Forwarded-For") or "").split(",")[-1].strip()))
+                except ValueError:
+                    pass
+            return self.client_address[0]
+
+        def log_message(self, *a):
+            pass
+
+        def _send(self, st, cuerpo, tipo="application/json", extra=()):
+            b = cuerpo if isinstance(cuerpo, bytes) else json.dumps(cuerpo, ensure_ascii=False).encode()
+            self.send_response(st)
+            for k, v in (("Content-Type", tipo + "; charset=utf-8"), ("Content-Length", str(len(b))), ("Cache-Control", "no-store"),
+                         ("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"), ("Referrer-Policy", "no-referrer"),
+                         ("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'"), *extra):
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(b)
+
+        def _json(self):
+            try:
+                n = max(0, min(int(self.headers.get("Content-Length") or 0), 4096))
+                d = json.loads(self.rfile.read(n) or b"{}")
+                return d if isinstance(d, dict) else {}
+            except ValueError:
+                return {}
+
+        def do_GET(self):
+            if self.path == "/":
+                return self._send(200, HTML.read_bytes(), "text/html")
+            if not op.valida(self.headers.get("Cookie")):
+                return self._send(401, {"error": "no autorizado"})
+            if self.path == "/api/clientes":
+                return self._send(200, {"clientes": op.listar()})
+            self._send(404, {"error": "no existe"})
+
+        def do_POST(self):
+            if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+                return self._send(415, {"error": "json"})
+            d = self._json()
+            if self.path == "/api/entrar":
+                try:
+                    ck = op.entrar(str(d.get("clave", "")), self._ip())
+                except LookupError:
+                    return self._send(429, {"error": "demasiados intentos, espera unos minutos"})
+                return self._send(200, {"ok": True}, extra=[("Set-Cookie", ck)]) if ck else self._send(401, {"error": "clave incorrecta"})
+            if self.path == "/api/salir":
+                return self._send(200, {"ok": True}, extra=[("Set-Cookie", op.cookie_salir())])
+            if not op.valida(self.headers.get("Cookie")):
+                return self._send(401, {"error": "no autorizado"})
+            partes = self.path.strip("/").split("/")
+            try:
+                if partes == ["api", "clientes"]:
+                    op.nuevo(str(d.get("slug", "")), d.get("dominio", ""))
+                    return self._send(200, {"ok": True})
+                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pausa":
+                    op.pausar(partes[2], d.get("activo"))
+                    return self._send(200, {"ok": True})
+                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "respaldo":
+                    return self._send(200, {"ok": True, "archivo": op.respaldo(partes[2])})
+            except (ValueError, LookupError, FileExistsError, FileNotFoundError) as e:
+                return self._send(400, {"error": str(e)})
+            self._send(404, {"error": "no existe"})
+    return H
+
+
+def servir(ruta_clientes="clientes.yaml", puerto=8081):
+    host = os.environ.get("OPERADOR_HOST", "127.0.0.1")  # 0.0.0.0 solo dentro de Docker, detrás de Caddy (TLS)
+    op = Operador(ruta_clientes, os.environ.get("OPERADOR_CLAVE", ""), seguro=host != "127.0.0.1")
+    srv = ThreadingHTTPServer((host, int(puerto)), handler(op))
+    print(f"Consola del operador en http://{host}:{puerto}")
+    srv.serve_forever()

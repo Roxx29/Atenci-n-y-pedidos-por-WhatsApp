@@ -63,3 +63,11 @@ F1 sola ya es vendible (cada sucursal con su web, panel y repartidores). F2 es e
 6. ¿Precio del módulo `multilocal`: por local adicional o tarifa plana? (`comercial`)
 7. ¿URL: `/las-tablas/` bajo el mismo dominio (recomendado) o subdominio por local?
 8. ¿Hasta qué fase construir ahora? (recomendado: F1 + F2 y enseñar)
+
+## Aclaración del usuario (2026-11-14): son CLIENTES distintos, no sucursales
+
+El objetivo real: vender el sistema a ~20 restaurantes distintos y manejarlos fácil desde un solo sitio. Cambia el enfoque:
+- Cada cliente es un negocio con dueño y datos propios (Ley 81: el usuario es el encargado del tratamiento). El aislamiento de datos pasa de «recomendado» a obligatorio: la ruta C (una carpeta y BD por cliente, un solo proceso) sigue siendo la correcta; B (columna `local_id`) queda descartada.
+- El panel «Central» de cadena se sustituye por una **consola del operador** (solo el usuario): lista de clientes con estado, último pedido, errores, módulos activos (`modulos:`), coste de IA y botones «Nuevo cliente» (copia `_plantilla`), «Pausar» y «Copia de seguridad».
+- Una sola actualización del motor llega a los 20 clientes. Marca por cliente (`marca:`, `tema.css`) y dirección propia por cliente (subdominio por Host, p. ej. `delifood.<tu-dominio>`, en vez de `/slug/`).
+- Un número de WhatsApp por cliente (F3), facturación y precio por módulo (decide `comercial`).

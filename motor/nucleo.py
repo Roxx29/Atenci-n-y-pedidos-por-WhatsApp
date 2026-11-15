@@ -52,11 +52,13 @@ Información del negocio:
 {conocimiento}"""
 
 
-def conectar(ruta, nube=False):
+def conectar(ruta, nube=False, env=None):
     """Conexión a la BD. SQLite local salvo `nube` (solo cuando no se pasa db=): con TURSO_DATABASE_URL y TURSO_AUTH_TOKEN, réplica embebida libsql
-    (archivo local + sync con Turso: sync al abrir y cada 2 s; las escrituras van a Turso). TURSO_SOLO_LOCAL=1: libsql sobre el archivo, sin red (diagnóstico)."""
-    url, token = os.environ.get("TURSO_DATABASE_URL"), os.environ.get("TURSO_AUTH_TOKEN")
-    if nube and (url and token or os.environ.get("TURSO_SOLO_LOCAL") == "1"):
+    (archivo local + sync con Turso: sync al abrir y cada 2 s; las escrituras van a Turso). TURSO_SOLO_LOCAL=1: libsql sobre el archivo, sin red (diagnóstico).
+    `env`: de dónde salen las TURSO_* (por defecto os.environ; en `motor alojar`, solo las del cliente: nunca comparten BD)."""
+    env = os.environ if env is None else env
+    url, token = env.get("TURSO_DATABASE_URL"), env.get("TURSO_AUTH_TOKEN")
+    if nube and (url and token or env.get("TURSO_SOLO_LOCAL") == "1"):
         import libsql  # solo en este caso: el paquete es opcional (requirements-nube.txt)
         ruta = str(Path(ruta).with_name("datos-nube.db"))  # réplica propia: no se mezcla con datos.sqlite
         if url and token:
@@ -66,13 +68,13 @@ def conectar(ruta, nube=False):
 
 
 class Servicio:
-    def __init__(self, carpeta, db=None, cliente=None, cliente_respaldo=None):
+    def __init__(self, carpeta, db=None, cliente=None, cliente_respaldo=None, env=None):
         self.dir = Path(carpeta)
         self._cfg = yaml.safe_load((self.dir / "servicio.yaml").read_text(encoding="utf-8"))
         self.tz = ZoneInfo(self._cfg.get("zona_horaria", "America/Panama"))
         self.tools = herramientas.esquemas(self._cfg.get("herramientas", []))
         ruta = str(db or self.dir / "datos.sqlite")
-        self.db, self.nube = conectar(ruta, nube=db is None)
+        self.db, self.nube = conectar(ruta, nube=db is None, env=env)
         if ruta != ":memory:" and not self.nube:
             self.db.execute("PRAGMA journal_mode=WAL")  # las lecturas del panel no bloquean al bot
         self.db.executescript(

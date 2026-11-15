@@ -1,0 +1,60 @@
+# VPS unico, ~20 clientes. Guia: despliegue/vps.md  (uso: docker compose up -d --build)
+x-motor: &motor
+  build: ../..
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    PROXY: "1"        # IP real del cliente detras de Caddy (ver nube.md)
+    PROXY_SALTOS: "1"
+  volumes:
+    - datos:/datos
+
+services:
+  alojar:
+    <<: *motor
+    environment:   # <<: no fusiona en profundidad: se repite lo del ancla
+      PROXY: "1"
+      PROXY_SALTOS: "1"
+      ALOJAR_HOST: "0.0.0.0"   # el puerto 8080 no se publica: solo Caddy (red interna) llega
+      PANEL_PUBLICO: "1"       # el panel de cada cliente se sirve por su dominio (con PIN)
+    command: ["python", "-m", "motor", "alojar", "/datos/clientes.yaml", "8080"]
+  operador:
+    build: ../..
+    restart: unless-stopped
+    volumes:
+      - datos:/datos
+    environment:   # solo lo suyo: sin el resto de secretos del .env
+      OPERADOR_CLAVE: ${OPERADOR_CLAVE}
+      WEB_SECRET: ${WEB_SECRET:-}
+      PROXY: "1"
+      OPERADOR_HOST: "0.0.0.0"   # el puerto 8081 no se publica: solo Caddy (red interna) llega
+    command: ["python", "-m", "motor", "operador", "/datos/clientes.yaml", "8081"]
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      OPERADOR_DOMINIO: ${OPERADOR_DOMINIO}
+      EMAIL_ACME: ${EMAIL_ACME}
+      OPERADOR_IPS: ${OPERADOR_IPS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_datos:/data   # certificados: no borrar (limite de Let's Encrypt)
+    depends_on: [alojar, operador]
+  respaldo:
+    build: ./respaldo   # imagen con sqlite/rsync ya instalados (sin apk add en cada arranque)
+    restart: unless-stopped
+    environment:
+      HORA_RESPALDO: ${HORA_RESPALDO:-03:30}
+      DIAS_RESPALDO: ${DIAS_RESPALDO:-14}
+      RESPALDO_DESTINO: ${RESPALDO_DESTINO:-}
+      SSH_CLAVE: ${SSH_CLAVE:-}
+    volumes:
+      - datos:/datos
+      - ./respaldo.sh:/respaldo.sh:ro
+      - ${SSH_CLAVE:-/dev/null}:/clave:ro
+    command: ["sh", "/respaldo.sh"]
+
+volumes:
+  datos:
+  caddy_datos:

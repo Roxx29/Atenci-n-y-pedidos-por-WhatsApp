@@ -1,0 +1,8 @@
+# Copiar a clientes.yaml (no se sube al repo) y arrancar con: python -m motor alojar clientes.yaml 8080
+# slug: minúsculas, números y guiones; es también el sufijo de sus variables del .env
+#   (PANEL_PIN_DELIFOOD, REPARTIDORES_DELIFOOD, TURSO_DATABASE_URL_DELIFOOD...; guiones -> guion bajo).
+# carpeta: relativa a este archivo; cada cliente la suya (su BD y sus archivos viven ahí).
+# dominio: el que escribe el cliente final, sin https:// ni puerto. En local vale también <slug>.localhost.
+# activo: false = pausado (responde 404, como un dominio desconocido).
+clientes:
+  delifood: {carpeta: servicios/restaurante-pedidos, dominio: delifood.com, activo: true}

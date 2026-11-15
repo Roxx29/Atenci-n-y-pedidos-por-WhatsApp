@@ -10,6 +10,10 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 
 ## Próximo por hacer
+- [ ] 2026-11-15 — Factura electrónica A (fácil): pedir correo opcional al pedir (web y asistente), guardarlo en el pedido, mostrarlo en el panel y añadirlo al aviso de privacidad (Ley 81) (usuario/capitan)
+- [ ] 2026-11-15 — Factura electrónica B (módulo extra): emitir por un PAC de la DGI con el RUC de cada restaurante y enviarla al correo; investigar PAC, costos e integración cuando haya un cliente que lo pida (usuario/capitan)
+- [ ] 2026-11-14 — Datos en la nube: probar Turso real con `alojar` (una BD por cliente, ya soportado) y/o copia continua; decidir frente a Supabase (descartado por ahora: exige reescribir nucleo.py) (capitan)
+- [ ] 2026-11-14 — Dominios por cliente: Caddy (ya hecho) o Cloudflare for SaaS (100 hostnames gratis, luego 0,10 US$ c/u) (capitan)
 - [ ] 2026-11-14 — Revisión legal-datos de las copias de seguridad del VPS (datos personales sin cifrar, retención) (capitan)
 - [ ] 2026-11-14 — WhatsApp multi-cliente (F3): enrutar por phone_number_id en `alojar` y enviar con el env del cliente (revisor)
 - [ ] 2026-11-14 — `alojar`: WhatsApp por cliente (F3): montar el webhook y enrutar por `phone_number_id` (`WHATSAPP_PHONE_ID` ya no está en `ENV_POR_CLIENTE`) (programador)

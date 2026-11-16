@@ -12,6 +12,7 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-16 — `operador.py` lee los módulos de `servicio.yaml`; debería mostrar el efectivo (`panel_web.modulos(sv)` o el `modulos` del Cliente) (programador)
 
 ## Próximo por hacer
+- [ ] 2026-11-16 — Cloudflare investigado (fuentes oficiales): Containers 14-48 US$/mes con disco efímero; Workers+D1 exige reescribir casi todo. Se queda el VPS. Pendiente: actualizar precio de Hetzner en despliegue/vps.md y evaluar Cloudflare for SaaS (gratis hasta 100 dominios) delante del VPS (investigador-profundo)
 - [ ] 2026-11-15 — Factura electrónica A (fácil): pedir correo opcional al pedir (web y asistente), guardarlo en el pedido, mostrarlo en el panel y añadirlo al aviso de privacidad (Ley 81) (usuario/capitan)
 - [ ] 2026-11-15 — Factura electrónica B (módulo extra): emitir por un PAC de la DGI con el RUC de cada restaurante y enviarla al correo; investigar PAC, costos e integración cuando haya un cliente que lo pida (usuario/capitan)
 - [ ] 2026-11-14 — Datos en la nube: probar Turso real con `alojar` (una BD por cliente, ya soportado) y/o copia continua; decidir frente a Supabase (descartado por ahora: exige reescribir nucleo.py) (capitan)

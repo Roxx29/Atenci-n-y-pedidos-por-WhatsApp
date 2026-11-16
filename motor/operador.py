@@ -23,6 +23,8 @@ SLUG = re.compile(r"[a-z0-9-]{1,40}")
 HTML = Path(__file__).with_name("operador.html")
 SESION = 8 * 3600
 MAX_FALLOS, BLOQUEO = 5, 300
+CATALOGO = ("estadisticas",)  # módulos que el operador puede activar; añade aquí los nuevos
+AVISO_DIAS = 5
 
 
 class Operador:
@@ -134,11 +136,99 @@ class Operador:
             m["error"] = "base de datos"
         return m
 
+    def _pagos(self):
+        """slug -> últimos 12 pagos (más reciente primero) de pagos.jsonl."""
+        out = {}
+        try:
+            lineas = (self.ruta.parent / "pagos.jsonl").read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return out
+        for ln in lineas:
+            try:
+                p = json.loads(ln)
+                out.setdefault(p["slug"], []).append(p)
+            except (ValueError, KeyError, TypeError):
+                continue
+        return {k: v[-12:][::-1] for k, v in out.items()}
+
+    @staticmethod
+    def _fecha(v):
+        try:
+            return v if isinstance(v, dt.date) else dt.date.fromisoformat(str(v))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def estado_pago(hasta, hoy=None):
+        """-> (estado, días, etiqueta). estado: al_dia | por_vencer | vencido | sin_pago."""
+        hoy = hoy or dt.date.today()
+        if hasta is None:
+            return "sin_pago", None, "Sin pago registrado"
+        n = (hasta - hoy).days
+        if n < 0:
+            return "vencido", n, f"Vencido hace {-n} días"
+        if n <= AVISO_DIAS:
+            return "por_vencer", n, f"Vence en {n} días"
+        return "al_dia", n, "Al día"
+
     def listar(self):
-        out = []
+        """-> (clientes, resumen). Resumen: activos, ingresos (suma de precio de los no vencidos), vencidos."""
+        out, entradas, pagos = [], self._yaml()["clientes"], self._pagos()
         for c in self.cargar(self.ruta):
-            out.append({"slug": c.slug, "dominio": c.dominio or "", "activo": bool(c.activo), **self._metricas(Path(c.carpeta))})
-        return out
+            e = entradas.get(c.slug) or {}
+            m = self._metricas(Path(c.carpeta))
+            if isinstance(e.get("modulos"), list):
+                m["modulos"] = [str(x) for x in e["modulos"]]
+            hasta = self._fecha(e.get("pagado_hasta"))
+            est, dias, et = self.estado_pago(hasta)
+            precio = e.get("precio") if isinstance(e.get("precio"), (int, float)) else None
+            out.append({"slug": c.slug, "dominio": c.dominio or "", "activo": bool(c.activo), **m,
+                        "pagado_hasta": hasta.isoformat() if hasta else None, "estado_pago": est, "dias": dias, "etiqueta_pago": et,
+                        "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, [])})
+        resumen = {"activos": sum(c["activo"] for c in out),
+                   "ingresos": sum(c["precio"] or 0 for c in out if c["estado_pago"] in ("al_dia", "por_vencer")),
+                   "vencidos": sum(c["estado_pago"] == "vencido" for c in out)}
+        return out, resumen
+
+    def _entrada(self, slug):
+        self._carpeta(slug)
+        d = self._yaml()
+        return d, d["clientes"][slug]
+
+    def configurar(self, slug, d):
+        """Escribe modulos / precio / notas (solo las claves presentes); modulos=null quita el override."""
+        datos, e = self._entrada(slug)
+        if "modulos" in d:
+            m = d["modulos"]
+            if m is None:
+                e.pop("modulos", None)
+            elif isinstance(m, list) and all(isinstance(x, str) and x in CATALOGO for x in m):
+                e["modulos"] = [x for x in CATALOGO if x in m]
+            else:
+                raise ValueError("módulo fuera del catálogo")
+        if "precio" in d:
+            p = d["precio"]
+            if isinstance(p, bool) or not isinstance(p, (int, float)) or not 0 <= p <= 1e6:
+                raise ValueError("precio inválido")
+            e["precio"] = p
+        if "notas" in d:
+            if not isinstance(d["notas"], str) or len(d["notas"]) > 500:
+                raise ValueError("notas: máximo 500 caracteres")
+            e["notas"] = d["notas"]
+        self._guardar(datos)
+
+    def pagar(self, slug, meses):
+        """Marcó pagado: pagado_hasta = max(hoy, pagado_hasta) + 30 días x meses; anota la línea en pagos.jsonl."""
+        if isinstance(meses, bool) or meses not in (1, 3, 12):
+            raise ValueError("meses: 1, 3 o 12")
+        datos, e = self._entrada(slug)
+        hoy = dt.date.today()
+        nuevo = max(hoy, self._fecha(e.get("pagado_hasta")) or hoy) + dt.timedelta(days=30 * meses)
+        e["pagado_hasta"] = nuevo.isoformat()
+        self._guardar(datos)
+        with (self.ruta.parent / "pagos.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"fecha": hoy.isoformat(), "slug": slug, "monto": (e.get("precio") or 0) * meses, "meses": meses}) + "\n")
+        return nuevo.isoformat()
 
     # --- acciones ---
     def nuevo(self, slug, dominio=""):
@@ -224,7 +314,8 @@ def handler(op):
             if not op.valida(self.headers.get("Cookie")):
                 return self._send(401, {"error": "no autorizado"})
             if self.path == "/api/clientes":
-                return self._send(200, {"clientes": op.listar()})
+                cl, res = op.listar()
+                return self._send(200, {"clientes": cl, "resumen": res, "catalogo": list(CATALOGO)})
             self._send(404, {"error": "no existe"})
 
         def do_POST(self):
@@ -249,6 +340,11 @@ def handler(op):
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pausa":
                     op.pausar(partes[2], d.get("activo"))
                     return self._send(200, {"ok": True})
+                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "config":
+                    op.configurar(partes[2], d)
+                    return self._send(200, {"ok": True})
+                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pago":
+                    return self._send(200, {"ok": True, "pagado_hasta": op.pagar(partes[2], d.get("meses", 1))})
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "respaldo":
                     return self._send(200, {"ok": True, "archivo": op.respaldo(partes[2])})
             except (ValueError, LookupError, FileExistsError, FileNotFoundError) as e:

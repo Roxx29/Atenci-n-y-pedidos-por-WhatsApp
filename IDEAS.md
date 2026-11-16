@@ -8,6 +8,8 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Link de pago (Tilopay/PagueloFacil, requiere cuenta de comercio) (agenteservicios)
 - 2026-11-02 — qwen3:8b repite al cliente la nota interna de reportar_pago ("No lo des por confirmado ni prometas…"): separar en la respuesta un texto para el cliente y una instrucción para el bot (agentedeprogramacion)
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
+- 2026-11-16 — `pagado_hasta` de clientes.yaml es solo informativo: decidir si un cliente vencido se pausa o se le apagan los módulos solo (con días de gracia) (programador)
+- 2026-11-16 — `operador.py` lee los módulos de `servicio.yaml`; debería mostrar el efectivo (`panel_web.modulos(sv)` o el `modulos` del Cliente) (programador)
 
 ## Próximo por hacer
 - [ ] 2026-11-15 — Factura electrónica A (fácil): pedir correo opcional al pedir (web y asistente), guardarlo en el pedido, mostrarlo en el panel y añadirlo al aviso de privacidad (Ley 81) (usuario/capitan)

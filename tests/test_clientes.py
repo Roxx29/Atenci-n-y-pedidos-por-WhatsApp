@@ -1,4 +1,5 @@
 """Registro de clientes (clientes.yaml). Ejecutar: python -m unittest tests.test_clientes"""
+import datetime
 import os
 import tempfile
 import unittest
@@ -91,6 +92,34 @@ class TestCargar(Base):
         self.falla("clientes: [uno]\n", "clientes")
         self.falla("otra: cosa\n", "clientes")
         self.falla("clientes:\n  uno: {carpeta: a, dominio: uno.com, sobra: 1}\n", "sobra")
+
+
+class TestOperador(Base):
+    """Campos que solo pone el operador: modulos (manda sobre servicio.yaml), pagado_hasta, precio y notas."""
+
+    def uno(self, extra):
+        return self.cargar(f"clientes:\n  uno: {{carpeta: a, dominio: uno.com{extra}}}\n")[0]
+
+    def test_sin_los_campos_nuevos(self):
+        c = self.uno("")
+        self.assertEqual((c.modulos, c.pagado_hasta, c.precio, c.notas), (None, None, None, ""))
+
+    def test_campos_validos(self):
+        c = self.uno(', modulos: [estadisticas], pagado_hasta: 2026-12-31, precio: 35, notas: "paga por Yappy"')
+        self.assertEqual((c.modulos, c.pagado_hasta, c.precio, c.notas), (["estadisticas"], datetime.date(2026, 12, 31), 35.0, "paga por Yappy"))
+        self.assertEqual(self.uno(', pagado_hasta: "2027-01-15", precio: 0').pagado_hasta, datetime.date(2027, 1, 15))
+
+    def test_lista_vacia_no_es_lo_mismo_que_ausente(self):
+        self.assertEqual(self.uno(", modulos: []").modulos, [])
+        self.assertIsNone(self.uno("").modulos)
+
+    def test_invalidos(self):
+        for extra, trozo in ((", modulos: [inventado]", "modulos"), (", modulos: estadisticas", "modulos"), (", modulos: [[estadisticas]]", "modulos"),
+                             (", modulos: null", "modulos"), (', pagado_hasta: "31/12/2026"', "pagado_hasta"), (", pagado_hasta: 2026-13-01", "pagado_hasta"),
+                             (", pagado_hasta: 20261231", "pagado_hasta"), (", pagado_hasta: 2026-12-31 10:00:00", "pagado_hasta"),
+                             (", precio: -1", "precio"), (", precio: gratis", "precio"), (", precio: true", "precio"), (", precio: .nan", "precio"),
+                             (", precio: .inf", "precio"), (", notas: [a]", "notas"), (f", notas: {'x' * 501}", "notas")):
+            self.falla(f"clientes:\n  uno: {{carpeta: a, dominio: uno.com{extra}}}\n", trozo)
 
 
 class TestEntorno(Base):

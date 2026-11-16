@@ -6,6 +6,8 @@ clientes.yaml (no se sube al repo; ver clientes.ejemplo.yaml):
 
 Las variables del .env de cada cliente llevan su slug como sufijo (PANEL_PIN_DELIFOOD, REPARTIDORES_LAS_TABLAS...): ver `entorno`.
 """
+import datetime as dt
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -24,12 +26,41 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 # "WHATSAPP_PHONE_ID" no está: WhatsApp multi-cliente (F3) enrutará por phone_number_id.
 
 
+MODULOS = ("estadisticas",)  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
+CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas"}
+
+
 @dataclass(frozen=True)
 class Cliente:
     slug: str
     carpeta: Path
     dominio: str
     activo: bool
+    # Solo los pone el operador (clientes.yaml); el dueño del restaurante no los ve ni los cambia.
+    modulos: list[str] | None = None  # None = manda el `modulos` de su servicio.yaml; [] = ninguno
+    pagado_hasta: dt.date | None = None
+    precio: float | None = None  # US$/mes
+    notas: str = ""
+
+
+def _operador(slug, c):
+    """Valida modulos, pagado_hasta, precio y notas de un cliente. ValueError con el campo que falla."""
+    mods, hasta, precio, notas = c.get("modulos"), c.get("pagado_hasta"), c.get("precio"), c.get("notas", "")
+    if "modulos" in c and not (isinstance(mods, list) and all(isinstance(m, str) and m in MODULOS for m in mods)):
+        raise ValueError(f"cliente {slug}: modulos debe ser una lista con solo {', '.join(MODULOS)} (o [] para ninguno)")
+    if isinstance(hasta, str):
+        try:
+            hasta = dt.date.fromisoformat(hasta)
+        except ValueError:
+            hasta = False
+    if "pagado_hasta" in c and (not isinstance(hasta, dt.date) or isinstance(hasta, dt.datetime)):
+        raise ValueError(f"cliente {slug}: pagado_hasta debe ser una fecha AAAA-MM-DD")
+    if "precio" in c and not (isinstance(precio, (int, float)) and not isinstance(precio, bool) and 0 <= precio < math.inf):
+        raise ValueError(f"cliente {slug}: precio debe ser un número mayor o igual que 0 (US$/mes)")
+    if not (isinstance(notas, str) and len(notas) <= 500):
+        raise ValueError(f"cliente {slug}: notas debe ser un texto de 500 caracteres como máximo")
+    return {"modulos": list(dict.fromkeys(mods)) if "modulos" in c else None, "pagado_hasta": hasta,
+            "precio": float(precio) if "precio" in c else None, "notas": notas}
 
 
 class _SinRepetidos(yaml.SafeLoader):
@@ -64,15 +95,20 @@ def _fuera(carpeta, cfg):
 def cargar(ruta="clientes.yaml"):
     """Lee y valida clientes.yaml. ValueError con el motivo si algo permitiría mezclar clientes; OSError si no existe."""
     ruta = Path(ruta)
-    d = yaml.load(ruta.read_text(encoding="utf-8"), Loader=_SinRepetidos)  # noqa: S506 — subclase de SafeLoader
+    try:
+        d = yaml.load(ruta.read_text(encoding="utf-8"), Loader=_SinRepetidos)  # noqa: S506 — subclase de SafeLoader
+    except ValueError as e:
+        if str(e).startswith("clientes.yaml"):
+            raise
+        raise ValueError(f"clientes.yaml: fecha imposible ({e}); pagado_hasta debe ser AAAA-MM-DD") from e  # p. ej. 2026-13-01: lo lanza el propio YAML
     if not (isinstance(d, dict) and isinstance(d.get("clientes"), dict)):
         raise ValueError("clientes.yaml debe tener `clientes:` con un cliente por slug")
     out, nombres_env = [], set(ENV_POR_CLIENTE)
     for slug, c in d["clientes"].items():
         if not (isinstance(slug, str) and SLUG.fullmatch(slug)):
             raise ValueError(f"slug inválido {slug!r}: solo minúsculas, números y guiones")
-        if not isinstance(c, dict) or set(c) - {"carpeta", "dominio", "activo"}:
-            raise ValueError(f"cliente {slug}: solo admite carpeta, dominio y activo (sobra {sorted(set(c) - {'carpeta', 'dominio', 'activo'}) if isinstance(c, dict) else c!r})")
+        if not isinstance(c, dict) or set(c) - CAMPOS:
+            raise ValueError(f"cliente {slug}: solo admite {', '.join(sorted(CAMPOS))} (sobra {sorted(map(str, set(c) - CAMPOS)) if isinstance(c, dict) else c!r})")
         dominio = str(c.get("dominio") or "").lower()
         if not DOMINIO.fullmatch(dominio) or dominio.endswith(".localhost"):
             raise ValueError(f"cliente {slug}: dominio inválido {dominio!r} (sin https://, puerto ni ruta; .localhost está reservado)")
@@ -93,5 +129,5 @@ def cargar(ruta="clientes.yaml"):
         if suyas & nombres_env:  # p. ej. slug «personal»: PANEL_PIN_PERSONAL ya significa otra cosa
             raise ValueError(f"cliente {slug}: sus variables del .env se pisarían con las de otro ({', '.join(sorted(suyas & nombres_env))}); elija otro slug")
         nombres_env |= suyas
-        out.append(Cliente(slug, carpeta, dominio, activo))
+        out.append(Cliente(slug, carpeta, dominio, activo, **_operador(slug, c)))
     return out

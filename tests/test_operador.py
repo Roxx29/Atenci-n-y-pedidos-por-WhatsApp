@@ -126,6 +126,39 @@ class Consola(unittest.TestCase):
         self.assertEqual(con.execute("SELECT COUNT(*) FROM registros").fetchone()[0], 3)
         con.close()
 
+    def test_config_y_pago(self):
+        ck, base = self.sesion(), dt.date.today()
+        ruta = "/api/clientes/uno/"
+        for d in ({"modulos": ["x"]}, {"precio": -1}, {"precio": "9"}, {"precio": True}, {"notas": "a" * 501}):
+            self.assertEqual(self.req("POST", ruta + "config", d, ck)[0], 400)
+        self.assertEqual(self.req("POST", "/api/clientes/nadie/config", {"precio": 1}, ck)[0], 400)
+        self.assertEqual(self.req("POST", ruta + "config", {"modulos": [], "precio": 30, "notas": "ok"}, ck)[0], 200)
+        j = self.req("GET", "/api/clientes", ck=ck)[1]
+        c = j["clientes"][0]
+        self.assertEqual((c["modulos"], c["precio"], c["notas"], c["estado_pago"]), ([], 30, "ok", "sin_pago"))
+        self.assertEqual(j["resumen"], {"activos": 1, "ingresos": 0, "vencidos": 0})
+        self.assertEqual(self.req("POST", ruta + "pago", {"meses": 2}, ck)[0], 400)
+        st, r, _ = self.req("POST", ruta + "pago", {"meses": 3}, ck)
+        self.assertEqual(r["pagado_hasta"], (base + dt.timedelta(days=90)).isoformat())
+        self.req("POST", ruta + "pago", {"meses": 1}, ck)  # suma desde pagado_hasta, no desde hoy
+        j = self.req("GET", "/api/clientes", ck=ck)[1]
+        c = j["clientes"][0]
+        self.assertEqual(c["pagado_hasta"], (base + dt.timedelta(days=120)).isoformat())
+        self.assertEqual((c["estado_pago"], c["etiqueta_pago"], len(c["pagos"])), ("al_dia", "Al día", 2))
+        self.assertEqual(j["resumen"]["ingresos"], 30)
+        self.assertEqual(json.loads((self.raiz / "pagos.jsonl").read_text().splitlines()[0]),
+                         {"fecha": base.isoformat(), "slug": "uno", "monto": 90, "meses": 3})
+        e = yaml.safe_load(self.ruta.read_text())["clientes"]["uno"]
+        self.assertEqual((e["dominio"], e["activo"]), ("uno.com", True))  # conserva el resto
+        self.assertEqual([c.slug for c in clientes.cargar(self.ruta)], ["uno"])
+
+    def test_estado_pago(self):
+        h, f = dt.date(2026, 6, 10), operador.Operador.estado_pago
+        self.assertEqual(f(None, h)[0], "sin_pago")
+        self.assertEqual(f(h - dt.timedelta(days=3), h)[1:], (-3, "Vencido hace 3 días"))
+        self.assertEqual(f(h + dt.timedelta(days=5), h)[::2], ("por_vencer", "Vence en 5 días"))
+        self.assertEqual(f(h + dt.timedelta(days=6), h)[0], "al_dia")
+
     def test_post_exige_json(self):
         c = http.client.HTTPConnection("127.0.0.1", self.srv.server_port)
         c.request("POST", "/api/entrar", "clave=x", {"Content-Type": "text/plain"})

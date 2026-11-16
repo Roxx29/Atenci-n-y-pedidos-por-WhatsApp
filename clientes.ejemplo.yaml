@@ -4,5 +4,8 @@
 # carpeta: relativa a este archivo; cada cliente la suya (su BD y sus archivos viven ahí).
 # dominio: el que escribe el cliente final, sin https:// ni puerto. En local vale también <slug>.localhost.
 # activo: false = pausado (responde 404, como un dominio desconocido).
+# Opcionales, solo del operador (el dueño del restaurante no los ve ni los cambia); se aplican sin reiniciar:
+#   modulos: [estadisticas]   manda sobre el `modulos` de su servicio.yaml; [] = ninguno; sin la línea = lo que diga su servicio.yaml
+#   pagado_hasta: 2026-12-31  precio: 35 (US$/mes)  notas: "texto libre, máx. 500"
 clientes:
   delifood: {carpeta: servicios/restaurante-pedidos, dominio: delifood.com, activo: true}

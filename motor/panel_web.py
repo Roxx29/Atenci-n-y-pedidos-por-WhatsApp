@@ -20,6 +20,7 @@ import time
 import unicodedata
 from collections.abc import Mapping
 
+from . import clientes
 from . import herramientas
 from . import ubicacion
 from .herramientas import dinero
@@ -624,8 +625,11 @@ def guardar_ajustes(sv, d, quien):
 
 
 def modulos(sv):
-    """Extras que el restaurante contrató: se activan solo en servicio.yaml (`modulos: [estadisticas]`), nunca desde el panel."""
-    return [m for m in (sv.cfg.get("modulos") or []) if m in ("estadisticas",)]
+    """Extras que el restaurante contrató. Manda el operador (`modulos` de su entrada en clientes.yaml, que `alojar` deja en
+    `sv.modulos_operador` y cambia en caliente); si no dice nada, `modulos: [estadisticas]` del servicio.yaml. Nunca desde el panel:
+    se lee el yaml (`_cfg`), no la tabla ajustes que escribe el dueño."""
+    op = getattr(sv, "modulos_operador", None)
+    return [m for m in ((sv._cfg.get("modulos") or []) if op is None else op) if m in clientes.MODULOS]
 
 
 def estadisticas(sv, dias=30):

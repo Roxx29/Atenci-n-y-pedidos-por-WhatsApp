@@ -177,6 +177,47 @@ class TestRecarga(Base):
             self.assertEqual([self.marca("a.com"), self.marca("b.com"), self.marca("c.com")], ["Marca-a", "Marca-b", 404], roto)
 
 
+class TestModulos(Base):
+    """Módulo efectivo = lo que diga el operador en clientes.yaml; si no dice nada, el servicio.yaml del cliente."""
+
+    def arrancar(self):
+        with (self.d / "a" / "servicio.yaml").open("a", encoding="utf-8") as f:
+            f.write("modulos: [estadisticas]\n")  # a lo contrató; b no
+        super().arrancar()
+
+    def escribir(self, a="", b=""):
+        f = self.d / "clientes.yaml"
+        antes = f.stat().st_mtime_ns
+        f.write_text(f"clientes:\n  a: {{carpeta: a, dominio: a.com{a}}}\n  b: {{carpeta: b, dominio: b.com{b}}}\n", encoding="utf-8")
+        os.utime(f, ns=(antes + 10**9, antes + 10**9))
+
+    def ver(self, host, ck):
+        """(estado de la ruta de estadísticas, módulos que ve el panel) con la sesión ya abierta."""
+        st, raw, _ = self.req(host, "GET", "/panel/estado", cookie=ck)
+        self.assertEqual(st, 200)  # la sesión sigue viva tras cada recarga
+        return self.req(host, "POST", "/panel/dueno/estadisticas", {}, cookie=ck)[0], json.loads(raw)["modulos"]
+
+    def test_override_del_operador_en_caliente_sin_cerrar_sesiones(self):
+        cka, ckb = (self.req(h, "POST", "/panel/entrar", {"pin": p})[2] for h, p in (("a.com", PIN_A), ("b.com", PIN_B)))
+        con, sin = (200, ["estadisticas"]), (404, [])
+        self.assertEqual([self.ver("a.com", cka), self.ver("b.com", ckb)], [con, sin])  # sin override: servicio.yaml
+        self.escribir(a=", modulos: []", b=", modulos: [estadisticas]")
+        self.assertEqual([self.ver("a.com", cka), self.ver("b.com", ckb)], [sin, con])  # el operador manda
+        self.escribir()
+        self.assertEqual([self.ver("a.com", cka), self.ver("b.com", ckb)], [con, sin])  # quitado: vuelve el servicio.yaml
+        self.escribir(b=", modulos: [inventado]")  # inválido: sigue la lista anterior
+        self.assertEqual([self.ver("a.com", cka), self.ver("b.com", ckb)], [con, sin])
+
+    def test_el_dueno_no_puede_activarlo_desde_el_panel(self):
+        ck = self.req("b.com", "POST", "/panel/entrar", {"pin": PIN_B})[2]
+        self.req("b.com", "POST", "/panel/dueno/ajustes", {"modulos": ["estadisticas"], "modulos_operador": ["estadisticas"], "marca": "B"}, cookie=ck)
+        self.assertEqual(self.ver("b.com", ck), (404, []))
+        self.srv.servicios["b"].poner_ajuste("modulos", ["estadisticas"])  # ni aunque llegara a la tabla ajustes (la que escribe el panel)
+        self.assertEqual(self.ver("b.com", ck), (404, []))
+        self.escribir(b=", modulos: []")
+        self.assertEqual(self.ver("b.com", ck), (404, []))
+
+
 class TestBloqueo(unittest.TestCase):
     def test_ipv6_cuenta_por_64(self):
         """Un atacante con un /64 (lo que da cualquier proveedor) tiene 2^64 direcciones: cuentan como una."""

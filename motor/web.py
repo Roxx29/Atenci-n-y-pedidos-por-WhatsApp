@@ -837,6 +837,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
                     manejadores[c.slug], servicios[c.slug] = crear_manejador(sv, secreto_cliente(c), env), sv
                     if al_abrir:
                         al_abrir(sv)
+                servicios[c.slug].modulos_operador = c.modulos  # None = manda su servicio.yaml; se relee en cada petición (panel_web.modulos)
                 hosts[c.dominio] = manejadores[c.slug]
                 if os.environ.get("PROXY") != "1":  # atajo para probar en este PC; tras un proxy sería un segundo nombre que nadie vigila
                     hosts[c.slug + ".localhost"] = manejadores[c.slug]

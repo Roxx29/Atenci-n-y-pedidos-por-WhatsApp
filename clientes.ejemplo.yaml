@@ -11,5 +11,7 @@
 #                             (para seguir: quitar la línea o cambiar la fecha). Sin la línea nunca se pausa por fecha (ni por pagado_hasta).
 #   tope_ia_dia: 300          turnos de chat con IA al día (0 = sin tope, máx. 100000). Sin la línea: 300 si tiene prueba_hasta
 #                             (o TOPE_IA_DIA del .env) y sin tope los demás. Al llegar, el chat pide llamar al restaurante; lo demás sigue.
+#   archivado: 2026-12-20     lo pone la consola del operador al archivar (con activo: false): no se sirve y conserva sus datos;
+#                             «restaurar» quita la línea. Solo un archivado se puede eliminar.
 clientes:
   delifood: {carpeta: servicios/restaurante-pedidos, dominio: delifood.com, activo: true}

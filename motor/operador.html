@@ -21,31 +21,45 @@ button.p{background:var(--ac);color:#0b1020;border-color:var(--ac);font-weight:6
 #login{max-width:320px;margin:20vh auto;display:grid;gap:10px}
 #login input{width:100%}
 .err{color:var(--bad);min-height:1.4em;margin:0}
-.grid{display:grid;gap:12px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;animation:in .25s ease both}
+.grid{display:grid;gap:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center}
 .nom{font-weight:600;font-size:16px}
 .dom{color:var(--mut);font-size:13px;overflow-wrap:anywhere}
-.pill{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}
-.pill.on{color:var(--ok);border-color:var(--ok)}.pill.off{color:var(--warn);border-color:var(--warn)}
+.pill{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);white-space:nowrap}
+.pill.on{color:var(--ok);border-color:var(--ok)}.pill.off{color:var(--warn);border-color:var(--warn)}.pill.arch{color:var(--mut)}
 .m{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:12px 0}
 .m b{display:block;font-size:17px}.m span{color:var(--mut);font-size:12px}
-.mods{color:var(--mut);font-size:13px;margin-bottom:10px;overflow-wrap:anywhere}
-.acc{display:flex;gap:8px;flex-wrap:wrap}
+.acc{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .warn{color:var(--warn)}
 .pill.al_dia{color:var(--ok);border-color:var(--ok)}.pill.por_vencer{color:var(--warn);border-color:var(--warn)}.pill.vencido{color:var(--bad);border-color:var(--bad)}.pill.sin_pago{color:var(--mut)}
-.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.res{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
 .f{display:grid;gap:4px;color:var(--mut);font-size:12px}
 .f input,.f textarea,.f select{width:100%;resize:vertical}
-.ed{display:grid;grid-template-columns:minmax(120px,1fr) 2fr auto;gap:8px;align-items:end;margin-bottom:10px}
-.ck{display:inline-flex;gap:6px;align-items:center;margin-left:10px}.ck input{min-height:0;width:18px;height:18px}
+.ck{display:inline-flex;gap:6px;align-items:center;margin-right:10px}.ck input{min-height:0;width:18px;height:18px}
 .hist{margin:6px 0 10px;padding-left:18px;color:var(--mut);font-size:13px}
-summary{cursor:pointer;color:var(--mut);font-size:13px;margin-bottom:4px}
-.pr{margin-top:10px;align-items:center}.ia{margin-top:10px;display:grid;gap:6px}
+.ia{display:grid;gap:6px}
 .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok);transform-origin:left;transition:transform .25s ease}.bar i.hi{background:var(--warn)}
-@media (max-width:560px){.ed{grid-template-columns:1fr}}
+header{flex-wrap:wrap}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:end}
+.fila{display:grid;grid-template-columns:1fr auto;gap:6px 12px;width:100%;text-align:left;padding:12px 14px;border-radius:12px;animation:in .25s ease both}
+.fila:hover,.fila.sel{border-color:var(--ac)}.fila .acc{justify-content:flex-end}.fila .ia{grid-column:1/-1}
+@media (min-width:700px){.fila{grid-template-columns:2fr 1.2fr 1.4fr 1fr}.fila .ia{grid-column:auto}}
+#det{position:fixed;inset:0;z-index:5;background:var(--bg);display:flex;flex-direction:column;animation:in .2s ease both}
+#det[hidden]{display:none}
+@media (min-width:900px){#det{left:auto;width:580px;border-left:1px solid var(--line);box-shadow:-8px 0 24px #0008}}
+.dh{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}.dh h2{margin:0;font-size:18px;flex:1;overflow-wrap:anywhere}.dh h2:focus{outline:none}
+.tabs{display:flex;gap:4px;overflow-x:auto;padding:8px 16px 0;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:8px 8px 0 0;background:none;color:var(--mut);white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--tx);border-bottom-color:var(--ac)}
+.dc{padding:16px;overflow:auto;flex:1;display:grid;gap:14px;align-content:start}.dc h3{margin:0;font-size:14px;color:var(--mut)}
+.dc section{display:grid;gap:10px}
+.eq{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)}
+.peli{border:1px solid var(--bad);border-radius:12px;padding:14px;display:grid;gap:14px}
+button.bad{color:var(--bad);border-color:var(--bad)}
+.tb{width:100%;border-collapse:collapse;font-size:13px}.tb th,.tb td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.tb th{color:var(--mut);font-weight:500}
+.tw{overflow-x:auto}
 dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(440px,92vw);max-height:92vh;overflow:auto;animation:in .2s ease both}
 dialog h2{font-size:18px;margin:0 0 4px}
 .ayuda{color:var(--mut);font-size:12px;margin:0}
@@ -56,7 +70,7 @@ a{color:var(--ac);overflow-wrap:anywhere}
 dialog::backdrop{background:#0009}
 dialog form{display:grid;gap:8px}
 .err:empty{min-height:0}
-#msg{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;opacity:0;transition:opacity .2s;pointer-events:none}
+#msg{z-index:9;position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;opacity:0;transition:opacity .2s;pointer-events:none}
 #msg.v{opacity:1}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -66,15 +80,24 @@ dialog form{display:grid;gap:8px}
 <form id="login" hidden>
   <h1>Consola del operador</h1>
   <label for="clave">Clave</label>
-  <input id="clave" type="password" autocomplete="current-password" required>
+  <input id="clave" type="password" autocomplete="current-password" required aria-describedby="lay">
+  <p class="ayuda" id="lay">La clave tiene mínimo 12 caracteres.</p>
   <button class="p">Entrar</button>
   <p class="err" id="lerr" role="alert"></p>
 </form>
 <section id="app" hidden>
-  <header><h1>Clientes</h1><button class="p" id="nuevo">Nuevo cliente</button><button id="salir">Salir</button></header>
+  <header><h1>Consola del operador</h1><div class="acc"><button class="p" id="nuevo">Nuevo cliente</button><button id="vreg">Registro de actividad</button><button id="salir">Salir</button></div></header>
   <div class="m res" id="resumen"></div>
-  <div class="acc" style="margin-bottom:12px"><label class="f">Ver <select id="filtro"><option value="todos">Todos (vencidos primero)</option><option value="pend">Solo vencidos y por vencer</option><option value="pruebas">Solo pruebas (las que vencen primero)</option></select></label></div>
-  <div class="grid" id="lista"></div>
+  <div id="vcli">
+    <div class="tools"><label class="f" style="flex:1 1 200px"><span>Buscar</span><input id="q" type="search" placeholder="Nombre, slug o dominio" autocomplete="off"></label>
+    <label class="f"><span>Ver</span><select id="filtro"><option value="todos">Todos (vencidos primero)</option><option value="pend">Solo vencidos y por vencer</option><option value="pruebas">Solo pruebas (las que vencen primero)</option><option value="archivados">Archivados</option></select></label></div>
+    <div class="grid" id="lista"></div>
+  </div>
+  <div id="vreg2" hidden>
+    <div class="tools"><button id="vcl">&larr; Clientes</button><label class="f"><span>Cliente</span><select id="rfil"><option value="">Todos</option></select></label><button id="rrec">Actualizar</button></div>
+    <p class="err" id="rerr" role="status"></p>
+    <div class="tw"><table class="tb"><thead><tr><th>Fecha</th><th>Acción</th><th>Cliente</th><th>IP</th><th>Resultado</th></tr></thead><tbody id="rtb"></tbody></table></div>
+  </div>
 </section>
 </main>
 <dialog id="dlg" aria-labelledby="dt">
@@ -107,6 +130,20 @@ dialog form{display:grid;gap:8px}
     <div class="acc"><button class="p" id="copia">Copiar mensaje para el cliente</button><button id="otro">Crear otro</button><button id="cierra">Cerrar</button></div>
   </div>
 </dialog>
+<aside id="det" role="dialog" aria-modal="true" aria-labelledby="dnom" hidden>
+  <div class="dh"><h2 id="dnom" tabindex="-1"></h2><button id="dx" aria-label="Cerrar detalle">Cerrar</button></div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="dc" id="dc" role="tabpanel"></div>
+</aside>
+<dialog id="del" aria-labelledby="delt">
+  <form id="fdel" novalidate>
+    <h2 id="delt">Eliminar definitivamente</h2>
+    <p>Esto borra los datos de este restaurante (pedidos, clientes, configuración). Queda una copia final temporal por si te equivocas, pero la acción no se puede deshacer desde aquí.</p>
+    <label class="f"><span id="dell"></span><input id="delc" autocomplete="off" autocapitalize="none" required></label>
+    <p class="err" id="delerr" role="alert"></p>
+    <div class="acc"><button class="p bad" id="delok" disabled>Eliminar</button><button type="button" id="delno">Cancelar</button></div>
+  </form>
+</dialog>
 <div id="msg" role="status"></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -124,79 +161,192 @@ function mostrar(ok){$("login").hidden=ok;$("app").hidden=!ok}
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e}
 function medida(v,l){const d=el("div");d.append(el("b","",v),el("span","",l));return d}
 const ORDEN={vencido:0,por_vencer:1,sin_pago:2,al_dia:3};
-let datos=null,filtro="todos";
+let datos=null,filtro="todos",busca="",sel=null,tab="resumen",ultimoFoco=null;
+const TABS=[["resumen","Resumen"],["pagos","Pagos y prueba"],["accesos","Accesos"],["ajustes","Ajustes"],["peligro","Zona peligrosa"]];
+const R=s=>"/api/clientes/"+s+"/";
 function campo(t,x){const l=el("label","f"),i=el(t==="textarea"?"textarea":"input");l.append(el("span","",x),i);return[l,i]}
+function botonAcc(txt,cls,f,msg){const b=el("button",cls,txt);b.type="button";b.onclick=()=>accion(b,f,msg);return b}
+function sec(t,...h){const s=el("section");if(t)s.append(el("h3","",t));s.append(...h);return s}
+function mesesSel(){const m=el("select");m.setAttribute("aria-label","Meses");[1,3,12].forEach(v=>{const o=el("option","",v+(v===1?" mes":" meses"));o.value=v;m.append(o)});return m}
+function barraIA(c){
+  const t=c.tope_ia,p=t>0?Math.min(c.uso_ia/t,1):0,alto=t>0&&c.uso_ia/t>=0.8,d=el("div","ia");
+  const fill=el("i",alto?"hi":"");fill.style.transform="scaleX("+p+")";const b=el("div","bar");b.append(fill);
+  d.append(el("span",alto?"warn":"dom","IA hoy: "+c.uso_ia+" / "+(t>0?t:"sin tope")+(alto?" · cerca del tope":"")),b);return d;
+}
 function bloquePrueba(c){
-  const d=el("div","acc pr"),en=c.prueba_dias!==null;
-  const sel=el("select");[7,15,30].forEach(v=>{const o=el("option","",v+" días");o.value=v;if(v===15)o.selected=true;sel.append(o)});
-  const call=(b,body,msg)=>accion(b,()=>api("POST","/api/clientes/"+c.slug+"/prueba",body),msg);
+  const d=el("div","acc"),en=c.prueba_dias!==null;
+  const dias=el("select");dias.setAttribute("aria-label","Días de prueba");[7,15,30].forEach(v=>{const o=el("option","",v+" días");o.value=v;if(v===15)o.selected=true;dias.append(o)});
   if(en){
-    d.append(el("span","pill "+(c.prueba_dias<0?"vencido":c.prueba_dias<=3?"por_vencer":"al_dia"),c.etiqueta_prueba),sel);
-    const x=el("button","","Extender prueba");x.onclick=()=>call(x,{accion:"extender",dias:Number(sel.value)},j=>"Prueba hasta "+j.hasta);
-    const m=el("select");[1,3,12].forEach(v=>{const o=el("option","",v+(v===1?" mes":" meses"));o.value=v;m.append(o)});
-    const p=el("button","p","Pasar a pago");p.onclick=()=>call(p,{accion:"pagar",meses:Number(m.value)},j=>"Pagado hasta "+j.hasta);
-    d.append(x,m,p);
-  }else{
-    const i=el("button","","Iniciar prueba");i.onclick=()=>call(i,{accion:"iniciar",dias:Number(sel.value)},j=>"Prueba hasta "+j.hasta);
-    d.append(el("span","dom","Sin prueba"),sel,i);
-  }
+    const m=mesesSel();
+    d.append(el("span","pill "+(c.prueba_dias<0?"vencido":c.prueba_dias<=3?"por_vencer":"al_dia"),c.etiqueta_prueba),dias,
+      botonAcc("Extender prueba","",()=>api("POST",R(c.slug)+"prueba",{accion:"extender",dias:Number(dias.value)}),j=>"Prueba hasta "+j.hasta),m,
+      botonAcc("Pasar a pago","p",()=>api("POST",R(c.slug)+"prueba",{accion:"pagar",meses:Number(m.value)}),j=>"Pagado hasta "+j.hasta));
+  }else d.append(el("span","dom","Sin prueba"),dias,botonAcc("Iniciar prueba","",()=>api("POST",R(c.slug)+"prueba",{accion:"iniciar",dias:Number(dias.value)}),j=>"Prueba hasta "+j.hasta));
   return d;
 }
-function bloqueIA(c){
-  const d=el("div","ia"),t=c.tope_ia,p=t>0?Math.min(c.uso_ia/t,1):0,alto=t>0&&c.uso_ia/t>=0.8;
-  const txt=el("span",alto?"warn":"dom","IA hoy: "+c.uso_ia+" / "+(t>0?t:"sin tope")+" mensajes"+(alto?" · cerca del tope":""));
-  const barra=el("div","bar"),fill=el("i",alto?"hi":"");fill.style.transform="scaleX("+p+")";barra.append(fill);
-  const [l,i]=campo("input","Tope diario (0 = sin tope)");i.type="number";i.min=0;i.max=100000;i.step=1;i.inputMode="numeric";i.value=t;
-  const g=el("button","","Guardar tope");
-  g.onclick=()=>accion(g,()=>api("POST","/api/clientes/"+c.slug+"/config",{tope_ia_dia:Number(i.value)}),null);
-  const f=el("div","acc");f.append(l,g);f.style.alignItems="end";
-  d.append(txt,barra,f);return d;
+function pills(c){
+  const p=el("div","acc");
+  if(c.archivado)p.append(el("span","pill arch","Archivado"));
+  else p.append(el("span","pill "+c.estado_pago,c.etiqueta_pago),el("span","pill "+(c.activo?"on":"off"),c.activo?"Activo":"Pausado"));
+  return p;
 }
-function tarjeta(c,cat){
-  const k=el("article","card"),t=el("div","top"),n=el("div");
-  n.append(el("div","nom",c.slug),el("div","dom",c.dominio||"sin dominio"));
-  const pills=el("div","acc");
-  pills.append(el("span","pill "+c.estado_pago,c.etiqueta_pago),el("span","pill "+(c.activo?"on":"off"),c.activo?"Activo":"Pausado"));
-  t.append(n,pills);
-  const m=el("div","m");
-  m.append(medida(c.hoy,"pedidos hoy"),medida(c.ultimo?c.ultimo.replace("T"," ").slice(0,16):"—","último pedido"),
-    medida(B(c.ventas_mes),"ventas del mes"),medida(kb(c.bytes),"base de datos"),medida(c.avisos,"avisos pendientes"));
-  const mo=el("div","mods");
-  mo.append(el("span","","Módulos:"));
-  const cks=cat.map(x=>{const l=el("label","ck"),i=el("input");i.type="checkbox";i.checked=c.modulos.includes(x);l.append(i,el("span","",x));mo.append(l);return[x,i]});
-  if(c.error)mo.append(el("span","warn"," · error en "+c.error));
-  const [lp,ip]=campo("input","Precio (US$/mes)");ip.type="number";ip.min=0;ip.step="0.01";ip.inputMode="decimal";ip.value=c.precio??"";
-  const [ln,inn]=campo("textarea","Notas");inn.maxLength=500;inn.rows=2;inn.value=c.notas;
-  const g=el("button","","Guardar");
-  g.onclick=()=>accion(g,()=>api("POST","/api/clientes/"+c.slug+"/config",
-    {modulos:cks.filter(([,i])=>i.checked).map(([x])=>x),precio:ip.value===""?undefined:Number(ip.value),notas:inn.value}),null);
-  const ed=el("div","ed");ed.append(lp,ln,g);
-  const sel=el("select");[1,3,12].forEach(v=>{const o=el("option","",v+(v===1?" mes":" meses"));o.value=v;sel.append(o)});
-  const pg=el("button","p","Marcó pagado");
-  pg.onclick=()=>accion(pg,()=>api("POST","/api/clientes/"+c.slug+"/pago",{meses:Number(sel.value)}),j=>"Pagado hasta "+j.pagado_hasta);
-  const py=el("div","acc");py.append(el("span","dom","Pagado hasta: "+(c.pagado_hasta||"—")),sel,pg);
-  const a=el("div","acc"),p=el("button","",c.activo?"Pausar":"Activar"),r=el("button","","Copia de seguridad");
-  p.onclick=()=>accion(p,()=>api("POST","/api/clientes/"+c.slug+"/pausa",{activo:!c.activo}),null);
-  r.onclick=()=>accion(r,()=>api("POST","/api/clientes/"+c.slug+"/respaldo"),j=>"Copia: "+j.archivo);
-  a.append(p,r);k.append(t,m,mo,ed,py,bloquePrueba(c),bloqueIA(c));
-  if(c.pagos.length){const d=el("details"),h=el("ul","hist");d.append(el("summary","","Pagos ("+c.pagos.length+")"),h);
-    c.pagos.forEach(x=>h.append(el("li","",x.fecha+" · US$ "+x.monto+" · "+x.meses+(x.meses===1?" mes":" meses"))));k.append(d)}
-  k.append(a);return k;
+function fila(c){
+  const k=el("button","card fila"+(sel===c.slug?" sel":""));k.type="button";
+  const n=el("div");n.append(el("div","nom",c.nombre||c.slug),el("div","dom",c.slug+" · "+(c.dominio||"sin dominio")));
+  const pr=el("div","dom",c.prueba_dias!==null?"Prueba: "+c.etiqueta_prueba:"Pago: "+(c.pagado_hasta||"—"));
+  k.append(n,pills(c),pr,barraIA(c));
+  k.onclick=()=>abrirDet(c.slug,k);return k;
 }
 function resumen(r){
-  const b=$("resumen");b.replaceChildren(medida(r.activos,"clientes activos"),medida("US$ "+r.ingresos.toFixed(2),"ingresos mensuales esperados"),medida(r.vencidos,"vencidos"),medida(r.en_prueba,"en prueba"),medida(r.pruebas_por_vencer,"pruebas vencen en ≤3 días"));
+  $("resumen").replaceChildren(medida(r.activos,"clientes activos"),medida("US$ "+r.ingresos.toFixed(2),"ingresos mensuales esperados"),medida(r.vencidos,"vencidos"),medida(r.en_prueba,"en prueba"),medida(r.pruebas_por_vencer,"pruebas vencen en ≤3 días"));
+}
+function visibles(){
+  const pr=c=>c.prueba_dias!==null&&c.prueba_dias<=3,q=busca.trim().toLowerCase();
+  return datos.clientes.filter(c=>!!c.archivado===(filtro==="archivados"))
+    .filter(c=>!q||[c.slug,c.nombre,c.dominio].some(x=>(x||"").toLowerCase().includes(q)))
+    .filter(c=>filtro==="archivados"||filtro==="todos"||(filtro==="pruebas"?c.prueba_dias!==null:c.estado_pago==="vencido"||c.estado_pago==="por_vencer"))
+    .sort((a,b)=>filtro==="pruebas"?a.prueba_dias-b.prueba_dias||a.slug.localeCompare(b.slug)
+      :(pr(b)-pr(a))||ORDEN[a.estado_pago]-ORDEN[b.estado_pago]||a.slug.localeCompare(b.slug));
 }
 function pintar(){
   if(!datos)return;
   resumen(datos.resumen);
-  const l=$("lista");
-  const pr=c=>c.prueba_dias!==null&&c.prueba_dias<=3;  // prueba vencida o por vencer: primero
-  const v=datos.clientes.filter(c=>filtro==="todos"||(filtro==="pruebas"?c.prueba_dias!==null:c.estado_pago==="vencido"||c.estado_pago==="por_vencer"))
-    .sort((a,b)=>filtro==="pruebas"?a.prueba_dias-b.prueba_dias||a.slug.localeCompare(b.slug)
-      :(pr(b)-pr(a))||ORDEN[a.estado_pago]-ORDEN[b.estado_pago]||a.slug.localeCompare(b.slug));
-  l.replaceChildren(...v.map(c=>tarjeta(c,datos.catalogo)));
-  if(!v.length)l.append(el("p","dom","Sin clientes."))
+  const v=visibles(),l=$("lista");
+  l.replaceChildren(...v.map(fila));
+  if(!v.length)l.append(el("p","dom","Sin clientes."));
+  const c=datos.clientes.find(x=>x.slug===sel);
+  if(sel&&c)pintarDet(c);else if(sel)cerrarDet();
+  const rf=$("rfil"),a=rf.value;
+  rf.replaceChildren(...[["","Todos"],...datos.clientes.map(x=>[x.slug,x.slug])].map(([v,t])=>{const o=el("option","",t);o.value=v;return o}));rf.value=a;
 }
+function abrirDet(slug,origen){
+  ultimoFoco=origen||ultimoFoco;sel=slug;tab="resumen";$("det").hidden=false;
+  pintar();$("dnom").focus();
+}
+function cerrarDet(){
+  if($("det").hidden)return;
+  sel=null;$("det").hidden=true;pintar();if(ultimoFoco&&ultimoFoco.isConnected)ultimoFoco.focus();
+}
+function pintarDet(c){
+  $("dnom").textContent=(c.nombre||c.slug)+" · "+c.slug;
+  $("tabs").replaceChildren(...TABS.map(([id,t])=>{
+    const b=el("button","",t);b.type="button";b.id="t_"+id;b.setAttribute("role","tab");b.setAttribute("aria-selected",id===tab);b.tabIndex=id===tab?0:-1;
+    b.onclick=()=>{tab=id;pintarDet(c);b.focus()};return b}));
+  const cuerpo={resumen:tResumen,pagos:tPagos,accesos:tAccesos,ajustes:tAjustes,peligro:tPeligro}[tab](c);
+  const D=$("dc");D.setAttribute("aria-labelledby","t_"+tab);D.replaceChildren(...cuerpo);
+}
+$("tabs").onkeydown=e=>{
+  const i=TABS.findIndex(t=>t[0]===tab),d={ArrowRight:1,ArrowLeft:-1}[e.key];if(!d)return;
+  tab=TABS[(i+d+TABS.length)%TABS.length][0];pintarDet(datos.clientes.find(x=>x.slug===sel));$("t_"+tab).focus();
+};
+function tResumen(c){
+  const m=el("div","m");
+  m.append(medida(c.hoy,"pedidos hoy"),medida(c.ultimo?c.ultimo.replace("T"," ").slice(0,16):"—","último pedido"),
+    medida(B(c.ventas_mes),"ventas del mes"),medida(kb(c.bytes),"base de datos"),medida(c.avisos,"avisos pendientes"));
+  const x=[pills(c),m,sec("Consumo de IA",barraIA(c)),
+    sec("Módulos",el("p","dom",c.modulos.length?c.modulos.join(", "):"Ninguno")),
+    sec("Dominio",el("p","dom",c.dominio||"sin dominio"))];
+  if(c.error)x.push(el("p","warn","Error en "+c.error));
+  if(c.notas)x.push(sec("Notas",el("p","dom",c.notas)));
+  return x;
+}
+function tPagos(c){
+  const m=mesesSel(),py=el("div","acc");
+  py.append(el("span","dom","Pagado hasta: "+(c.pagado_hasta||"—")),m,
+    botonAcc("Marcó pagado","p",()=>api("POST",R(c.slug)+"pago",{meses:Number(m.value)}),j=>"Pagado hasta "+j.pagado_hasta));
+  const x=[sec("Pago",py),sec("Prueba",bloquePrueba(c))];
+  if(c.pagos.length){const h=el("ul","hist");c.pagos.forEach(p=>h.append(el("li","",p.fecha+" · US$ "+p.monto+" · "+p.meses+(p.meses===1?" mes":" meses"))));x.push(sec("Historial ("+c.pagos.length+")",h))}
+  return x;
+}
+async function accionLocal(b,f){b.disabled=true;try{await f()}catch(e){aviso(e.message)}finally{b.disabled=false}}
+function tAccesos(c){  // el PIN nuevo vive en pinBox: cargar() solo repinta al cambiar de pestaña
+  const lista=el("div"),pinBox=el("div"),slug=c.slug;
+  let equipo=[];
+  const mostrarPin=j=>{
+    pinBox.replaceChildren();const t=el("div","card");t.setAttribute("role","status");
+    const txt=["Hola, este es tu PIN nuevo para el panel de "+(c.nombre||slug)+".","Panel: https://"+(c.dominio||slug)+"/panel","Usuario: "+j.usuario,"PIN: "+j.pin,"Guárdalo y no lo compartas."].join("\n");
+    const cp=el("button","p","Copiar mensaje para el dueño");cp.type="button";
+    cp.onclick=async()=>{try{await navigator.clipboard.writeText(txt);aviso("Mensaje copiado")}catch(e){aviso("No se pudo copiar; selecciónalo a mano")}};
+    const oc=el("button","","Ocultar");oc.type="button";oc.onclick=()=>pinBox.replaceChildren();
+    const a=el("div","acc");a.append(cp,oc);
+    t.append(el("div","dom","PIN nuevo de "+j.usuario),el("b","pin",j.pin),el("p","warn","No se vuelve a mostrar."),a);
+    pinBox.append(t);cp.focus();
+  };
+  const reset=(b,u)=>accionLocal(b,async()=>mostrarPin(await api("POST",R(slug)+"pin",{usuario:u})));
+  const duenoB=el("button","p","Olvidó su PIN (dueño)");duenoB.type="button";
+  duenoB.onclick=()=>reset(duenoB,(equipo.find(p=>/due/i.test(p.rol))||{nombre:"dueño"}).nombre);
+  const pintaEq=()=>{
+    lista.replaceChildren();
+    if(!equipo.length)lista.append(el("p","dom","Sin personas registradas."));
+    equipo.forEach(p=>{
+      const r=el("div","eq"),n=el("div");n.append(el("div","nom",p.nombre),el("div","dom",p.rol));
+      const l=el("label","ck"),i=el("input");i.type="checkbox";i.checked=!!p.activo;l.append(i,el("span","",p.activo?"Activo":"Inactivo"));
+      i.onchange=()=>accionLocal(i,async()=>{try{const cuerpo={nombre:p.nombre,activo:i.checked};if(i.checked){cuerpo.pin=String(100000+crypto.getRandomValues(new Uint32Array(1))[0]%900000)}await api("POST",R(slug)+"equipo/activo",cuerpo);if(cuerpo.pin)mostrarPin({usuario:p.nombre,pin:cuerpo.pin});p.activo=i.checked;l.lastChild.textContent=i.checked?"Activo":"Inactivo"}catch(e){i.checked=!i.checked;throw e}});
+      const rb=el("button","","Restablecer PIN");rb.type="button";rb.onclick=()=>reset(rb,p.nombre);
+      const a=el("div","acc");a.append(l,rb);r.append(n,a);lista.append(r);
+    });
+  };
+  lista.append(el("p","dom","Cargando…"));
+  api("GET",R(slug)+"equipo").then(j=>{equipo=Array.isArray(j)?j:(j.equipo||[]);pintaEq()}).catch(()=>{lista.replaceChildren(el("p","dom","Lista de personas no disponible."))});
+  return [sec("Dueño",el("p","dom","Si el dueño olvidó su PIN, genera uno nuevo y envíaselo."),duenoB),pinBox,sec("Equipo",lista)];
+}
+function tAjustes(c){
+  const [ln,nn]=campo("input","Nombre del negocio");nn.value=c.nombre||"";nn.maxLength=80;
+  const [ld,dd]=campo("input","Dominio");dd.value=c.dominio||"";dd.inputMode="url";dd.autocapitalize="none";
+  const [lc,cc]=campo("input","Color de marca");cc.type="color";cc.value=/^#[0-9a-f]{6}$/i.test(c.color||"")?c.color:"#d62828";cc.style.width="64px";cc.style.padding="2px";
+  const gA=botonAcc("Guardar datos del negocio","p",()=>{
+    const d={};if(nn.value.trim()&&nn.value.trim()!==(c.nombre||""))d.nombre=nn.value.trim();
+    if(dd.value.trim()&&dd.value.trim()!==(c.dominio||""))d.dominio=dd.value.trim();if(cc.value!==c.color)d.color=cc.value;
+    return Object.keys(d).length?api("POST",R(c.slug)+"ajustes",d):Promise.resolve({});
+  },null);
+  const mo=el("div","acc");
+  const cks=datos.catalogo.map(x=>{const l=el("label","ck"),i=el("input");i.type="checkbox";i.checked=c.modulos.includes(x);l.append(i,el("span","",x));mo.append(l);return[x,i]});
+  const [lp,ip]=campo("input","Precio (US$/mes)");ip.type="number";ip.min=0;ip.step="0.01";ip.inputMode="decimal";ip.value=c.precio??"";
+  const [lo,io]=campo("textarea","Notas");io.maxLength=500;io.rows=3;io.value=c.notas;
+  const gC=botonAcc("Guardar módulos, precio y notas","",()=>api("POST",R(c.slug)+"config",
+    {modulos:cks.filter(([,i])=>i.checked).map(([x])=>x),precio:ip.value===""?undefined:Number(ip.value),notas:io.value}),null);
+  const [lt,it]=campo("input","Tope diario de IA (0 = sin tope)");it.type="number";it.min=0;it.max=100000;it.step=1;it.inputMode="numeric";it.value=c.tope_ia;
+  const gT=botonAcc("Guardar tope","",()=>api("POST",R(c.slug)+"config",{tope_ia_dia:Number(it.value)}),null);
+  return [sec("Negocio",ln,ld,lc,gA),sec("Módulos",mo),sec("Precio y notas",lp,lo,gC),sec("Tope de IA",lt,gT)];
+}
+function tPeligro(c){
+  const slug=c.slug,z=el("div","peli");
+  if(!c.archivado){
+    z.append(sec("Pausar / Activar",el("p","dom",c.activo?"Apaga el bot y la web de este cliente sin tocar sus datos.":"Reactiva el bot y la web de este cliente."),
+      botonAcc(c.activo?"Pausar":"Activar","",()=>api("POST",R(slug)+"pausa",{activo:!c.activo}),null)),
+      sec("Copia de seguridad",botonAcc("Copia de seguridad","",()=>api("POST",R(slug)+"respaldo"),j=>"Copia: "+j.archivo)),
+      sec("Archivar",el("p","dom","Hace una copia de seguridad y apaga al cliente. No borra nada: puedes restaurarlo cuando quieras."),
+        botonAcc("Archivar","bad",()=>api("POST",R(slug)+"archivar",{confirmar:slug}),()=>"Archivado")));
+  }else{
+    const eb=el("button","bad","Eliminar definitivamente");eb.type="button";eb.onclick=()=>abrirEliminar(slug);
+    z.append(sec("Restaurar",el("p","dom","Devuelve al cliente a la lista de activos."),botonAcc("Restaurar","p",()=>api("POST",R(slug)+"restaurar",{}),()=>"Restaurado")),
+      sec("Eliminar definitivamente",el("p","warn","Borra los datos de este restaurante. Queda una copia final temporal."),eb));
+  }
+  return [z];
+}
+function abrirEliminar(slug){
+  $("dell").textContent="Escribe «"+slug+"» para confirmar";$("delc").value="";$("delerr").textContent="";$("delok").disabled=true;
+  $("del").dataset.slug=slug;$("del").showModal();$("delc").focus();
+}
+$("delc").oninput=()=>{$("delok").disabled=$("delc").value!==$("del").dataset.slug};
+$("delno").onclick=()=>$("del").close();
+$("fdel").onsubmit=async e=>{e.preventDefault();const s=$("del").dataset.slug;if($("delc").value!==s)return;
+  $("delok").disabled=true;
+  try{await api("POST",R(s)+"eliminar",{confirmar:s});$("del").close();aviso("Eliminado");cerrarDet();await cargar()}
+  catch(x){$("delerr").textContent=x.message;$("delok").disabled=false}};
+$("dx").onclick=cerrarDet;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("det").hidden&&!document.querySelector("dialog[open]"))cerrarDet()});
+async function cargarRegistro(){
+  const tb=$("rtb");$("rerr").textContent="";
+  try{
+    const j=await api("GET","/api/registro?n=100"),f=$("rfil").value,filas=(Array.isArray(j)?j:(j.registro||[])).filter(x=>!f||x.slug===f);
+    tb.replaceChildren(...filas.map(x=>{const r=el("tr");[x.fecha,x.accion,x.slug||"—",x.ip||"—",x.resultado].forEach(v=>r.append(el("td","",v===undefined||v===null?"—":String(v))));return r}));
+    if(!filas.length)$("rerr").textContent="Sin actividad.";
+  }catch(e){tb.replaceChildren();$("rerr").textContent="Registro no disponible."}
+}
+function vista(reg){$("vcli").hidden=reg;$("vreg2").hidden=!reg;if(reg){cerrarDet();cargarRegistro()}}
+$("vreg").onclick=()=>vista(true);$("vcl").onclick=()=>vista(false);$("rrec").onclick=cargarRegistro;$("rfil").onchange=cargarRegistro;
+$("q").oninput=e=>{busca=e.target.value;pintar()};
 async function accion(b,f,msg){
   b.disabled=true;
   try{const j=await f();aviso(msg?msg(j):"Hecho");await cargar()}catch(e){aviso(e.message)}finally{b.disabled=false}
@@ -208,7 +358,7 @@ async function cargar(){
 }
 $("login").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
   try{await api("POST","/api/entrar",{clave:$("clave").value});$("clave").value="";cargar()}catch(x){$("lerr").textContent=x.message}};
-$("salir").onclick=async()=>{await api("POST","/api/salir").catch(()=>{});mostrar(false)};
+$("salir").onclick=async()=>{await api("POST","/api/salir").catch(()=>{});mostrar(false);$("det").hidden=true;sel=null};
 $("filtro").onchange=e=>{filtro=e.target.value;pintar()};
 const slugDe=t=>t.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
 const CAMPOS=["nom","slug","dom","pin"];

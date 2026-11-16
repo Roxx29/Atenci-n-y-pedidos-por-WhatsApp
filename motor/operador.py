@@ -1,6 +1,7 @@
 """Consola del operador: panel APARTE solo para el dueño del sistema (lista de clientes, alta, pausa, copias).
 Solo agregados: nunca teléfonos, nombres ni datos personales de los clientes finales (Ley 81).
 Uso: OPERADOR_CLAVE=... python -m motor operador [clientes.yaml] [puerto]"""
+import contextlib
 import datetime as dt
 import hashlib
 import hmac
@@ -16,6 +17,7 @@ import time
 import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
@@ -32,12 +34,18 @@ COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 MARCADOR = re.compile(r"\{(nombre|marca|slug)\}")  # los que rellena el alta en la plantilla
 TEMA = Path(__file__).with_name("estatico") / "tema.css"
 TOPE_PRUEBA = 300 # tope IA diario por defecto en prueba (el contrato lo aplica clientes.py)
+CLAVE_MIN = 12
+MAX_REGISTRO = 1_000_000  # bytes de registro.jsonl antes de rotarlo a registro.jsonl.1 (se guarda una sola generación)
+
+
+class Conflicto(Exception):
+    """La petición es válida pero el estado no la admite (409)."""
 
 
 class Operador:
     def __init__(self, ruta_clientes, clave, raiz=None, plantilla=None, seguro=False):
-        if not clave or len(clave) < 16:
-            raise SystemExit("OPERADOR_CLAVE es obligatoria (mínimo 16 caracteres): la consola no arranca sin ella.")
+        if not clave or len(clave) < CLAVE_MIN:
+            raise SystemExit(f"OPERADOR_CLAVE es obligatoria y debe tener al menos {CLAVE_MIN} caracteres (tiene {len(clave or '')}): la consola no arranca sin ella.")
         # plantilla: del repo (/app/servicios/_plantilla-restaurante en Docker), no del volumen de datos
         self.plantilla = Path(plantilla) if plantilla else Path(__file__).resolve().parent.parent / "servicios" / "_plantilla-restaurante"
         self.seguro = seguro  # cookie Secure (consola detrás de TLS)
@@ -87,6 +95,36 @@ class Operador:
                 exp, _, f = v.partition(".")
                 return exp.isdigit() and int(exp) > time.time() and hmac.compare_digest(f, self._firma(exp))
         return False
+
+    # --- registro de actividad ---
+    def anotar(self, accion, slug, ip, resultado):
+        """Una línea en registro.jsonl (junto a clientes.yaml). Solo estos cinco campos: nunca PINs, claves ni datos de personas."""
+        f = self.ruta.parent / "registro.jsonl"
+        linea = json.dumps({"fecha": dt.datetime.now().isoformat(timespec="seconds"), "accion": accion, "slug": slug, "ip": ip, "resultado": resultado})
+        with self.lock:
+            try:
+                if f.exists() and f.stat().st_size > MAX_REGISTRO:
+                    os.replace(f, f.with_name(f.name + ".1"))
+                with f.open("a", encoding="utf-8") as h:
+                    h.write(linea + "\n")
+            except OSError as e:  # la acción ya ocurrió: no se le devuelve un error por no poder anotarla
+                print(f"[operador] no se pudo escribir el registro: {type(e).__name__}")
+
+    def registro(self, n=100):
+        """Las últimas n líneas (la más reciente primero), contando la generación rotada."""
+        f, lineas = self.ruta.parent / "registro.jsonl", []
+        for g in (f.with_name(f.name + ".1"), f):
+            try:
+                lineas += g.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                pass
+        out = []
+        for ln in lineas[-n:][::-1]:
+            try:
+                out.append(json.loads(ln))
+            except ValueError:
+                continue
+        return out
 
     # --- YAML ---
     def _yaml(self):
@@ -221,12 +259,15 @@ class Operador:
                         "pagado_hasta": hasta.isoformat() if hasta else None, "estado_pago": est, "dias": dias, "etiqueta_pago": et,
                         "prueba_hasta": ph.isoformat() if ph else None, "prueba_dias": pd, "etiqueta_prueba": pet,
                         "uso_ia": self._uso(Path(c.carpeta)), "tope_ia": tope,
-                        "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, [])})
-        resumen = {"activos": sum(c["activo"] for c in out),
-                   "ingresos": sum(c["precio"] or 0 for c in out if c["estado_pago"] in ("al_dia", "por_vencer")),
-                   "vencidos": sum(c["estado_pago"] == "vencido" for c in out),
-                   "en_prueba": sum(c["prueba_dias"] is not None for c in out),
-                   "pruebas_por_vencer": sum(c["prueba_dias"] is not None and 0 <= c["prueba_dias"] <= 3 for c in out)}
+                        "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, []),
+                        "archivado": c.archivado.isoformat() if c.archivado else None})
+        vivos = [c for c in out if not c["archivado"]]  # los archivados se cuentan aparte: ni ingresos ni vencidos ni pruebas
+        resumen = {"activos": sum(c["activo"] for c in vivos),
+                   "ingresos": sum(c["precio"] or 0 for c in vivos if c["estado_pago"] in ("al_dia", "por_vencer")),
+                   "vencidos": sum(c["estado_pago"] == "vencido" for c in vivos),
+                   "en_prueba": sum(c["prueba_dias"] is not None for c in vivos),
+                   "pruebas_por_vencer": sum(c["prueba_dias"] is not None and 0 <= c["prueba_dias"] <= 3 for c in vivos),
+                   "archivados": len(out) - len(vivos)}
         return out, resumen
 
     def _entrada(self, slug):
@@ -300,24 +341,47 @@ class Operador:
         nombre, slug, dominio, pin, color, dias = (d.get(k) for k in ("nombre", "slug", "dominio", "pin", "color", "prueba_dias"))
         if not (isinstance(slug, str) and SLUG.fullmatch(slug)):
             raise ValueError("slug inválido: usa a-z, 0-9 y guiones")
-        nombre = nombre.strip() if isinstance(nombre, str) else ""
-        if not 1 <= len(nombre) <= 60 or any(unicodedata.category(c)[0] == "C" or unicodedata.category(c) in ("Zl", "Zp") for c in nombre):
-            raise ValueError("nombre: de 1 a 60 caracteres, en una sola línea y sin caracteres de control")
-        dominio = dominio.strip().lower() if isinstance(dominio, str) else ""
-        if len(dominio) > 100 or not clientes.DOMINIO.fullmatch(dominio) or dominio.endswith(".localhost"):
-            raise ValueError("dominio inválido: sin https://, puerto ni ruta (p. ej. restaurante.com)")
-        if color is not None and not (isinstance(color, str) and COLOR.fullmatch(color)):
-            raise ValueError("color inválido: usa el formato #rrggbb")
+        nombre, dominio, color = Operador._nombre(nombre), Operador._dominio(dominio), Operador._color(color)
         if dias is None:
             dias = 0
         if type(dias) is not int or dias not in (0, 7, 15, 30):
             raise ValueError("días de prueba: 0, 7, 15 o 30")
+        return nombre, slug, dominio, Operador._pin(pin), color, dias
+
+    @staticmethod
+    def _nombre(nombre):
+        nombre = nombre.strip() if isinstance(nombre, str) else ""
+        if not 1 <= len(nombre) <= 60 or any(unicodedata.category(c)[0] == "C" or unicodedata.category(c) in ("Zl", "Zp") for c in nombre):
+            raise ValueError("nombre: de 1 a 60 caracteres, en una sola línea y sin caracteres de control")
+        return nombre
+
+    @staticmethod
+    def _dominio(dominio):
+        dominio = dominio.strip().lower() if isinstance(dominio, str) else ""
+        if len(dominio) > 100 or not clientes.DOMINIO.fullmatch(dominio) or dominio.endswith(".localhost"):
+            raise ValueError("dominio inválido: sin https://, puerto ni ruta (p. ej. restaurante.com)")
+        return dominio
+
+    @staticmethod
+    def _color(color):
+        if color is not None and not (isinstance(color, str) and COLOR.fullmatch(color)):
+            raise ValueError("color inválido: usa el formato #rrggbb")
+        return color and color.lower()
+
+    @staticmethod
+    def _pin(pin):
+        """El PIN dado si cumple las reglas del panel; None = uno aleatorio (secrets)."""
         if pin is None:
             while (pin := f"{secrets.randbelow(10**6):06d}") in panel_web.PIN_DEBILES:
                 pass
         elif not (isinstance(pin, str) and pin.isascii() and pin.isdigit() and len(pin) == 6 and pin not in panel_web.PIN_DEBILES):
             raise ValueError("El PIN debe tener 6 números y no ser trivial")
-        return nombre, slug, dominio, pin, color and color.lower(), dias
+        return pin
+
+    @staticmethod
+    def _tema(destino, color):
+        # ponytail: copia del tema del motor + el color; no sigue los cambios futuros de motor/estatico/tema.css (regenerar si hace falta)
+        (destino / "tema.css").write_text(TEMA.read_text(encoding="utf-8") + f"\n:root{{--primary:{color};--primary-container:{color}}}\n", encoding="utf-8")
 
     def _rellenar(self, destino, nombre, slug, color):
         """Pone nombre, marca y slug en la copia de la plantilla. En YAML el nombre entra como escalar entre comillas de safe_dump (nunca texto pegado)."""
@@ -327,8 +391,8 @@ class Operador:
             if (destino / f).is_file():
                 t = (destino / f).read_text(encoding="utf-8")
                 (destino / f).write_text(MARCADOR.sub(lambda m: v.get(m[1], m[0]), t), encoding="utf-8")  # una pasada: un «{slug}» escrito en el nombre queda literal
-        if color:  # ponytail: copia del tema del motor + el color; no sigue los cambios futuros de motor/estatico/tema.css (regenerar si hace falta)
-            (destino / "tema.css").write_text(TEMA.read_text(encoding="utf-8") + f"\n:root{{--primary:{color};--primary-container:{color}}}\n", encoding="utf-8")
+        if color:
+            self._tema(destino, color)
 
     def nuevo(self, d):
         """Alta completa: carpeta desde la plantilla, usuario Dueno (solo el hash del PIN) en la BD del cliente y entrada en clientes.yaml.
@@ -370,18 +434,20 @@ class Operador:
         return {"slug": slug, "url_web": f"https://{dominio}", "url_panel": f"https://{dominio}/panel", "prueba_hasta": hasta, "pin": pin}
 
     def pausar(self, slug, activo):
-        self._carpeta(slug)
-        d = self._yaml()
-        d["clientes"][slug]["activo"] = bool(activo)
+        d, e = self._entrada(slug)
+        if e.get("archivado"):
+            raise Conflicto("Está archivado: restáuralo primero")
+        e["activo"] = bool(activo)
         self._guardar(d)
 
-    def respaldo(self, slug):
+    def respaldo(self, slug, nombre=None):
         bd = self._carpeta(slug) / "datos.sqlite"
         if not bd.exists():
             raise FileNotFoundError("sin base de datos")
         dest = self.raiz / "backups" / slug
         dest.mkdir(parents=True, exist_ok=True)
-        fin = dest / f"{dt.datetime.now():%Y-%m-%d_%H%M%S}.sqlite"
+        fin = dest / (nombre or f"{dt.datetime.now():%Y-%m-%d_%H%M%S}.sqlite")
+        fin.unlink(missing_ok=True)
         src = sqlite3.connect(f"{bd.as_uri()}?mode=ro", uri=True, timeout=10)
         dst = sqlite3.connect(fin)
         try:
@@ -389,6 +455,173 @@ class Operador:
         finally:
             dst.close(); src.close()
         return fin.name
+
+    # --- equipo del cliente (su tabla `usuarios`; las reglas, el hash y la auditoría son los del panel) ---
+    @contextlib.contextmanager
+    def _sv(self, slug):
+        sv = Servicio(self._carpeta(slug), env=clientes.entorno(slug))
+        try:
+            yield sv
+        finally:
+            sv.cerrar()
+
+    @staticmethod
+    def _usuario(sv, nombre):
+        if not (isinstance(nombre, str) and panel_web.NOMBRE.fullmatch(nombre)):
+            raise ValueError("usuario inválido")
+        if not any(u["nombre"] == nombre for u in panel_web._todos(sv)):
+            raise LookupError("usuario desconocido")
+        return nombre
+
+    def equipo(self, slug):
+        with self._sv(slug) as sv:
+            return [{k: u[k] for k in ("nombre", "rol", "activo")} for u in panel_web._todos(sv)]  # nunca pin_hash
+
+    def equipo_activo(self, slug, d):
+        """Activa o desactiva a una persona. Desactivar cierra sus sesiones (deja de estar entre los usuarios que firman cookies);
+        reactivar exige `pin` nuevo, como en el panel (el viejo puede ser ya el de otra persona)."""
+        if not isinstance(d.get("activo"), bool):
+            raise ValueError("activo debe ser true o false")
+        with self._sv(slug) as sv:
+            u = {"nombre": self._usuario(sv, d.get("nombre")), "activo": d["activo"], **({"pin": d["pin"]} if d.get("pin") is not None else {})}
+            return panel_web.guardar_usuario(sv, u, "operador")
+
+    def pin(self, slug, d):
+        """Restablece el PIN de una persona (por defecto Dueno). En la BD solo queda el hash; al cambiar el hash, sus cookies del panel
+        dejan de validar (la firma lo incluye). El PIN en claro solo sale en lo que devuelve."""
+        dado = d.get("pin")
+        pin = self._pin(dado)
+        with self._sv(slug) as sv:
+            usuario = self._usuario(sv, d.get("usuario", "Dueno"))
+            while panel_web._pin_en_uso(sv, pin, excepto=usuario):
+                if dado is not None:
+                    raise Conflicto("Ese PIN ya lo usa otra persona")
+                pin = self._pin(None)
+            panel_web.guardar_usuario(sv, {"nombre": usuario, "pin": pin}, "operador")
+        return {"usuario": usuario, "pin": pin}
+
+    # --- ajustes ---
+    def ajustes(self, slug, d):
+        """Cambia dominio (clientes.yaml), nombre/marca (su servicio.yaml) y color (su tema.css). Valida todo antes de escribir y,
+        si algo falla (también lo que rechace clientes.cargar), deja los tres archivos como estaban."""
+        carpeta = self._carpeta(slug)
+        if not d or set(d) - {"dominio", "nombre", "color"}:
+            raise ValueError("ajustes: indica dominio, nombre o color")
+        dominio = self._dominio(d["dominio"]) if "dominio" in d else None
+        nombre = self._nombre(d["nombre"]) if "nombre" in d else None
+        color = self._color(d["color"]) if "color" in d else None
+        if "color" in d and not color:
+            raise ValueError("color inválido: usa el formato #rrggbb")
+        if dominio and any(c.dominio == dominio and c.slug != slug for c in self.cargar(self.ruta)):
+            raise FileExistsError("Ese dominio ya es de otro cliente")
+        antes = [(f, f.read_bytes() if f.exists() else None) for f in (self.ruta, carpeta / "servicio.yaml", carpeta / "tema.css")]
+        try:
+            if nombre:
+                # ponytail: safe_dump conserva los datos pero no los comentarios del servicio.yaml
+                cfg = yaml.safe_load(antes[1][1].decode("utf-8"))
+                if cfg.get("negocio") == cfg.get("nombre"):
+                    cfg["negocio"] = nombre
+                cfg["nombre"], cfg["marca"] = nombre, nombre[:40].strip()  # marca: 40 es el tope del panel
+                (carpeta / "servicio.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
+            if color:
+                self._tema(carpeta, color)
+            if dominio:
+                y = self._yaml()
+                y["clientes"][slug]["dominio"] = dominio
+                self._guardar(y)
+            self.cargar(self.ruta)  # mismas reglas que al arrancar
+        except Exception:
+            for f, b in antes:
+                f.write_bytes(b) if b is not None else f.unlink(missing_ok=True)
+            self.ruta.with_suffix(".tmp").unlink(missing_ok=True)
+            raise
+
+    # --- archivar / restaurar / eliminar ---
+    def archivar(self, slug, confirmar):
+        """Copia de seguridad de su BD y `activo: false` + `archivado: hoy`. No borra nada. -> nombre de la copia (None sin BD local)."""
+        d, e = self._entrada(slug)
+        if confirmar != slug:
+            raise ValueError("Para confirmar, escribe el identificador del cliente")
+        if e.get("archivado"):
+            raise Conflicto("Ya está archivado")
+        try:
+            copia = self.respaldo(slug)
+        except FileNotFoundError:
+            copia = None
+        e["activo"], e["archivado"] = False, dt.date.today().isoformat()
+        self._guardar(d)
+        return copia
+
+    def restaurar(self, slug):
+        d, e = self._entrada(slug)
+        if not e.get("archivado"):
+            raise Conflicto("No está archivado")
+        del e["archivado"]
+        e["activo"] = True
+        self._guardar(d)
+
+    @staticmethod
+    def _triturar(carpeta):
+        """Sobrescribe con ceros cada archivo (BD, -wal/-shm, comprobantes, tema...) y borra la carpeta.
+        ponytail: una pasada de ceros; en SSD o sistemas de archivos con copia en escritura no garantiza que no queden bloques (para eso, disco cifrado)."""
+        for f in carpeta.rglob("*"):
+            try:
+                if f.is_file() and not f.is_symlink():
+                    with f.open("r+b") as h:
+                        h.write(bytes(f.stat().st_size))
+                        h.flush(); os.fsync(h.fileno())
+            except OSError:
+                pass
+        shutil.rmtree(carpeta, ignore_errors=True)
+
+    def eliminar(self, slug, confirmar):
+        """Borrado definitivo, SOLO de un archivado: copia final a backups/<slug>/ELIMINADO-<fecha>.sqlite, fuera su carpeta y su entrada.
+        -> {copia, pendiente}: `pendiente` si algún archivo no se pudo borrar (queda en servicios/.eliminando-<slug> y se reintenta en el siguiente eliminar)."""
+        d, e = self._entrada(slug)
+        carpeta = self._carpeta(slug)
+        if confirmar != slug:
+            raise ValueError("Para confirmar, escribe el identificador del cliente")
+        if not e.get("archivado"):
+            raise Conflicto("Solo se puede eliminar un cliente archivado")
+        base = (self.raiz / "servicios").resolve()
+        if carpeta.parent != base or carpeta == self.plantilla.resolve():  # solo una carpeta hija directa de servicios/ (ya resuelta: sin enlaces)
+            raise ValueError("Su carpeta no está en servicios/: no se borra desde la consola")
+        for resto in base.glob(".eliminando-*"):  # de un intento anterior
+            self._triturar(resto)
+        try:
+            copia = self.respaldo(slug, f"ELIMINADO-{dt.date.today().isoformat()}.sqlite")
+        except FileNotFoundError:
+            copia = None
+        tumba, orig = base / f".eliminando-{slug}", self.ruta.read_bytes()
+        try:
+            os.rename(carpeta, tumba)  # o todo o nada: si no se puede retirar la carpeta, no se toca el YAML
+        except OSError:
+            raise Conflicto("No se pudo retirar su carpeta (¿la tiene abierta el servidor?): reinicia `alojar` y reintenta") from None
+        try:
+            del d["clientes"][slug]
+            self._guardar(d)
+        except Exception:
+            os.rename(tumba, carpeta)
+            self.ruta.write_bytes(orig)
+            raise
+        self._triturar(tumba)
+        return {"copia": copia, "pendiente": tumba.exists()}
+
+
+# ruta tras /api/clientes/<slug>/ -> (acción en el registro, función(op, slug, cuerpo) -> dict que se suma a {ok: true})
+RUTAS = {
+    "pausa": ("pausa", lambda op, s, d: op.pausar(s, d.get("activo"))),
+    "config": ("config", lambda op, s, d: op.configurar(s, d)),
+    "pago": ("pago", lambda op, s, d: {"pagado_hasta": op.pagar(s, d.get("meses", 1))}),
+    "prueba": ("prueba", lambda op, s, d: {"hasta": op.prueba(s, d.get("accion"), d.get("dias", 15), d.get("meses", 1))}),
+    "respaldo": ("backup", lambda op, s, d: {"archivo": op.respaldo(s)}),
+    "pin": ("pin", lambda op, s, d: op.pin(s, d)),  # única, con el alta, que responde un PIN en claro
+    "equipo/activo": ("equipo", lambda op, s, d: op.equipo_activo(s, d)),
+    "ajustes": ("ajustes", lambda op, s, d: op.ajustes(s, d)),
+    "archivar": ("archivar", lambda op, s, d: {"copia": op.archivar(s, d.get("confirmar"))}),
+    "restaurar": ("restaurar", lambda op, s, d: op.restaurar(s)),
+    "eliminar": ("eliminar", lambda op, s, d: op.eliminar(s, d.get("confirmar"))),
+}
 
 
 def handler(op):
@@ -426,14 +659,38 @@ def handler(op):
             except ValueError:
                 return {}
 
+        def _hacer(self, f):
+            """-> (estado, cuerpo) de una acción: errores {error} en español, sin detalle interno en el 500."""
+            try:
+                r = f()
+                return 200, r if isinstance(r, list) else {"ok": True, **(r or {})}
+            except (FileExistsError, Conflicto) as e:
+                return 409, {"error": str(e)}
+            except LookupError as e:
+                return 404, {"error": str(e.args[0]) if e.args else "no existe"}
+            except (ValueError, FileNotFoundError) as e:
+                return 400, {"error": str(e)}
+            except Exception as e:  # el texto podría arrastrar datos de la petición: solo el tipo, y solo a la salida del servidor
+                print(f"[operador] error interno: {type(e).__name__}")
+                return 500, {"error": "Error interno: no se guardó nada"}
+
         def do_GET(self):
-            if self.path == "/":
+            u = urlsplit(self.path)
+            partes = u.path.strip("/").split("/")
+            if u.path == "/":
                 return self._send(200, HTML.read_bytes(), "text/html")
             if not op.valida(self.headers.get("Cookie")):
                 return self._send(401, {"error": "no autorizado"})
-            if self.path == "/api/clientes":
+            if u.path == "/api/clientes":
                 cl, res = op.listar()
                 return self._send(200, {"clientes": cl, "resumen": res, "catalogo": list(CATALOGO)})
+            if u.path == "/api/registro":
+                n = parse_qs(u.query).get("n", ["100"])[-1]
+                if not (n.isascii() and n.isdigit() and len(n) <= 6 and int(n) >= 1):
+                    return self._send(400, {"error": "n: un entero de 1 a 500"})
+                return self._send(200, op.registro(min(int(n), 500)))
+            if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "equipo":
+                return self._send(*self._hacer(lambda: op.equipo(partes[2])))
             self._send(404, {"error": "no existe"})
 
         def do_POST(self):
@@ -444,39 +701,26 @@ def handler(op):
                 try:
                     ck = op.entrar(str(d.get("clave", "")), self._ip())
                 except LookupError:
+                    op.anotar("login", "", self._ip(), "bloqueado")
                     return self._send(429, {"error": "demasiados intentos, espera unos minutos"})
+                op.anotar("login", "", self._ip(), "ok" if ck else "fallido")
                 return self._send(200, {"ok": True}, extra=[("Set-Cookie", ck)]) if ck else self._send(401, {"error": "clave incorrecta"})
             if self.path == "/api/salir":
                 return self._send(200, {"ok": True}, extra=[("Set-Cookie", op.cookie_salir())])
             if not op.valida(self.headers.get("Cookie")):
                 return self._send(401, {"error": "no autorizado"})
             partes = self.path.strip("/").split("/")
-            try:
-                if partes == ["api", "clientes"]:
-                    try:
-                        return self._send(200, {"ok": True, **op.nuevo(d)})  # única respuesta que lleva el PIN en claro
-                    except (ValueError, LookupError, FileExistsError):
-                        raise
-                    except Exception:  # fallo interno a mitad del alta (ya deshecha): sin detalle, que podría arrastrar datos de la petición
-                        return self._send(500, {"error": "No se pudo crear el cliente; no se guardó nada"})
-                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pausa":
-                    op.pausar(partes[2], d.get("activo"))
-                    return self._send(200, {"ok": True})
-                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "config":
-                    op.configurar(partes[2], d)
-                    return self._send(200, {"ok": True})
-                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pago":
-                    return self._send(200, {"ok": True, "pagado_hasta": op.pagar(partes[2], d.get("meses", 1))})
-                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "prueba":
-                    hasta = op.prueba(partes[2], d.get("accion"), d.get("dias", 15), d.get("meses", 1))
-                    return self._send(200, {"ok": True, "hasta": hasta})
-                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "respaldo":
-                    return self._send(200, {"ok": True, "archivo": op.respaldo(partes[2])})
-            except FileExistsError as e:
-                return self._send(409, {"error": str(e)})
-            except (ValueError, LookupError, FileNotFoundError) as e:
-                return self._send(400, {"error": str(e)})
-            self._send(404, {"error": "no existe"})
+            if partes == ["api", "clientes"]:
+                accion, slug, f = "alta", d.get("slug"), lambda: op.nuevo(d)
+            elif len(partes) >= 4 and partes[:2] == ["api", "clientes"] and "/".join(partes[3:]) in RUTAS:
+                accion, g = RUTAS["/".join(partes[3:])]
+                slug, f = partes[2], lambda: g(op, partes[2], d)
+            else:
+                return self._send(404, {"error": "no existe"})
+            st, cuerpo = self._hacer(f)
+            # el slug solo se anota si tiene forma de slug: lo demás es texto de quien llama
+            op.anotar(accion, slug if isinstance(slug, str) and SLUG.fullmatch(slug) else "", self._ip(), "ok" if st == 200 else f"error {st}")
+            self._send(st, cuerpo)
     return H
 
 

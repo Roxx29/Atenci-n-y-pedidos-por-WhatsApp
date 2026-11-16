@@ -27,7 +27,7 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 
 
 MODULOS = ("estadisticas",)  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
-CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta"}
+CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta", "archivado"}
 TOPE_IA_PRUEBA = 300  # turnos de IA al día de un cliente en prueba si nadie dice otra cosa (TOPE_IA_DIA lo cambia)
 
 
@@ -44,6 +44,7 @@ class Cliente:
     notas: str = ""
     tope_ia_dia: int | None = None  # turnos de IA al día; 0 = sin tope; None = el valor por defecto (ver `tope_ia`)
     prueba_hasta: dt.date | None = None  # prueba gratis: pasado ese día, `alojar` lo trata como pausado
+    archivado: dt.date | None = None  # día en que el operador lo archivó: no se sirve (activo queda en False) aunque conserva sus datos
 
 
 def tope_ia(c):
@@ -74,7 +75,7 @@ def _operador(slug, c):
     mods, precio, notas, tope = c.get("modulos"), c.get("precio"), c.get("notas", ""), c.get("tope_ia_dia")
     if "modulos" in c and not (isinstance(mods, list) and all(isinstance(m, str) and m in MODULOS for m in mods)):
         raise ValueError(f"cliente {slug}: modulos debe ser una lista con solo {', '.join(MODULOS)} (o [] para ninguno)")
-    hasta, prueba = _fecha(slug, c, "pagado_hasta"), _fecha(slug, c, "prueba_hasta")
+    hasta, prueba, archivado = (_fecha(slug, c, k) for k in ("pagado_hasta", "prueba_hasta", "archivado"))
     if "tope_ia_dia" in c and not (isinstance(tope, int) and not isinstance(tope, bool) and 0 <= tope <= 100000):
         raise ValueError(f"cliente {slug}: tope_ia_dia debe ser un entero entre 0 y 100000 (0 = sin tope)")
     if "precio" in c and not (isinstance(precio, (int, float)) and not isinstance(precio, bool) and 0 <= precio < math.inf):
@@ -82,7 +83,7 @@ def _operador(slug, c):
     if not (isinstance(notas, str) and len(notas) <= 500):
         raise ValueError(f"cliente {slug}: notas debe ser un texto de 500 caracteres como máximo")
     return {"modulos": list(dict.fromkeys(mods)) if "modulos" in c else None, "pagado_hasta": hasta,
-            "precio": float(precio) if "precio" in c else None, "notas": notas, "tope_ia_dia": tope, "prueba_hasta": prueba}
+            "precio": float(precio) if "precio" in c else None, "notas": notas, "tope_ia_dia": tope, "prueba_hasta": prueba, "archivado": archivado}
 
 
 class _SinRepetidos(yaml.SafeLoader):
@@ -122,7 +123,7 @@ def cargar(ruta="clientes.yaml"):
     except ValueError as e:
         if str(e).startswith("clientes.yaml"):
             raise
-        raise ValueError(f"clientes.yaml: fecha imposible ({e}); pagado_hasta y prueba_hasta deben ser AAAA-MM-DD") from e  # p. ej. 2026-13-01: lo lanza el propio YAML
+        raise ValueError(f"clientes.yaml: fecha imposible ({e}); pagado_hasta, prueba_hasta y archivado deben ser AAAA-MM-DD") from e  # p. ej. 2026-13-01: lo lanza el propio YAML
     if not (isinstance(d, dict) and isinstance(d.get("clientes"), dict)):
         raise ValueError("clientes.yaml debe tener `clientes:` con un cliente por slug")
     out, nombres_env = [], set(ENV_POR_CLIENTE)
@@ -151,5 +152,6 @@ def cargar(ruta="clientes.yaml"):
         if suyas & nombres_env:  # p. ej. slug «personal»: PANEL_PIN_PERSONAL ya significa otra cosa
             raise ValueError(f"cliente {slug}: sus variables del .env se pisarían con las de otro ({', '.join(sorted(suyas & nombres_env))}); elija otro slug")
         nombres_env |= suyas
-        out.append(Cliente(slug, carpeta, dominio, activo, **_operador(slug, c)))
+        op = _operador(slug, c)
+        out.append(Cliente(slug, carpeta, dominio, activo and op["archivado"] is None, **op))
     return out

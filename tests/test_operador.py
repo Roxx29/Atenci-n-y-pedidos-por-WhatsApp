@@ -77,7 +77,7 @@ class Consola(unittest.TestCase):
 
     def test_clave_corta(self):
         with self.assertRaises(SystemExit):
-            operador.Operador(self.ruta, "a" * 15)
+            operador.Operador(self.ruta, "a" * 11)
 
     def test_cookie_secure_y_salir(self):
         self.assertNotIn("Secure", self.req("POST", "/api/entrar", {"clave": CLAVE})[2])
@@ -117,7 +117,7 @@ class Consola(unittest.TestCase):
         for s in ("../x", "A", "a/b", "", "a" * 41):
             self.assertEqual(self.req("POST", "/api/clientes", {"slug": s}, ck)[0], 400)
         self.assertEqual(self.req("POST", "/api/clientes/..%2Funo/respaldo", {}, ck)[0], 400)
-        self.assertEqual(self.req("POST", "/api/clientes/nadie/respaldo", {}, ck)[0], 400)
+        self.assertEqual(self.req("POST", "/api/clientes/nadie/respaldo", {}, ck)[0], 404)
 
     def test_respaldo(self):
         st, j, _ = self.req("POST", "/api/clientes/uno/respaldo", {}, self.sesion())
@@ -132,12 +132,12 @@ class Consola(unittest.TestCase):
         ruta = "/api/clientes/uno/"
         for d in ({"modulos": ["x"]}, {"precio": -1}, {"precio": "9"}, {"precio": True}, {"notas": "a" * 501}):
             self.assertEqual(self.req("POST", ruta + "config", d, ck)[0], 400)
-        self.assertEqual(self.req("POST", "/api/clientes/nadie/config", {"precio": 1}, ck)[0], 400)
+        self.assertEqual(self.req("POST", "/api/clientes/nadie/config", {"precio": 1}, ck)[0], 404)
         self.assertEqual(self.req("POST", ruta + "config", {"modulos": [], "precio": 30, "notas": "ok"}, ck)[0], 200)
         j = self.req("GET", "/api/clientes", ck=ck)[1]
         c = j["clientes"][0]
         self.assertEqual((c["modulos"], c["precio"], c["notas"], c["estado_pago"]), ([], 30, "ok", "sin_pago"))
-        self.assertEqual(j["resumen"], {"activos": 1, "ingresos": 0, "vencidos": 0, "en_prueba": 0, "pruebas_por_vencer": 0})
+        self.assertEqual(j["resumen"], {"activos": 1, "ingresos": 0, "vencidos": 0, "en_prueba": 0, "pruebas_por_vencer": 0, "archivados": 0})
         self.assertEqual(self.req("POST", ruta + "pago", {"meses": 2}, ck)[0], 400)
         st, r, _ = self.req("POST", ruta + "pago", {"meses": 3}, ck)
         self.assertEqual(r["pagado_hasta"], (base + dt.timedelta(days=90)).isoformat())

@@ -26,11 +26,13 @@ Hetzner Firewall (o `ufw`): solo 22 (mejor limitado a tu IP), 80 y 443. El 80 ha
 3. Comprobar: `dig +short su-dominio.com` devuelve la IP. Solo entonces dar de alta.
 
 ## 5. Alta de cliente nuevo
-1. Copiar la plantilla: `docker compose exec alojar cp -r servicios/_plantilla /datos/servicios/<slug>` (o el botón *Nuevo cliente* de la consola, cuando exista).
-2. Añadir slug, dominio y módulos a `/datos/clientes.yaml`.
-3. Si cambiaste la carpeta o las variables de un cliente ya abierto: `docker compose restart alojar`.
-4. Abrir `https://su-dominio.com`: el primer acceso emite el certificado (segundos). Si falla: `docker compose logs caddy`.
-5. Secretos del cliente (`PANEL_PIN_<SLUG>`...) en `.env` y `docker compose up -d`.
+Todo desde la consola, sin tocar el servidor ni el `.env`:
+1. Consola → *Nuevo cliente*: nombre, slug, dominio y, opcionales, PIN del dueño (6 dígitos; vacío = la consola genera uno), color de marca (`#rrggbb`) y días de prueba (7, 15 o 30).
+2. La consola copia `servicios/_plantilla-restaurante` (de la imagen) a `/datos/servicios/<slug>`, crea al usuario `Dueno` en la BD de ese cliente (solo el hash del PIN) y lo registra en `/datos/clientes.yaml`; `alojar` lo carga solo.
+3. Apunta el PIN: se muestra UNA vez y no queda guardado en claro en ningún sitio. Si se pierde, el dueño (u otro dueño) lo cambia en el panel, Equipo.
+4. Abrir `https://su-dominio.com`: el primer acceso emite el certificado (segundos). Si falla: `docker compose logs caddy`. Panel: `https://su-dominio.com/panel`.
+5. El restaurante completa desde su panel el menú, horario, datos de pago y teléfono (vienen de ejemplo). El aviso de privacidad (`/datos/servicios/<slug>/aviso.md`) queda PENDIENTE: rellenar lo que va entre [corchetes] y poner la fecha en `web.aviso_version` antes de abrir al público.
+6. Solo si ese cliente lleva variables propias (`REPARTIDORES_<SLUG>`, `TURSO_*_<SLUG>`...): `.env` y `docker compose up -d`. `PANEL_PIN_<SLUG>` ya no hace falta para clientes nuevos.
 
 ## 6. Actualizar (llega a todos los clientes)
 ```

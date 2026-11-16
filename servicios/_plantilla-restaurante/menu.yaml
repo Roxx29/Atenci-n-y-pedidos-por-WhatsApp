@@ -1,0 +1,4 @@
+# Menú de ejemplo: se edita después desde el panel (Menú). Solo es la semilla del primer arranque.
+- {id: plato-de-ejemplo, nombre: "Plato del día (ejemplo)", precio: 6.00, categoria: platos, disponible: true}
+- {id: bebida-de-ejemplo, nombre: "Bebida (ejemplo)", precio: 1.50, categoria: bebidas, disponible: true}
+- {id: postre-de-ejemplo, nombre: "Postre (ejemplo)", precio: 3.00, categoria: postres, disponible: true}

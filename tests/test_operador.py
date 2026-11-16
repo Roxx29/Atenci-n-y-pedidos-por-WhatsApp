@@ -100,15 +100,15 @@ class Consola(unittest.TestCase):
         ck = self.sesion()
         self.assertEqual(self.req("POST", "/api/clientes/uno/pausa", {"activo": False}, ck)[0], 200)
         self.assertFalse(self.req("GET", "/api/clientes", ck=ck)[1]["clientes"][0]["activo"])
-        self.assertEqual(self.req("POST", "/api/clientes", {"slug": "dos", "dominio": "dos.com"}, ck)[0], 200)
+        self.assertEqual(self.req("POST", "/api/clientes", {"nombre": "Dos", "slug": "dos", "dominio": "dos.com"}, ck)[0], 200)
         self.assertTrue((self.raiz / "servicios" / "dos" / "servicio.yaml").exists())
         self.assertEqual([c.slug for c in clientes.cargar(self.ruta)], ["uno", "dos"])  # el archivo real sigue cargable
-        self.assertEqual(self.req("POST", "/api/clientes", {"slug": "dos", "dominio": "x.com"}, ck)[0], 400)  # slug duplicado
+        self.assertEqual(self.req("POST", "/api/clientes", {"nombre": "Dos", "slug": "dos", "dominio": "x.com"}, ck)[0], 409)  # slug duplicado
 
     def test_alta_invalida_deja_todo_igual(self):
         ck, antes = self.sesion(), self.ruta.read_text(encoding="utf-8")
-        for d in ({"slug": "dos", "dominio": "uno.com"}, {"slug": "dos"}, {"slug": "dos", "dominio": "https://x.com"}):  # dominio repetido / vacío / mal formado
-            self.assertEqual(self.req("POST", "/api/clientes", d, ck)[0], 400)
+        for d, st in (({"slug": "dos", "dominio": "uno.com"}, 409), ({"slug": "dos"}, 400), ({"slug": "dos", "dominio": "https://x.com"}, 400)):  # dominio repetido / vacío / mal formado
+            self.assertEqual(self.req("POST", "/api/clientes", {"nombre": "Dos", **d}, ck)[0], st)
             self.assertEqual(self.ruta.read_text(encoding="utf-8"), antes)
             self.assertFalse((self.raiz / "servicios" / "dos").exists())
 

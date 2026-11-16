@@ -8,16 +8,19 @@ import ipaddress
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import threading
 import time
+import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import yaml
 
-from . import clientes
+from . import clientes, panel_web
+from .nucleo import Servicio
 
 SLUG = re.compile(r"[a-z0-9-]{1,40}")
 HTML = Path(__file__).with_name("operador.html")
@@ -25,15 +28,18 @@ SESION = 8 * 3600
 MAX_FALLOS, BLOQUEO = 5, 300
 CATALOGO = ("estadisticas",)  # módulos que el operador puede activar; añade aquí los nuevos
 AVISO_DIAS = 5
-TOPE_PRUEBA = 300  # tope IA diario por defecto en prueba (el contrato lo aplica clientes.py)
+COLOR = re.compile(r"#[0-9a-fA-F]{6}")
+MARCADOR = re.compile(r"\{(nombre|marca|slug)\}")  # los que rellena el alta en la plantilla
+TEMA = Path(__file__).with_name("estatico") / "tema.css"
+TOPE_PRUEBA = 300 # tope IA diario por defecto en prueba (el contrato lo aplica clientes.py)
 
 
 class Operador:
     def __init__(self, ruta_clientes, clave, raiz=None, plantilla=None, seguro=False):
         if not clave or len(clave) < 16:
             raise SystemExit("OPERADOR_CLAVE es obligatoria (mínimo 16 caracteres): la consola no arranca sin ella.")
-        # plantilla: del repo (/app/servicios/_plantilla en Docker), no del volumen de datos
-        self.plantilla = Path(plantilla) if plantilla else Path(__file__).resolve().parent.parent / "servicios" / "_plantilla"
+        # plantilla: del repo (/app/servicios/_plantilla-restaurante en Docker), no del volumen de datos
+        self.plantilla = Path(plantilla) if plantilla else Path(__file__).resolve().parent.parent / "servicios" / "_plantilla-restaurante"
         self.seguro = seguro  # cookie Secure (consola detrás de TLS)
         self.ruta = Path(ruta_clientes).resolve()
         self.raiz = Path(raiz).resolve() if raiz else self.ruta.parent
@@ -288,25 +294,80 @@ class Operador:
         return nuevo.isoformat()
 
     # --- acciones ---
-    def nuevo(self, slug, dominio=""):
-        if not SLUG.fullmatch(slug or ""):
+    @staticmethod
+    def _validar_alta(d):
+        """-> (nombre, slug, dominio, pin, color, días) ya limpios. ValueError en español; el PIN nunca va en el mensaje."""
+        nombre, slug, dominio, pin, color, dias = (d.get(k) for k in ("nombre", "slug", "dominio", "pin", "color", "prueba_dias"))
+        if not (isinstance(slug, str) and SLUG.fullmatch(slug)):
             raise ValueError("slug inválido: usa a-z, 0-9 y guiones")
-        d = self._yaml()
-        if slug in d["clientes"]:
-            raise FileExistsError("ya existe")
+        nombre = nombre.strip() if isinstance(nombre, str) else ""
+        if not 1 <= len(nombre) <= 60 or any(unicodedata.category(c)[0] == "C" or unicodedata.category(c) in ("Zl", "Zp") for c in nombre):
+            raise ValueError("nombre: de 1 a 60 caracteres, en una sola línea y sin caracteres de control")
+        dominio = dominio.strip().lower() if isinstance(dominio, str) else ""
+        if len(dominio) > 100 or not clientes.DOMINIO.fullmatch(dominio) or dominio.endswith(".localhost"):
+            raise ValueError("dominio inválido: sin https://, puerto ni ruta (p. ej. restaurante.com)")
+        if color is not None and not (isinstance(color, str) and COLOR.fullmatch(color)):
+            raise ValueError("color inválido: usa el formato #rrggbb")
+        if dias is None:
+            dias = 0
+        if type(dias) is not int or dias not in (0, 7, 15, 30):
+            raise ValueError("días de prueba: 0, 7, 15 o 30")
+        if pin is None:
+            while (pin := f"{secrets.randbelow(10**6):06d}") in panel_web.PIN_DEBILES:
+                pass
+        elif not (isinstance(pin, str) and pin.isascii() and pin.isdigit() and len(pin) == 6 and pin not in panel_web.PIN_DEBILES):
+            raise ValueError("El PIN debe tener 6 números y no ser trivial")
+        return nombre, slug, dominio, pin, color and color.lower(), dias
+
+    def _rellenar(self, destino, nombre, slug, color):
+        """Pone nombre, marca y slug en la copia de la plantilla. En YAML el nombre entra como escalar entre comillas de safe_dump (nunca texto pegado)."""
+        y = lambda v: yaml.safe_dump(v, default_style='"', allow_unicode=True, width=float("inf")).strip()
+        for f, v in (("servicio.yaml", {"nombre": y(nombre), "marca": y(nombre[:40].strip()), "slug": slug}),  # marca: 40 es el tope del panel
+                     ("conocimiento.md", {"nombre": nombre, "slug": slug}), ("aviso.md", {"nombre": nombre, "slug": slug})):
+            if (destino / f).is_file():
+                t = (destino / f).read_text(encoding="utf-8")
+                (destino / f).write_text(MARCADOR.sub(lambda m: v.get(m[1], m[0]), t), encoding="utf-8")  # una pasada: un «{slug}» escrito en el nombre queda literal
+        if color:  # ponytail: copia del tema del motor + el color; no sigue los cambios futuros de motor/estatico/tema.css (regenerar si hace falta)
+            (destino / "tema.css").write_text(TEMA.read_text(encoding="utf-8") + f"\n:root{{--primary:{color};--primary-container:{color}}}\n", encoding="utf-8")
+
+    def nuevo(self, d):
+        """Alta completa: carpeta desde la plantilla, usuario Dueno (solo el hash del PIN) en la BD del cliente y entrada en clientes.yaml.
+        Valida todo antes de tocar el disco; si algo falla a mitad, deshace carpeta, usuario y YAML. El PIN en claro solo sale en lo que devuelve."""
+        nombre, slug, dominio, pin, color, dias = self._validar_alta(d)
+        y = self._yaml()
         destino = self.raiz / "servicios" / slug
-        if destino.exists():
-            raise FileExistsError("ya existe la carpeta")
+        if slug in y["clientes"] or destino.exists():
+            raise FileExistsError("Ya existe un cliente con ese identificador")
+        if self.ruta.exists() and dominio in {c.dominio for c in self.cargar(self.ruta)}:
+            raise FileExistsError("Ese dominio ya es de otro cliente")
+        hasta = (dt.date.today() + dt.timedelta(days=dias)).isoformat() if dias else None
+        y["clientes"][slug] = {"carpeta": f"servicios/{slug}", "dominio": dominio, "activo": True, **({"prueba_hasta": hasta} if hasta else {})}
         orig = self.ruta.read_bytes() if self.ruta.exists() else None
-        d["clientes"][slug] = {"carpeta": f"servicios/{slug}", "dominio": str(dominio).strip().lower()[:100], "activo": True}
+        sv = sembrado = None
         try:
             shutil.copytree(self.plantilla, destino)
-            self._guardar(d)
-            self.cargar(self.ruta)  # mismas reglas que al arrancar (dominio único, carpeta...): si falla, se deshace todo
+            self._rellenar(destino, nombre, slug, color)
+            sv = Servicio(destino, env=clientes.entorno(slug))  # crea su BD (SQLite en la carpeta, o su Turso si tiene variables propias)
+            if panel_web._todos(sv):  # una BD de Turso reutilizada: no se pisa a su dueño
+                raise ValueError("La base de datos de ese cliente ya tiene usuarios")
+            panel_web._poner(sv, {"nombre": "Dueno", "rol": "dueno", "pin_hash": panel_web.hash_pin(pin), "activo": True})
+            sembrado = True
+            self._guardar(y)
+            self.cargar(self.ruta)  # mismas reglas que al arrancar (dominio único, carpeta, variables...)
         except Exception:
+            if sembrado:  # en SQLite se va con la carpeta; en Turso hay que quitarlo (el menú de ejemplo sembrado allí se queda: no da acceso a nada)
+                try:
+                    sv._q("DELETE FROM usuarios WHERE nombre='Dueno'")
+                except Exception:
+                    pass
+            if sv:
+                sv.cerrar()
             shutil.rmtree(destino, ignore_errors=True)
             self.ruta.write_bytes(orig) if orig is not None else self.ruta.unlink(missing_ok=True)
+            self.ruta.with_suffix(".tmp").unlink(missing_ok=True)
             raise
+        sv.cerrar()
+        return {"slug": slug, "url_web": f"https://{dominio}", "url_panel": f"https://{dominio}/panel", "prueba_hasta": hasta, "pin": pin}
 
     def pausar(self, slug, activo):
         self._carpeta(slug)
@@ -392,8 +453,12 @@ def handler(op):
             partes = self.path.strip("/").split("/")
             try:
                 if partes == ["api", "clientes"]:
-                    op.nuevo(str(d.get("slug", "")), d.get("dominio", ""))
-                    return self._send(200, {"ok": True})
+                    try:
+                        return self._send(200, {"ok": True, **op.nuevo(d)})  # única respuesta que lleva el PIN en claro
+                    except (ValueError, LookupError, FileExistsError):
+                        raise
+                    except Exception:  # fallo interno a mitad del alta (ya deshecha): sin detalle, que podría arrastrar datos de la petición
+                        return self._send(500, {"error": "No se pudo crear el cliente; no se guardó nada"})
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pausa":
                     op.pausar(partes[2], d.get("activo"))
                     return self._send(200, {"ok": True})
@@ -407,7 +472,9 @@ def handler(op):
                     return self._send(200, {"ok": True, "hasta": hasta})
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "respaldo":
                     return self._send(200, {"ok": True, "archivo": op.respaldo(partes[2])})
-            except (ValueError, LookupError, FileExistsError, FileNotFoundError) as e:
+            except FileExistsError as e:
+                return self._send(409, {"error": str(e)})
+            except (ValueError, LookupError, FileNotFoundError) as e:
                 return self._send(400, {"error": str(e)})
             self._send(404, {"error": "no existe"})
     return H

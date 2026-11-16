@@ -46,9 +46,16 @@ summary{cursor:pointer;color:var(--mut);font-size:13px;margin-bottom:4px}
 .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok);transform-origin:left;transition:transform .25s ease}.bar i.hi{background:var(--warn)}
 @media (max-width:560px){.ed{grid-template-columns:1fr}}
-dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(360px,92vw)}
+dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(440px,92vw);max-height:92vh;overflow:auto;animation:in .2s ease both}
+dialog h2{font-size:18px;margin:0 0 4px}
+.ayuda{color:var(--mut);font-size:12px;margin:0}
+.pin{font:600 22px ui-monospace,monospace;letter-spacing:.15em}
+.f input[type=color]{width:64px;padding:2px}
+.f [aria-invalid=true]{border-color:var(--bad)}
+a{color:var(--ac);overflow-wrap:anywhere}
 dialog::backdrop{background:#0009}
-dialog form{display:grid;gap:10px}
+dialog form{display:grid;gap:8px}
+.err:empty{min-height:0}
 #msg{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;opacity:0;transition:opacity .2s;pointer-events:none}
 #msg.v{opacity:1}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -70,15 +77,35 @@ dialog form{display:grid;gap:10px}
   <div class="grid" id="lista"></div>
 </section>
 </main>
-<dialog id="dlg">
-  <form method="dialog" id="fnuevo">
-    <label for="slug">Identificador (a-z, 0-9, guiones)</label>
-    <input id="slug" pattern="[a-z0-9\-]{1,40}" required>
-    <label for="dom">Dominio</label>
-    <input id="dom" required>
+<dialog id="dlg" aria-labelledby="dt">
+  <form id="fnuevo" novalidate>
+    <h2 id="dt">Nuevo restaurante</h2>
+    <label class="f">Nombre del negocio<input id="nom" required maxlength="80" autocomplete="off" aria-describedby="e_nom"></label>
+    <p class="err" id="e_nom"></p>
+    <label class="f">Identificador (slug)<input id="slug" required maxlength="40" autocapitalize="none" autocomplete="off" aria-describedby="e_slug"></label>
+    <p class="err" id="e_slug"></p>
+    <label class="f">Dominio<input id="dom" required inputmode="url" autocapitalize="none" autocomplete="off" placeholder="pizza.tudominio.com" aria-describedby="a_dom e_dom"></label>
+    <p class="ayuda" id="a_dom">Un subdominio tuyo como pizza.tudominio.com o el dominio propio del cliente.</p>
+    <p class="err" id="e_dom"></p>
+    <div class="f">PIN del dueño (6 dígitos)
+      <div class="acc"><input id="pin" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Vacío = lo genera el servidor" aria-label="PIN del dueño" aria-describedby="e_pin" style="flex:1"><button type="button" id="gen">Generar</button></div></div>
+    <p class="err" id="e_pin"></p>
+    <div class="acc">
+      <label class="f">Color de marca<input id="col" type="color" value="#d62828"></label>
+      <label class="f">Prueba<select id="pru"><option value="0">Sin prueba</option><option value="7">7 días</option><option value="15" selected>15 días</option><option value="30">30 días</option></select></label>
+    </div>
     <p class="err" id="nerr" role="alert"></p>
-    <div class="acc"><button class="p">Crear</button><button type="button" id="cancela">Cancelar</button></div>
+    <div class="acc"><button class="p" id="crea">Crear</button><button type="button" id="cancela">Cancelar</button></div>
   </form>
+  <div id="ok" hidden>
+    <h2 id="okt" tabindex="-1">Restaurante creado</h2>
+    <p class="dom">Web: <a id="ok_web" target="_blank" rel="noopener"></a></p>
+    <p class="dom">Panel: <a id="ok_panel" target="_blank" rel="noopener"></a></p>
+    <p class="dom" id="ok_prueba"></p>
+    <p>PIN del dueño: <b class="pin" id="ok_pin"></b></p>
+    <p class="warn">Anótalo o cópialo ahora: no se vuelve a mostrar.</p>
+    <div class="acc"><button class="p" id="copia">Copiar mensaje para el cliente</button><button id="otro">Crear otro</button><button id="cierra">Cerrar</button></div>
+  </div>
 </dialog>
 <div id="msg" role="status"></div>
 <script>
@@ -183,11 +210,51 @@ $("login").onsubmit=async e=>{e.preventDefault();$("lerr").textContent="";
   try{await api("POST","/api/entrar",{clave:$("clave").value});$("clave").value="";cargar()}catch(x){$("lerr").textContent=x.message}};
 $("salir").onclick=async()=>{await api("POST","/api/salir").catch(()=>{});mostrar(false)};
 $("filtro").onchange=e=>{filtro=e.target.value;pintar()};
-$("nuevo").onclick=()=>$("dlg").showModal();
-$("cancela").onclick=()=>$("dlg").close();
-$("fnuevo").onsubmit=async e=>{e.preventDefault();$("nerr").textContent="";
-  try{await api("POST","/api/clientes",{slug:$("slug").value,dominio:$("dom").value});$("dlg").close();$("slug").value=$("dom").value="";aviso("Cliente creado");cargar()}
-  catch(x){$("nerr").textContent=x.message}};
+const slugDe=t=>t.normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
+const CAMPOS=["nom","slug","dom","pin"];
+let slugManual=false,creado=null,enviando=false;
+function errCampo(id,t){const i=$(id),e=$("e_"+id);e.textContent=t||"";i.setAttribute("aria-invalid",t?"true":"false")}
+function validar(){  // solo ayuda: el servidor manda
+  const v={nom:$("nom").value.trim()?"":"Escribe el nombre del negocio.",
+    slug:/^[a-z0-9-]{1,40}$/.test($("slug").value)?"":"Usa minúsculas, números y guiones (máx. 40).",
+    dom:/^[a-z0-9.-]+\.[a-z]{2,}$/i.test($("dom").value.trim())?"":"Escribe un dominio válido, ej. pizza.tudominio.com.",
+    pin:/^(\d{6})?$/.test($("pin").value)?"":"El PIN son 6 dígitos."};
+  CAMPOS.forEach(k=>errCampo(k,v[k]));
+  return CAMPOS.find(k=>v[k]);
+}
+function abrir(){
+  $("fnuevo").reset();slugManual=false;creado=null;CAMPOS.forEach(k=>errCampo(k,""));$("nerr").textContent="";
+  $("fnuevo").hidden=false;$("ok").hidden=true;$("crea").disabled=false;
+  if(!$("dlg").open)$("dlg").showModal();$("nom").focus();
+}
+$("nuevo").onclick=abrir;$("otro").onclick=abrir;
+$("cancela").onclick=$("cierra").onclick=()=>$("dlg").close();
+$("nom").oninput=()=>{if(!slugManual)$("slug").value=slugDe($("nom").value)};
+$("slug").oninput=()=>{slugManual=$("slug").value!==""};
+$("gen").onclick=()=>{const b=new Uint32Array(1);crypto.getRandomValues(b);$("pin").value=String(b[0]%1000000).padStart(6,"0");errCampo("pin","")};
+$("copia").onclick=async()=>{
+  if(!creado)return;
+  const t=["Hola, tu restaurante ya está listo.","Tu web de pedidos: "+creado.url_web,"Tu panel: "+creado.url_panel,"PIN del panel: "+creado.pin,
+    ...(creado.prueba_hasta?["Prueba gratis hasta: "+creado.prueba_hasta]:[]),"Guarda el PIN y no lo compartas."].join(String.fromCharCode(10));
+  try{await navigator.clipboard.writeText(t);aviso("Mensaje copiado")}catch(e){aviso("No se pudo copiar; selecciónalo a mano")}
+};
+$("fnuevo").onsubmit=async e=>{e.preventDefault();
+  if(enviando)return;
+  $("nerr").textContent="";
+  const mal=validar();if(mal){$(mal).focus();return}
+  enviando=true;$("crea").disabled=true;
+  const d={nombre:$("nom").value.trim(),slug:$("slug").value,dominio:$("dom").value.trim(),color:$("col").value,prueba_dias:Number($("pru").value)};
+  if($("pin").value)d.pin=$("pin").value;
+  try{
+    creado=await api("POST","/api/clientes",d);
+    $("ok_web").textContent=$("ok_web").href=creado.url_web;
+    $("ok_panel").textContent=$("ok_panel").href=creado.url_panel;
+    $("ok_prueba").textContent=creado.prueba_hasta?"Prueba gratis hasta "+creado.prueba_hasta:"Sin prueba";
+    $("ok_pin").textContent=creado.pin;
+    $("fnuevo").hidden=true;$("ok").hidden=false;$("okt").focus();
+    cargar();
+  }catch(x){$("nerr").textContent=x.message}
+  finally{enviando=false;$("crea").disabled=false}};
 cargar();
 </script>
 </body>

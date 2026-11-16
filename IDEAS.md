@@ -10,8 +10,10 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - 2026-11-02 — Calidad de qwen3:8b en la demo: escala ítems agotados sin necesidad y mezcla "efectivo" en el pago; mejorar instrucciones o probar un modelo mayor si molesta en demos (Haiku en producción) (agentedeprogramacion)
 - 2026-11-16 — `pagado_hasta` de clientes.yaml es solo informativo: decidir si un cliente vencido se pausa o se le apagan los módulos solo (con días de gracia) (programador)
 - 2026-11-16 — `operador.py` lee los módulos de `servicio.yaml`; debería mostrar el efectivo (`panel_web.modulos(sv)` o el `modulos` del Cliente) (programador)
+- 2026-11-16 — Alta desde la consola, pendientes: (a) el `tema.css` del cliente es una copia del tema del motor + su color: no recibe cambios futuros del tema (mejor que `web.armar_pagina` sume el del cliente al del motor) y el mismo color se usa en modo oscuro (revisar contraste, disenador); (b) el contenedor `operador` no recibe el `.env`: si un cliente nuevo debe nacer en Turso hay que pasarle sus `TURSO_*_<SLUG>`; (c) pantalla para completar `aviso.md` y `web.aviso_version` sin entrar al servidor; (d) recuperar el PIN del dueño desde la consola si lo pierde (hoy solo desde el panel) (programador)
 
 ## Próximo por hacer
+- [ ] 2026-11-17 — Alta completa de restaurante desde la consola (en curso): plantilla genérica `_plantilla-restaurante`, PIN del dueño creado por la consola (hasheado en su BD), color de marca y prueba; ya no hay que tocar el .env del servidor (capitan, fable + programador)
 - [ ] 2026-11-16 — Plan de arranque ($0): Oracle Always Free ARM o Akamai/Linode 1 GB con crédito; probar la imagen Docker en arm64; subdominios `*.midominio` con DNS comodín y Caddy bajo demanda (investigador-profundo)
 - [ ] 2026-11-16 — Pruebas gratis de 15 días: marcar cliente como `prueba`, auto-pausa al vencer solo para pruebas, y TOPE de mensajes de IA por cliente y día (la IA se paga por uso) (capitan)
 - [ ] 2026-11-16 — Corregir despliegue/vps.md: Hetzner ya no es la opción barata (precios de junio 2026, planes marcados no disponibles); actualizar tabla de costos con la investigación del 16-nov (capitan)

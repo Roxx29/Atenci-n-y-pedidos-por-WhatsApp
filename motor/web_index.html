@@ -840,6 +840,8 @@ async function pintarRepartidor(p) {
     txt = pos.viejo ? `${nombre} va en camino · última ubicación hace ${Math.max(1, Math.round(pos.edad_s / 60))} min.` : `${nombre} va en camino · ubicación actualizada hace ${pos.edad_s} s.`;
     if (st.miUbic) txt += " Está " + kmTexto(distM(pos, st.miUbic)).replace("a ", "a ") + " (en línea recta).";
   }
+  if (p.parada) txt += p.parada === 1 ? (p.eta_min != null ? ` Tu pedido es la parada 1: va hacia ti, llega en unos ${Math.max(1, Math.round(p.eta_min))} min.` : " Tu pedido es la parada 1: va hacia ti.")
+    : ` Tu pedido es la parada ${p.parada}${p.eta_min != null ? " · llega en unos " + Math.max(1, Math.round(p.eta_min)) + " min" : ""}.`;
   $("#mapa-cli-txt").textContent = txt;
   if (!pos || $("#estado").hidden || st.demo) { if (!pos) quitarMapaCli(); return; } // el mapa solo se arma con la pestaña a la vista
   const id = ++MC.id;

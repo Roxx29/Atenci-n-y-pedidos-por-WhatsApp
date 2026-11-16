@@ -22,6 +22,7 @@ from collections.abc import Mapping
 
 from . import clientes
 from . import herramientas
+from . import ruta as reparto
 from . import ubicacion
 from .herramientas import dinero
 
@@ -462,7 +463,7 @@ def pedido_json(p, detalle=False):
     return d
 
 
-def estado_panel(sv, desde=0, repartidores=()):
+def estado_panel(sv, desde=0, repartidores=(), rutas=None):
     """Lo que el panel sondea cada 3 s: pedidos (activos + cerrados de hoy), avisos nuevos (id > desde) o de pedidos pendientes, escalados abiertos."""
     herramientas.caducar_pedidos(sv)
     hoy = sv.ahora().date().isoformat()
@@ -476,7 +477,8 @@ def estado_panel(sv, desde=0, repartidores=()):
     nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
     esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")), "telefono": e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
-            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado")), "modulos": modulos(sv)}
+            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado")), "modulos": modulos(sv),
+            "rutas": rutas or {}}  # repartidor -> ruta (motor/ruta.py); la calcula web.py, que es quien tiene las posiciones
 
 
 def marcar(sv, pedido_id, estado, rol):
@@ -513,19 +515,21 @@ EN_RUTA = {"en_preparacion", "listo", "en_camino"}
 SIGUIENTE = {"listo": "en_camino", "en_camino": "entregado"}
 
 
-def pedido_repartidor(p):
+def pedido_repartidor(p, ruta=None):
+    """`parada`: su número en la ruta del repartidor (1 = la siguiente); None si aún no es parada (en preparación)."""
     return {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"), "telefono": p.get("telefono"), "direccion": p.get("direccion"), "zona": p.get("zona"),
             "notas": p.get("notas"), "hora_deseada": p.get("hora_deseada"),
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
             "total": dinero(p["total_c"]), "pagado": not p.get("por_cobrar"),  # el pago va antes de preparar, salvo efectivo contra entrega: ahí cobra el repartidor
             "cobrar": dinero(p["total_c"]) if p.get("por_cobrar") else None,
             "mapa": ubicacion.url_mapa(p), "tiene_ubicacion": bool(p.get("ubicacion")), "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona")),
+            "parada": (reparto.parada(ruta, p["id"]) or {}).get("n"),
             "acciones": [SIGUIENTE[p["estado"]]] if p["estado"] in SIGUIENTE else []}
 
 
-def pedidos_repartidor(sv, nombre):
+def pedidos_repartidor(sv, nombre, ruta=None):
     herramientas.caducar_pedidos(sv)
-    return [pedido_repartidor(p) for p in sv.listar("pedido") if p.get("repartidor") == nombre and p["estado"] in EN_RUTA]
+    return [pedido_repartidor(p, ruta) for p in sv.listar("pedido") if p.get("repartidor") == nombre and p["estado"] in EN_RUTA]
 
 
 def marcar_repartidor(sv, nombre, pedido_id, estado, cobrado=False):

@@ -262,6 +262,8 @@ dialog.dlg-mapa{width:min(900px,calc(100% - 32px));padding:16px}
 .pin-rep span,.pin-rest span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
 .pin-rest span{background:var(--inverse);color:#fff;font-size:1rem}
 .pin-rep.viejo span{background:#6f6f73;border-style:dashed}
+.pin-par span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--c,#444);color:#fff;font:700 .8125rem var(--mono);border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.punto-rep{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c,#444);flex:none}
 .leaflet-container{font-family:var(--texto)}
 .tablero{grid-auto-columns:minmax(244px,1fr)}
 .t-pie{flex-wrap:wrap;row-gap:2px}
@@ -811,6 +813,7 @@ function recibir(d) {
   if (d.cerrado != null) pintarTienda(d.cerrado);
   if (d.modulos) pintarModulos(d.modulos);
   if (d.repartidores) st.repartidores = d.repartidores.map(repNombre).filter(Boolean);
+  if (d.rutas) { st.rutas = d.rutas; if ($("#dlg-flota").open) actualizarMapa(); }
   if (d.ultimo != null) st.ultimo = d.ultimo;
   st.primera = false;
   if (sonido) sonar(sonido === 2);
@@ -1293,7 +1296,11 @@ function cargarLeaflet() {
   });
   return leaflet;
 }
-const MAPA = {mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
+/* ruta de cada repartidor: color propio, estable por orden de nombre */
+const COLORES = ["#c8102e", "#1769aa", "#2e7d32", "#b26a00", "#6a1b9a", "#00838f"];
+const colorDe = n => COLORES[Math.max(0, Object.keys(st.rutas || {}).sort().indexOf(n)) % COLORES.length];
+const resumenRuta = r => r && r.paradas && r.paradas.length ? `${r.paradas.length} ${r.paradas.length === 1 ? "parada" : "paradas"}${r.total_min != null ? " · ~" + Math.round(r.total_min) + " min" : ""}` : "";
+const MAPA = {rutas:[], mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
 const inicialesDe = n => String(n || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
 async function pedirFlota() {
   if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:MARCA}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
@@ -1304,7 +1311,7 @@ function pintarListaMapa() {
   $("#n-mapa").textContent = d.repartidores.length; $("#n-mapa").hidden = !d.repartidores.length;
   $("#mapa-lista").replaceChildren(...(d.repartidores.length ? d.repartidores.map(r => h("li", {class:r.viejo ? "viejo" : ""},
     h("span", {class:"ini-rep", "aria-hidden":"true"}, inicialesDe(r.repartidor)),
-    h("span", {}, h("b", {}, r.repartidor), ` · pedido #${r.pedido_id}`),
+    h("span", {}, h("b", {}, r.repartidor), ` · pedido #${r.pedido_id}`, resumenRuta((st.rutas || {})[r.repartidor]) ? h("span", {class:"num", style:"display:block;font-size:.8125rem;color:var(--on-variant)"}, h("i", {class:"punto-rep", style:"--c:" + colorDe(r.repartidor) + ";margin-right:6px"}), resumenRuta(st.rutas[r.repartidor])) : null),
     h("span", {class:"edad num"}, r.viejo ? `Dato viejo · hace ${Math.round(r.edad_s / 60)} min` : `hace ${r.edad_s} s`)))
     : [h("li", {class:"vacia"}, "Nadie va en camino ahora.")]));
 }
@@ -1324,6 +1331,14 @@ async function actualizarMapa() {
     m.setLatLng([r.lat, r.lon]); m.getElement().classList.toggle("viejo", !!r.viejo);
   }
   for (const [k, m] of MAPA.marcas) if (!vistos.has(k)) { m.remove(); MAPA.marcas.delete(k); }
+  // rutas: línea origen -> 1 -> 2 ... y marcadores numerados, un color por repartidor (se redibuja entera; son pocas paradas)
+  MAPA.rutas.forEach(x => x.remove()); MAPA.rutas = [];
+  for (const [nom, ru] of Object.entries(st.rutas || {})) {
+    const c = colorDe(nom), ps = (ru.paradas || []).filter(x => x.lat != null && x.lon != null && !x.fuera_de_viaje);
+    const linea = (ru.origen ? [[ru.origen.lat, ru.origen.lon]] : []).concat(ps.map(x => [x.lat, x.lon]));
+    if (linea.length > 1) MAPA.rutas.push(L.polyline(linea, {color:c, weight:4, opacity:.8, dashArray:"2 8", lineCap:"round"}).addTo(MAPA.mapa));
+    for (const x of ps) { MAPA.rutas.push(L.marker([x.lat, x.lon], {title:`${nom}: parada ${x.n}`, icon:L.divIcon({className:"pin-par", html:h("span", {style:"--c:" + c}, String(x.n)), iconSize:[26, 26]})}).addTo(MAPA.mapa)); pts.push([x.lat, x.lon]); }
+  }
   if (pts.length && !MAPA.ajustado) { MAPA.mapa.fitBounds(pts, {padding:[40, 40], maxZoom:16}); MAPA.ajustado = true; }
 }
 $("#btn-mapa").onclick = async () => {
@@ -1451,6 +1466,7 @@ function cargarDemo() {
       {id:2, tipo:"pago", texto:"Pago reportado en pedido #39: Yappy, ref 88412.", pedido_id:39, creado_at:t(3)},
       {id:3, tipo:"pedido", texto:"Ricardo cambió la dirección del pedido #36 a Barrio San Juan, calle 3.", pedido_id:36, creado_at:t(10)}],
     repartidores:["Juan", "Pedro"],
+    rutas:{Pedro:{origen:{lat:7.9667, lon:-80.4333}, total_min:25, paradas:[{id:31, n:1, lat:7.9712, lon:-80.4251, eta_min:9, dist_m:1200, fuera_de_viaje:false}, {id:36, n:2, lat:7.9612, lon:-80.4297, eta_min:25, dist_m:2900, fuera_de_viaje:false}]}},
     escalados:[{id:1, nombre:"Carmen", telefono:"50766554433", motivo:"Pregunta si el sancocho lleva maní (alergia).", creado_at:t(4)}]});
   st.nuevos.add(39); st.nuevos.add(40); pintar();
   setTimeout(() => recibir({ultimo:4, pedidos:[P(42, "pago_reportado", "Rosa", "entrega", it([A, 2], [CH, 2]), "B/. 15.94", 0, {zona:"Chitré", direccion:"Urb. Los Ángeles, casa 14", metodo:"Yappy", referencia:"77120", comprobante:true})],

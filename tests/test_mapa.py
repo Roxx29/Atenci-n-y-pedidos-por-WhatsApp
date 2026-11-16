@@ -12,6 +12,8 @@ from tests.test_web import TEL, Base
 
 TEL_B = "50760002222"
 AQUI = {"lat": 7.9667, "lon": -80.4333, "precision": 15}
+REST = {"RESTAURANTE_LAT": "7.96", "RESTAURANTE_LON": "-80.43"}
+LEJOS, CERCA = (8.00, -80.43), (7.97, -80.43)  # del restaurante
 
 
 class Mapa(Base):
@@ -30,16 +32,18 @@ class Mapa(Base):
     def aceptar(self, ck=None):
         return self.js("POST", "/repartidor/aviso_ubicacion", {"version": "v1"}, cookie=ck or self.juan)[0]
 
-    def listo(self, tel=TEL, rep="Juan"):
+    def listo(self, tel=TEL, rep="Juan", ubic=None):
         pid = herramientas.crear_pedido(self.sv, telefono=tel, **ENT)["pedido_id"]
+        if ubic:
+            herramientas.poner_ubicacion(self.sv, pid, *ubic, "navegador")
         herramientas.confirmar_pedido(self.sv, pid)
         for e in ("pagado", "en_preparacion", "listo"):
             herramientas.marcar_pedido(self.sv, pid, e)
         panel_web.asignar(self.sv, pid, rep, ["Juan", "Pedro"])
         return pid
 
-    def camino(self, tel=TEL):
-        pid = self.listo(tel)
+    def camino(self, tel=TEL, ubic=None):
+        pid = self.listo(tel, ubic=ubic)
         panel_web.marcar(self.sv, pid, "en_camino", "Juan")
         return pid
 
@@ -160,6 +164,68 @@ class Mapa(Base):
         self.assertEqual((r["restaurante"]["lat"], r["restaurante"]["lon"]), (7.96, -80.43))
         with unittest.mock.patch.dict(os.environ, {"RESTAURANTE_LAT": "x", "RESTAURANTE_LON": "1"}):
             self.assertIsNone(self.js("GET", "/panel/repartidores_mapa", cookie=self.pan)[1]["restaurante"])
+
+    def ruta_rep(self, ck=None):
+        return self.js("GET", "/repartidor/pedidos", cookie=ck or self.juan)[1]
+
+    def orden(self, ck=None):
+        return [(p["id"], p["n"]) for p in self.ruta_rep(ck)["ruta"]["paradas"]]
+
+    def test_ruta_repartidor_y_panel_aislada_por_repartidor(self):
+        lejos, cerca = self.camino(TEL, LEJOS), self.listo(TEL_B, ubic=CERCA)  # en camino y listo: los dos entran en la ruta
+        self.listo("50760004444")  # sin ubicación
+        prep = herramientas.crear_pedido(self.sv, telefono="50760005555", **ENT)["pedido_id"]
+        herramientas.confirmar_pedido(self.sv, prep)
+        for e in ("pagado", "en_preparacion"):
+            herramientas.marcar_pedido(self.sv, prep, e)
+        panel_web.asignar(self.sv, prep, "Juan", ["Juan", "Pedro"])  # en preparación: aún no es parada
+        otro = self.listo("50760003333", "Pedro", CERCA)
+        pedro = self.cookie("/repartidor/entrar", PIN_L)
+        with unittest.mock.patch.dict(os.environ, REST):
+            d = self.ruta_rep()
+            r = d["ruta"]
+            self.assertEqual(r["origen"], {"lat": 7.96, "lon": -80.43})
+            self.assertEqual([p["id"] for p in r["paradas"]][:2], [cerca, lejos])
+            self.assertEqual([p["n"] for p in r["paradas"]], [1, 2, 3])
+            self.assertEqual(set(r["paradas"][0]), {"id", "n", "lat", "lon", "eta_min", "dist_m", "fuera_de_viaje"})
+            self.assertEqual((r["paradas"][2]["lat"], r["paradas"][2]["eta_min"]), (None, None))  # sin ubicación: al final
+            self.assertEqual(r["total_min"], r["paradas"][1]["eta_min"])
+            self.assertLess(r["paradas"][0]["eta_min"], r["paradas"][1]["eta_min"])
+            self.assertEqual({p["id"]: p["parada"] for p in d["pedidos"]}, {**{p["id"]: p["n"] for p in r["paradas"]}, prep: None})
+            dp = self.ruta_rep(pedro)  # Pedro solo ve la suya
+            self.assertEqual([p["id"] for p in dp["ruta"]["paradas"]], [otro])
+            self.assertEqual([p["id"] for p in dp["pedidos"]], [otro])
+            self.assertEqual(self.js("GET", "/panel/estado", cookie=self.pan)[1]["rutas"], {"Juan": r, "Pedro": dp["ruta"]})
+            self.assertEqual(self.js("POST", "/repartidor/marcar", {"pedido_id": otro, "estado": "en_camino"}, cookie=pedro)[1]["pedido"]["parada"], 1)
+            self.sv.poner_ajuste("reparto", {"velocidad_kmh": 1})  # los ajustes del dueño no pisan reparto: de servicio.yaml
+            self.assertEqual(self.ruta_rep()["ruta"], r)
+        self.assertEqual(self.ruta_rep()["ruta"]["origen"], {"lat": LEJOS[0], "lon": LEJOS[1]})  # sin restaurante ni GPS: desde la primera parada
+        for pid in (lejos, cerca):
+            self.sv.actualizar(pid, {"estado": "entregado"}, tipo="pedido")
+        self.assertEqual([p["lat"] for p in self.ruta_rep()["ruta"]["paradas"]], [None])
+
+    def test_ruta_cambia_al_moverse_y_el_cliente_ve_su_parada(self):
+        self.aceptar()
+        lejos, cerca = self.camino(TEL, LEJOS), self.camino(TEL_B, CERCA)
+        ca, cb = self.entrar()[2], self.entrar(tel=TEL_B, nombre="Luis")[2]
+        cli = lambda ck: self.js("GET", "/pedidos", cookie=ck)[1]["pedidos"][0]
+        with unittest.mock.patch.dict(os.environ, REST):
+            self.assertEqual(self.orden(), [(cerca, 1), (lejos, 2)])
+            r = self.ruta_rep()["ruta"]
+            a, b = cli(ca), cli(cb)
+            self.assertEqual((a["parada"], a["eta_min"], a["mensaje"], a["repartidor_pos"]), (2, r["paradas"][1]["eta_min"], ubicacion.REP_OTRA_PARADA, None))
+            self.assertEqual((b["parada"], b["eta_min"], b["mensaje"]), (1, r["paradas"][0]["eta_min"], None))
+            self.assertNotIn("7.97", str(a))  # ni la ruta ni las coordenadas del otro cliente
+            self.assertNotIn("ruta", a)
+            self.assertEqual(self.enviar({"lat": 8.001, "lon": -80.43, "precision": 10})[0], 200)  # el repartidor está junto al lejano
+            self.assertEqual(self.orden(), [(lejos, 1), (cerca, 2)])
+            self.assertEqual(self.ruta_rep()["ruta"]["origen"], {"lat": 8.001, "lon": -80.43})
+            self.assertEqual([f["pedido_id"] for f in self.mapa()], [lejos, cerca])
+            a, b = cli(ca), cli(cb)
+            self.assertEqual((a["parada"], a["mensaje"], a["repartidor_pos"]["lat"]), (1, None, 8.001))
+            self.assertEqual((b["parada"], b["mensaje"], b["repartidor_pos"]), (2, ubicacion.REP_OTRA_PARADA, None))
+            with unittest.mock.patch.object(ubicacion, "REP_VIEJO_S", -1):  # GPS viejo: vuelve a contar desde el restaurante
+                self.assertEqual(self.orden(), [(cerca, 1), (lejos, 2)])
 
 
 if __name__ == "__main__":

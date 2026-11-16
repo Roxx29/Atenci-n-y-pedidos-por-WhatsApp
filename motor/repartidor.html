@@ -192,9 +192,24 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
 .pie{z-index:2}
 .esq{height:92px;border-radius:var(--r);background:var(--sc-high);animation:latir 1.2s ease-in-out infinite}
 @keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+.ruta-res{display:flex;align-items:center;gap:8px;margin:0 0 10px;font:700 1.0625rem var(--display)}
+.ruta-res .num{font-size:1.0625rem}
+#mapa-ruta{height:220px;margin:0 0 14px;border-radius:var(--r);background:var(--sc-high);z-index:0}
+.leaflet-container{font-family:var(--texto)}
+.pin-par span{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--inverse);color:var(--on-inverse);font:700 .875rem var(--mono);border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+.pin-par.uno span{width:38px;height:38px;margin:-5px 0 0 -5px;background:var(--primary);color:var(--on-primary);font-size:1.125rem;border-width:3px}
+.pin-ori span{display:block;width:14px;height:14px;border-radius:50%;background:var(--tertiary);border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.pedido .par{grid-row:span 3;display:grid;place-items:center;width:3rem;height:3rem;border-radius:50%;background:var(--inverse);color:var(--on-inverse);font:700 1.5rem var(--mono);line-height:1}
+li.primera .pedido{border-left-color:var(--primary);box-shadow:0 0 0 2px var(--primary),var(--sombra)}
+li.primera .par{background:var(--primary);color:var(--on-primary);width:3.5rem;height:3.5rem;font-size:2rem}
+li.primera .btn.nav{margin-top:8px;min-height:68px;font-size:1.25rem}
+.chip.sinubic{background:var(--secondary-container);color:#1a1c1e}
+@keyframes cambia{from{opacity:.25;transform:scale(.7)}}
+@keyframes cambia-op{from{opacity:.25}}
+.par.cambia{animation:cambia var(--t-vista) var(--ease-out) both}
 @media (max-width:380px){.mets{grid-template-columns:repeat(2,1fr)}}
 @media (min-width:640px){main,.pie{max-width:560px;margin-inline:auto}.pie{left:50%;right:auto;width:560px;transform:translateX(-50%)}}
-@media (prefers-reduced-motion:reduce){:root{--dy:0px;--dx:0px}.hoja-in{animation-name:entra}.btn:active,.teclado button:active,.pedido:active{transform:none}.en-serv::before,.esq{animation:none!important}}
+@media (prefers-reduced-motion:reduce){:root{--dy:0px;--dx:0px}.par.cambia{animation-name:cambia-op}.hoja-in{animation-name:entra}.btn:active,.teclado button:active,.pedido:active{transform:none}.en-serv::before,.esq{animation:none!important}}
 </style>
 </head>
 <body data-marca="DeliFood">
@@ -241,6 +256,8 @@ dialog.aviso-ub input{width:26px;height:26px;accent-color:var(--primary)}
       </div>
     </section>
     <h2 class="sec-tit">Mis entregas</h2>
+    <p class="ruta-res" id="ruta-res" role="status" hidden></p>
+    <div id="mapa-ruta" role="img" aria-label="Mapa con tu ruta: paradas numeradas en orden" hidden></div>
     <ul class="lista" id="lista" aria-live="polite"><li class="esq" aria-hidden="true"></li><li class="esq" aria-hidden="true"></li></ul>
     <div class="vacio" id="vacio" hidden><b>Sin pedidos por ahora</b>Cuando te asignen uno aparece aquí y el teléfono vibra.</div>
   </main>
@@ -295,7 +312,9 @@ const aCobrar = p => num(p.cobrar) > 0 ? p.cobrar : p.total;
 const ESTADO = {en_preparacion:"En cocina", listo:"Listo para recoger", en_camino:"En camino"};
 const ORDEN = {en_camino:0, listo:1, en_preparacion:2};
 
-const st = {demo:location.protocol === "file:", pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0, vistos:new Set()};
+const paradaDe = p => ((st.ruta && st.ruta.paradas) || []).find(x => x.id === p.id);
+const sinUbic = p => { const x = paradaDe(p); return !!x && (x.lat == null || x.lon == null); };
+const st = {cambiaron:new Set(), firma:null, ruta:null, demo:location.protocol === "file:", pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0, vistos:new Set()};
 
 /* ---------- PWA ---------- */
 if ("serviceWorker" in navigator && !st.demo) navigator.serviceWorker.register("/repartidor/sw.js", {scope:"/repartidor/"}).catch(() => {});
@@ -357,25 +376,32 @@ $("#btn-salir").onclick = async () => { clearInterval(st.sondeo); if (!st.demo) 
 /* ---------- Datos ---------- */
 async function cargar() {
   try {
-    let lista;
-    if (st.demo) lista = demoPedidos();
+    let lista, ruta = null;
+    if (st.demo) { lista = demoPedidos(); ruta = DEMO_RUTA; }
     else {
       const r = await fetch("/repartidor/pedidos");
       if (r.status === 401) return location.reload();
       if (!r.ok) throw new Error();
-      const j = await r.json(); lista = j.pedidos || []; if (j.aviso_ubicacion) { st.aviso = j.aviso_ubicacion; mostrarAviso(); }
+      const j = await r.json(); lista = j.pedidos || []; ruta = j.ruta || null; if (j.aviso_ubicacion) { st.aviso = j.aviso_ubicacion; mostrarAviso(); }
     }
     ultimoOk = Date.now(); falloRed = false; pintarCon();
     // Solo activos: lo entregado desaparece (legal).
-    st.pedidos = lista.filter(p => p.estado in ORDEN).sort((a, b) => ORDEN[a.estado] - ORDEN[b.estado] || a.id - b.id);
+    st.ruta = ruta;
+    const rank = p => sinUbic(p) ? 2 : p.parada != null ? 0 : 1; // con parada primero (1 = siguiente), sin ubicación al final
+    st.pedidos = lista.filter(p => p.estado in ORDEN).sort((a, b) => rank(a) - rank(b) || (a.parada || 0) - (b.parada || 0) || ORDEN[a.estado] - ORDEN[b.estado] || a.id - b.id);
     globo(st.pedidos.length); mantenerPantalla(st.pedidos.some(p => p.estado === "en_camino"));
     const ids = new Set(st.pedidos.map(p => p.id));
     if (st.conocidos) {
       const llegan = [...ids].filter(id => !st.conocidos.has(id));
       if (llegan.length) { llegan.forEach(id => st.nuevos.add(id)); avisar(llegan.length === 1 ? `Nuevo pedido #${llegan[0]}` : `${llegan.length} pedidos nuevos`); }
     }
-    st.conocidos = ids;
-    pintarLista(); actualizarTransmision();
+    // ¿cambió el orden de la ruta? (solo si ya había uno anterior)
+    const firma = st.pedidos.map(p => p.id + ":" + (p.parada || 0)).join(",");
+    const cambio = st.firma != null && st.conocidos && firma !== st.firma && st.pedidos.some(p => p.parada != null);
+    st.cambiaron = new Set(cambio ? st.pedidos.filter(p => p.parada != null).map(p => p.id) : []);
+    if (cambio && ![...ids].some(id => !st.conocidos.has(id))) avisar("Ruta actualizada"); // si llegó un pedido nuevo, ya hay aviso
+    st.firma = firma; st.conocidos = ids;
+    pintarLista(); pintarMapa(cambio); actualizarTransmision();
     if (st.abierto) { const p = st.pedidos.find(x => x.id === st.abierto); if (p) pintarDetalle(p); else ver("lista"); }
   } catch (e) { falloRed = true; pintarCon(); /* sin señal: reintenta solo */ }
 }
@@ -383,7 +409,7 @@ async function cargar() {
 /* ---------- Vistas ---------- */
 function ver(cual) {
   $("#vista-lista").hidden = cual !== "lista"; $("#detalle").hidden = cual !== "detalle";
-  if (cual === "lista") st.abierto = null;
+  if (cual === "lista") { st.abierto = null; setTimeout(() => M.mapa && M.mapa.invalidateSize(), 50); }
   const el = $(cual === "lista" ? "#vista-lista" : "#detalle"); // reinicia la animación de entrada
   el.classList.remove("v-in", "v-atras"); void el.offsetWidth; el.classList.add(cual === "lista" ? "v-atras" : "v-in");
   window.scrollTo(0, 0);
@@ -403,16 +429,57 @@ function pintarTurno() {
 function pintarLista() {
   pintarTurno();
   $("#vacio").hidden = st.pedidos.length > 0;
+  const R = st.ruta, res = $("#ruta-res"), np = R && R.paradas ? R.paradas.filter(x => !x.fuera_de_viaje).length : 0;
+  res.hidden = !np; if (np) res.replaceChildren(icono("moto"), h("span", {}, `${np} ${np === 1 ? "parada" : "paradas"}`, R.total_min != null ? [" · ", h("span", {class:"num"}, "~" + Math.round(R.total_min) + " min")] : ""));
   let k = 0;
-  $("#lista").replaceChildren(...st.pedidos.map(p => h("li", st.vistos.has(p.id) ? {} : (st.vistos.add(p.id), {class:"entra", style:"--i:" + Math.min(k++, 6)}), // solo entran los nuevos, no en cada sondeo
-    h("button", {class:"pedido" + (st.nuevos.has(p.id) ? " nuevo" : "") + (p.estado === "en_camino" ? " en-camino" : ""), on:{click:() => abrir(p.id)}, "aria-label":`Pedido ${p.id}, ${p.nombre}, ${p.zona || ""}, ${pagado(p) ? "pagado" : "cobrar " + dinero(aCobrar(p))}, ${ESTADO[p.estado]}`},
-      h("span", {class:"n num"}, "#" + p.id),
-      h("span", {class:"nombre"}, p.nombre),
-      h("span", {class:"zona"}, [p.zona, p.hora_deseada].filter(Boolean).join(" · ") || "Entrega"),
-      h("span", {class:"chips"},
-        pagado(p) ? h("span", {class:"chip pagado"}, icono("check"), "Pagado") : h("span", {class:"chip cobrar num"}, "Cobrar " + dinero(aCobrar(p))),
-        h("span", {class:"chip" + (p.estado === "en_camino" ? " camino" : "")}, ESTADO[p.estado]),
-        p.fuera_de_zona && h("span", {class:"chip fuera"}, "Fuera de zona"))))));
+  $("#lista").replaceChildren(...st.pedidos.map(p => {
+    const x = paradaDe(p) || {}, uno = p.parada === 1 && !x.fuera_de_viaje, sin = sinUbic(p), url = p.mapa || p.mapa_url;
+    return h("li", st.vistos.has(p.id) ? {class:uno ? "primera" : ""} : (st.vistos.add(p.id), {class:"entra" + (uno ? " primera" : ""), style:"--i:" + Math.min(k++, 6)}), // solo entran los nuevos, no en cada sondeo
+      h("button", {class:"pedido" + (st.nuevos.has(p.id) ? " nuevo" : "") + (p.estado === "en_camino" ? " en-camino" : ""), on:{click:() => abrir(p.id)}, "aria-label":`${p.parada != null ? "Parada " + p.parada + ", " : ""}Pedido ${p.id}, ${p.nombre}, ${p.zona || ""}, ${pagado(p) ? "pagado" : "cobrar " + dinero(aCobrar(p))}, ${ESTADO[p.estado]}${sin ? ", sin ubicación" : ""}${x.fuera_de_viaje ? ", no entra en este viaje" : ""}`},
+        p.parada != null ? h("span", {class:"par" + (st.cambiaron.has(p.id) ? " cambia" : ""), "aria-hidden":"true"}, p.parada) : h("span", {class:"n num"}, "#" + p.id),
+        h("span", {class:"nombre"}, p.nombre),
+        h("span", {class:"zona"}, [p.parada != null && "#" + p.id, p.zona, p.hora_deseada, x.eta_min != null && "~" + Math.round(x.eta_min) + " min"].filter(Boolean).join(" · ") || "Entrega"),
+        h("span", {class:"chips"},
+          pagado(p) ? h("span", {class:"chip pagado"}, icono("check"), "Pagado") : h("span", {class:"chip cobrar num"}, "Cobrar " + dinero(aCobrar(p))),
+          h("span", {class:"chip" + (p.estado === "en_camino" ? " camino" : "")}, ESTADO[p.estado]),
+          sin && h("span", {class:"chip sinubic"}, "Sin ubicación"),
+          x.fuera_de_viaje && h("span", {class:"chip fuera"}, "No entra en este viaje"),
+          p.fuera_de_zona && h("span", {class:"chip fuera"}, "Fuera de zona"))),
+      uno && url ? h("a", {class:"btn nav", href:url, target:"_blank", rel:"noopener"}, icono("mapa"), "Navegar") : null);
+  }));
+}
+
+/* ---------- Mapa de la ruta (Leaflet autoalojado, carga diferida; sin librerías nuevas) ---------- */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+const M = {mapa:null, capas:[], id:0};
+async function pintarMapa(ajustar) {
+  const R = st.ruta, ps = ((R && R.paradas) || []).filter(x => x.lat != null && x.lon != null && !x.fuera_de_viaje).sort((a, b) => a.n - b.n), caja = $("#mapa-ruta");
+  if (!ps.length || st.demo) { caja.hidden = true; return; }
+  const id = ++M.id;
+  try {
+    const L = await cargarLeaflet(); if (id !== M.id) return;
+    caja.hidden = false;
+    if (!M.mapa) {
+      M.mapa = L.map("mapa-ruta", {zoomControl:false}).setView([ps[0].lat, ps[0].lon], 14); M.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(M.mapa);
+      ajustar = true;
+    }
+    M.capas.forEach(c => c.remove()); M.capas = [];
+    const o = R.origen && R.origen.lat != null ? [[R.origen.lat, R.origen.lon]] : [], linea = o.concat(ps.map(x => [x.lat, x.lon]));
+    if (linea.length > 1) M.capas.push(L.polyline(linea, {color:"#c8102e", weight:4, opacity:.85}).addTo(M.mapa));
+    if (o.length) M.capas.push(L.marker(o[0], {title:"Tú", interactive:false, icon:L.divIcon({className:"pin-ori", html:h("span", {}), iconSize:[14, 14]})}).addTo(M.mapa));
+    for (const x of ps) M.capas.push(L.marker([x.lat, x.lon], {title:"Parada " + x.n, zIndexOffset:x.n === 1 ? 1000 : 0, icon:L.divIcon({className:"pin-par" + (x.n === 1 ? " uno" : ""), html:h("span", {}, String(x.n)), iconSize:x.n === 1 ? [38, 38] : [28, 28]})}).addTo(M.mapa));
+    M.mapa.invalidateSize(); if (ajustar) M.mapa.fitBounds(linea, {padding:[30, 30], maxZoom:16});
+  } catch (e) { caja.hidden = true; }
 }
 
 function abrir(id) {
@@ -560,13 +627,14 @@ let DEMO;
 function demoPedidos() {
   if (!DEMO) {
     DEMO = [
-      {id:36, estado:"listo", nombre:"Ricardo", telefono:"50761234567", zona:"Chitré", direccion:"Barrio San Juan, calle 3, casa de rejas blancas", notas:"Tocar el timbre dos veces", hora_deseada:"12:45", items:[{nombre:"Sancocho de gallina", cantidad:3}], total:"B/. 18.05", pagado:true, mapa:"geo:7.9612,-80.4297"},
-      {id:31, estado:"en_camino", nombre:"Iris", telefono:"50765554433", zona:"Chitré", direccion:"Calle 4.ª, casa verde frente a la tienda", items:[{nombre:"Tasajo con arroz, ensalada y patacones", cantidad:1}, {nombre:"Chicheme", cantidad:1}], total:"B/. 11.37", pagado:false, mapa:"geo:7.9655,-80.4251"},
-      {id:38, estado:"en_preparacion", nombre:"Don Abdiel", telefono:"50762223344", zona:"La Villa de Los Santos", direccion:"Frente al parque, 2.º piso", notas:"Sin cebolla", items:[{nombre:"Arroz con guandú y cerdo", cantidad:1}, {nombre:"Empanadas de carne (3 u.)", cantidad:1}], total:"B/. 11.09", pagado:true, mapa:null}];
+      {id:36, estado:"listo", nombre:"Ricardo", telefono:"50761234567", zona:"Chitré", direccion:"Barrio San Juan, calle 3, casa de rejas blancas", notas:"Tocar el timbre dos veces", hora_deseada:"12:45", items:[{nombre:"Sancocho de gallina", cantidad:3}], total:"B/. 18.05", pagado:true, parada:2, mapa:"geo:7.9612,-80.4297"},
+      {id:31, estado:"en_camino", nombre:"Iris", telefono:"50765554433", zona:"Chitré", direccion:"Calle 4.ª, casa verde frente a la tienda", items:[{nombre:"Tasajo con arroz, ensalada y patacones", cantidad:1}, {nombre:"Chicheme", cantidad:1}], total:"B/. 11.37", pagado:false, parada:1, mapa:"geo:7.9655,-80.4251"},
+      {id:38, estado:"en_preparacion", nombre:"Don Abdiel", telefono:"50762223344", zona:"La Villa de Los Santos", direccion:"Frente al parque, 2.º piso", notas:"Sin cebolla", items:[{nombre:"Arroz con guandú y cerdo", cantidad:1}, {nombre:"Empanadas de carne (3 u.)", cantidad:1}], total:"B/. 11.09", pagado:true, parada:3, mapa:null}];
     setTimeout(() => DEMO.push({id:42, estado:"listo", nombre:"Rosa", telefono:"50769998877", zona:"Chitré", direccion:"Urb. Los Ángeles, casa 14", items:[{nombre:"Arroz con guandú y cerdo", cantidad:2}], total:"B/. 15.94", pagado:true, mapa:"geo:7.958,-80.433"}), 15000);
   }
   return DEMO;
 }
+const DEMO_RUTA = {origen:null, total_min:25, paradas:[{id:31, n:1, lat:7.9655, lon:-80.4251, eta_min:9, dist_m:1200, fuera_de_viaje:false}, {id:36, n:2, lat:7.9612, lon:-80.4297, eta_min:25, dist_m:2900, fuera_de_viaje:false}, {id:38, n:3, lat:null, lon:null, eta_min:null, dist_m:null, fuera_de_viaje:false}]};
 </script>
 </body>
 </html>

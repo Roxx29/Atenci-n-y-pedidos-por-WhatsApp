@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import clientes, panel_web, ubicacion
+from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
 from .nucleo import Servicio
@@ -198,36 +199,52 @@ def crear_manejador(sv, secreto=None, env=None):
         return {"version": v, "texto": r.get("aviso_ubicacion", ubicacion.REP_AVISO).replace("{Restaurante}", sv.cfg.get("nombre") or "el restaurante"),
                 "aceptado": bool(fila) and fila[0][0] == v}
 
+    def restaurante():
+        try:  # RESTAURANTE_LAT/LON (.env): opcional; sin ellos o inválidos, None
+            return ubicacion.validar(float(env["RESTAURANTE_LAT"]), float(env["RESTAURANTE_LON"]))
+        except (KeyError, ValueError):
+            return None
+
     def en_ruta():
-        """(repartidor -> pedidos en_camino vigentes, el siguiente primero; posiciones que quedan; ahora). Borra (y audita) las que ya no tocan."""
-        rutas, ahora = {}, sv.ahora()
+        """(repartidor -> pedidos en_camino vigentes, en orden de parada; posiciones que quedan; ahora; repartidor -> ruta). Borra (y audita) las
+        posiciones que ya no tocan. La ruta (motor/ruta.py) se calcula aquí cada vez, sobre sus pedidos listos y en camino: sale de su posición
+        si es reciente; si no, del restaurante.
+        ponytail: un `listo` asignado a mitad de viaje se ordena como si ya lo llevara encima; separar viajes si molesta."""
+        rutas, carga, ahora = {}, {}, sv.ahora()
         for p in sv.listar("pedido"):
             desde = p.get("en_camino_at") or p.get("estado_at")
             if p["estado"] == "en_camino" and p.get("repartidor") and not (desde and (ahora - dt.datetime.fromisoformat(desde)).total_seconds() > ubicacion.REP_CADUCIDAD_S):
                 rutas.setdefault(p["repartidor"], []).append(p)
-        for ps in rutas.values():
-            ps.sort(key=lambda p: (p.get("en_camino_at") or "", p["id"]))  # ponytail: sin orden de paradas, el más antiguo en_camino es el siguiente
-        quedan, fuera = pos.purgar(set(rutas), time.time())
+                carga.setdefault(p["repartidor"], []).append(p)
+            elif p["estado"] == "listo" and p.get("repartidor"):
+                carga.setdefault(p["repartidor"], []).append(p)
+        t = time.time()
+        quedan, fuera = pos.purgar(set(rutas), t)
         for n in fuera:
             panel_web.auditar(sv, n, "ubicacion_off")
-        return rutas, quedan, time.time()
+        plan = {}
+        for n, ps in carga.items():
+            v = quedan.get(n)
+            plan[n] = reparto.de_pedidos(ps, v[:2] if v and t - v[3] <= ubicacion.REP_VIEJO_S else restaurante(), ahora, sv._cfg)  # _cfg: sin los ajustes del dueño
+            rutas.get(n, []).sort(key=lambda p: reparto.parada(plan[n], p["id"])["n"])
+        return rutas, quedan, t, plan
 
     def mapa_panel():
-        rutas, quedan, t = en_ruta()
-        try:  # RESTAURANTE_LAT/LON (.env): opcional; sin ellos o inválidos, null
-            lat, lon = ubicacion.validar(float(env["RESTAURANTE_LAT"]), float(env["RESTAURANTE_LON"]))
-            rest = {"lat": lat, "lon": lon, "nombre": sv.cfg.get("nombre") or "Restaurante"}
-        except (KeyError, ValueError):
-            rest = None
+        rutas, quedan, t, _ = en_ruta()
+        r = restaurante()
+        rest = {"lat": r[0], "lon": r[1], "nombre": sv.cfg.get("nombre") or "Restaurante"} if r else None
         return {"restaurante": rest, "repartidores": [{"repartidor": n, "pedido_id": p["id"], **ubicacion.vista_posicion(quedan[n], t)} for n, ps in rutas.items() if n in quedan for p in ps]}
 
-    def mapa_cliente(p, rutas, quedan, t):
-        """Campos extra del pedido en_camino del cliente: nombre de pila; posición solo si es la siguiente parada (si no, mensaje)."""
-        n, ps = p.get("repartidor"), rutas.get(p.get("repartidor"), [])
-        d = {"repartidor": re.match(r"[A-Za-z0-9]*", n or "").group() or None, "repartidor_pos": None, "mensaje": None}
-        if ps and ps[0]["id"] != p["id"]:
+    def mapa_cliente(p, rutas, quedan, t, plan):
+        """Campos extra del pedido en_camino del cliente: nombre de pila, su número de parada y minutos estimados; posición solo si es la
+        siguiente parada (si no, mensaje). Nunca la ruta ni las otras paradas."""
+        n = p.get("repartidor")
+        par = reparto.parada(plan.get(n), p["id"]) if any(x["id"] == p["id"] for x in rutas.get(n, ())) else None  # caducado: sin dato
+        d = {"repartidor": re.match(r"[A-Za-z0-9]*", n or "").group() or None, "repartidor_pos": None, "mensaje": None,
+             "parada": par and par["n"], "eta_min": par and par["eta_min"]}
+        if par and par["n"] > 1:
             d["mensaje"] = ubicacion.REP_OTRA_PARADA
-        elif ps and n in quedan:
+        elif par and n in quedan:
             d["repartidor_pos"] = ubicacion.vista_posicion(quedan[n], t)
         return d
 
@@ -335,7 +352,7 @@ def crear_manejador(sv, secreto=None, env=None):
             try:
                 if ruta == "/panel/estado" and metodo == "GET":
                     desde = int((parse_qs(urlsplit(self.path).query).get("desde") or ["0"])[0])
-                    return self._enviar(200, panel_web.estado_panel(sv, desde, repartidores), extra=renovar)
+                    return self._enviar(200, panel_web.estado_panel(sv, desde, repartidores, en_ruta()[3]), extra=renovar)
                 if len(partes) == 4 and partes[2] in ("pedido", "comprobante") and metodo == "GET":
                     pid = int(partes[3])
                     if partes[2] == "pedido":
@@ -521,7 +538,8 @@ def crear_manejador(sv, secreto=None, env=None):
                     panel_web.auditar(sv, nombre, "ubicacion_off")
                 return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acc_rep.borrar_cookie(self._seguro()))])
             if ruta == "/repartidor/pedidos" and metodo == "GET":
-                return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre), "aviso_ubicacion": aviso_rep(nombre)}, extra=renovar)
+                r = en_ruta()[3].get(nombre) or reparto.calcular([], None, reparto.DEFECTO)  # solo la suya
+                return self._enviar(200, {"nombre": nombre, "pedidos": panel_web.pedidos_repartidor(sv, nombre, r), "ruta": r, "aviso_ubicacion": aviso_rep(nombre)}, extra=renovar)
             if ruta == "/repartidor/aviso_ubicacion" and metodo == "POST":
                 d = self._json()
                 if d is None:
@@ -544,8 +562,8 @@ def crear_manejador(sv, secreto=None, env=None):
                 except ValueError as e:
                     return self._err(409, str(e))
                 panel_web.auditar(sv, nombre, est, pid)
-                en_ruta()
-                return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_repartidor(p) if p["estado"] in panel_web.EN_RUTA else None}, extra=renovar)
+                r = en_ruta()[3].get(nombre)
+                return self._enviar(200, {"ok": True, "pedido": panel_web.pedido_repartidor(p, r) if p["estado"] in panel_web.EN_RUTA else None}, extra=renovar)
             self._err(404, "No encontrado")
 
         def _posicion(self, nombre, renovar):

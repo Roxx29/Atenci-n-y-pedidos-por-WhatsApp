@@ -7,5 +7,9 @@
 # Opcionales, solo del operador (el dueño del restaurante no los ve ni los cambia); se aplican sin reiniciar:
 #   modulos: [estadisticas]   manda sobre el `modulos` de su servicio.yaml; [] = ninguno; sin la línea = lo que diga su servicio.yaml
 #   pagado_hasta: 2026-12-31  precio: 35 (US$/mes)  notas: "texto libre, máx. 500"
+#   prueba_hasta: 2026-12-15  prueba gratis: funciona normal hasta ese día incluido; al día siguiente responde 404 como un pausado
+#                             (para seguir: quitar la línea o cambiar la fecha). Sin la línea nunca se pausa por fecha (ni por pagado_hasta).
+#   tope_ia_dia: 300          turnos de chat con IA al día (0 = sin tope, máx. 100000). Sin la línea: 300 si tiene prueba_hasta
+#                             (o TOPE_IA_DIA del .env) y sin tope los demás. Al llegar, el chat pide llamar al restaurante; lo demás sigue.
 clientes:
   delifood: {carpeta: servicios/restaurante-pedidos, dominio: delifood.com, activo: true}

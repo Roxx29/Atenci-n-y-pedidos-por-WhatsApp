@@ -86,6 +86,7 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
             "CREATE TABLE IF NOT EXISTS comprobantes(nombre TEXT PRIMARY KEY, datos BLOB NOT NULL, creado REAL NOT NULL);"  # fotos de comprobantes de Yappy (antes archivos)
             "CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL);"  # lo que el dueño cambia desde el panel; pisa esa clave de servicio.yaml
+            "CREATE TABLE IF NOT EXISTS uso_ia(dia TEXT PRIMARY KEY, mensajes INTEGER NOT NULL);"  # turnos de cliente que llegaron al modelo, por día (la consola del operador la lee)
         )
         if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)").fetchall()}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto
             self.db.executescript("ALTER TABLE platos ADD COLUMN foto BLOB; ALTER TABLE platos ADD COLUMN foto2x BLOB; ALTER TABLE platos ADD COLUMN foto_v TEXT;")
@@ -98,6 +99,8 @@ class Servicio:
         self._cliente_respaldo = cliente_respaldo or cliente  # en pruebas el mismo cliente falso sirve a ambos
         self._principal_caido_hasta = 0.0
         self._avisado = False
+        self.tope_ia = 0  # turnos de IA al día; 0 = sin tope. Lo pone `alojar` desde clientes.yaml (clientes.tope_ia)
+        self._tope_avisado = None  # día del último aviso de tope (ahorra la consulta en cada mensaje ya topado)
         self._reloj = time.monotonic
         self._menu_yaml = herramientas.cargar_menu(self.dir, self.cfg["menu"]) if self.cfg.get("menu") else {}
         if self._menu_yaml and not self._q("SELECT 1 FROM platos LIMIT 1"):  # semilla: menu.yaml solo la primera vez; luego manda la BD (panel)
@@ -232,7 +235,28 @@ class Servicio:
         # shortcut: conversación nueva tras 24 h en vez de compactar; si hay chats muy largos, usar compaction.
         return json.loads(fila[0][0]) if fila and time.time() - fila[0][1] < VENTANA_S else []
 
+    def _cupo_ia(self):
+        """Cuenta este turno en uso_ia y dice si cabe en el tope de hoy (día en la zona del servicio). Una sola sentencia:
+        ni dos hilos ni dos procesos sobre la misma BD pasan del tope. Al toparse deja UN aviso al panel por día."""
+        dia = f"{self.ahora():%Y-%m-%d}"
+        tope = self.tope_ia
+        with self._db_lock, self.db:
+            if self.db.execute("INSERT INTO uso_ia(dia, mensajes) VALUES (?, 1) ON CONFLICT(dia) DO UPDATE SET mensajes = mensajes + 1"
+                               " WHERE ? = 0 OR mensajes < ?", (dia, tope, tope)).rowcount == 1:
+                return True
+        aviso = "Se alcanzó el tope de IA de hoy"
+        if self._tope_avisado != dia:
+            with self._db_lock, self.db:  # el NOT EXISTS hace que sea uno solo: entre hilos, tras un reinicio o con otro proceso en la misma BD
+                self.db.execute("INSERT INTO registros(tipo, datos, creado) SELECT 'aviso', ?, ? WHERE NOT EXISTS"
+                                " (SELECT 1 FROM registros WHERE tipo='aviso' AND substr(creado, 1, 10)=? AND json_extract(datos, '$.texto')=?)",
+                                (json.dumps({"texto": aviso, "telefono": None, "pedido_id": None}, ensure_ascii=False), self.ahora().isoformat(), dia, aviso))
+            self._tope_avisado = dia
+        return False
+
     def responder(self, cid, texto):
+        if not self._cupo_ia():  # sin llamar al modelo ni tocar la conversación
+            tel = self.cfg.get("telefono")
+            return f"Hoy el asistente alcanzó su límite. Llama al restaurante{f' al {tel}' if tel else ''} para tu pedido."
         with self._locks[cid]:
             msgs = self._historial(cid)
             msgs.append({"role": "user", "content": f"[{self.ahora():%Y-%m-%d %H:%M} · cliente {cid}] {texto}"})

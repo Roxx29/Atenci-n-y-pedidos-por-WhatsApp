@@ -25,6 +25,7 @@ SESION = 8 * 3600
 MAX_FALLOS, BLOQUEO = 5, 300
 CATALOGO = ("estadisticas",)  # módulos que el operador puede activar; añade aquí los nuevos
 AVISO_DIAS = 5
+TOPE_PRUEBA = 300  # tope IA diario por defecto en prueba (el contrato lo aplica clientes.py)
 
 
 class Operador:
@@ -171,6 +172,30 @@ class Operador:
             return "por_vencer", n, f"Vence en {n} días"
         return "al_dia", n, "Al día"
 
+    @staticmethod
+    def _uso(carpeta):
+        """Mensajes de IA de hoy (uso_ia, solo lectura); 0 si no hay BD o tabla."""
+        bd = carpeta / "datos.sqlite"
+        if not bd.exists():
+            return 0
+        try:
+            con = sqlite3.connect(f"{bd.as_uri()}?mode=ro", uri=True, timeout=3)
+            try:
+                r = con.execute("SELECT mensajes FROM uso_ia WHERE dia=?", (dt.date.today().isoformat(),)).fetchone()
+            finally:
+                con.close()
+            return int(r[0]) if r else 0
+        except (sqlite3.Error, ValueError, TypeError):
+            return 0
+
+    @staticmethod
+    def estado_prueba(hasta, hoy=None):
+        """-> (dias, etiqueta); (None, '') si no está en prueba."""
+        if hasta is None:
+            return None, ""
+        n = (hasta - (hoy or dt.date.today())).days
+        return n, (f"Prueba: quedan {n} días" if n >= 0 else f"Prueba terminada hace {-n} días (pausado)")
+
     def listar(self):
         """-> (clientes, resumen). Resumen: activos, ingresos (suma de precio de los no vencidos), vencidos."""
         out, entradas, pagos = [], self._yaml()["clientes"], self._pagos()
@@ -181,13 +206,21 @@ class Operador:
                 m["modulos"] = [str(x) for x in e["modulos"]]
             hasta = self._fecha(e.get("pagado_hasta"))
             est, dias, et = self.estado_pago(hasta)
+            ph = self._fecha(e.get("prueba_hasta"))
+            pd, pet = self.estado_prueba(ph)
+            tope = e.get("tope_ia_dia")
+            tope = tope if isinstance(tope, int) and not isinstance(tope, bool) else (TOPE_PRUEBA if ph else 0)
             precio = e.get("precio") if isinstance(e.get("precio"), (int, float)) else None
             out.append({"slug": c.slug, "dominio": c.dominio or "", "activo": bool(c.activo), **m,
                         "pagado_hasta": hasta.isoformat() if hasta else None, "estado_pago": est, "dias": dias, "etiqueta_pago": et,
+                        "prueba_hasta": ph.isoformat() if ph else None, "prueba_dias": pd, "etiqueta_prueba": pet,
+                        "uso_ia": self._uso(Path(c.carpeta)), "tope_ia": tope,
                         "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, [])})
         resumen = {"activos": sum(c["activo"] for c in out),
                    "ingresos": sum(c["precio"] or 0 for c in out if c["estado_pago"] in ("al_dia", "por_vencer")),
-                   "vencidos": sum(c["estado_pago"] == "vencido" for c in out)}
+                   "vencidos": sum(c["estado_pago"] == "vencido" for c in out),
+                   "en_prueba": sum(c["prueba_dias"] is not None for c in out),
+                   "pruebas_por_vencer": sum(c["prueba_dias"] is not None and 0 <= c["prueba_dias"] <= 3 for c in out)}
         return out, resumen
 
     def _entrada(self, slug):
@@ -215,7 +248,31 @@ class Operador:
             if not isinstance(d["notas"], str) or len(d["notas"]) > 500:
                 raise ValueError("notas: máximo 500 caracteres")
             e["notas"] = d["notas"]
+        if "tope_ia_dia" in d:
+            t = d["tope_ia_dia"]
+            if isinstance(t, bool) or not isinstance(t, int) or not 0 <= t <= 100000:
+                raise ValueError("tope IA: entero entre 0 y 100000")
+            e["tope_ia_dia"] = t
         self._guardar(datos)
+
+    def prueba(self, slug, accion, dias=15, meses=1):
+        """iniciar: hoy+dias | extender: max(hoy, prueba_hasta)+dias | pagar: quita la prueba y registra el pago (meses)."""
+        if accion not in ("iniciar", "extender", "pagar"):
+            raise ValueError("acción inválida")
+        if isinstance(dias, bool) or dias not in (7, 15, 30):
+            raise ValueError("días: 7, 15 o 30")
+        datos, e = self._entrada(slug)
+        hoy = dt.date.today()
+        if accion == "pagar":
+            if isinstance(meses, bool) or meses not in (1, 3, 12):
+                raise ValueError("meses: 1, 3 o 12")
+            e.pop("prueba_hasta", None)
+            self._guardar(datos)
+            return self.pagar(slug, meses)
+        base = hoy if accion == "iniciar" else max(hoy, self._fecha(e.get("prueba_hasta")) or hoy)
+        e["prueba_hasta"] = (base + dt.timedelta(days=dias)).isoformat()
+        self._guardar(datos)
+        return e["prueba_hasta"]
 
     def pagar(self, slug, meses):
         """Marcó pagado: pagado_hasta = max(hoy, pagado_hasta) + 30 días x meses; anota la línea en pagos.jsonl."""
@@ -345,6 +402,9 @@ def handler(op):
                     return self._send(200, {"ok": True})
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pago":
                     return self._send(200, {"ok": True, "pagado_hasta": op.pagar(partes[2], d.get("meses", 1))})
+                if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "prueba":
+                    hasta = op.prueba(partes[2], d.get("accion"), d.get("dias", 15), d.get("meses", 1))
+                    return self._send(200, {"ok": True, "hasta": hasta})
                 if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "respaldo":
                     return self._send(200, {"ok": True, "archivo": op.respaldo(partes[2])})
             except (ValueError, LookupError, FileExistsError, FileNotFoundError) as e:

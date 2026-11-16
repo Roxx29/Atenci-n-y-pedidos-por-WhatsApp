@@ -42,6 +42,9 @@ button.p{background:var(--ac);color:#0b1020;border-color:var(--ac);font-weight:6
 .ck{display:inline-flex;gap:6px;align-items:center;margin-left:10px}.ck input{min-height:0;width:18px;height:18px}
 .hist{margin:6px 0 10px;padding-left:18px;color:var(--mut);font-size:13px}
 summary{cursor:pointer;color:var(--mut);font-size:13px;margin-bottom:4px}
+.pr{margin-top:10px;align-items:center}.ia{margin-top:10px;display:grid;gap:6px}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);transform-origin:left;transition:transform .25s ease}.bar i.hi{background:var(--warn)}
 @media (max-width:560px){.ed{grid-template-columns:1fr}}
 dialog{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:16px;width:min(360px,92vw)}
 dialog::backdrop{background:#0009}
@@ -63,7 +66,7 @@ dialog form{display:grid;gap:10px}
 <section id="app" hidden>
   <header><h1>Clientes</h1><button class="p" id="nuevo">Nuevo cliente</button><button id="salir">Salir</button></header>
   <div class="m res" id="resumen"></div>
-  <div class="acc" style="margin-bottom:12px"><label class="f">Ver <select id="filtro"><option value="todos">Todos (vencidos primero)</option><option value="pend">Solo vencidos y por vencer</option></select></label></div>
+  <div class="acc" style="margin-bottom:12px"><label class="f">Ver <select id="filtro"><option value="todos">Todos (vencidos primero)</option><option value="pend">Solo vencidos y por vencer</option><option value="pruebas">Solo pruebas (las que vencen primero)</option></select></label></div>
   <div class="grid" id="lista"></div>
 </section>
 </main>
@@ -96,6 +99,32 @@ function medida(v,l){const d=el("div");d.append(el("b","",v),el("span","",l));re
 const ORDEN={vencido:0,por_vencer:1,sin_pago:2,al_dia:3};
 let datos=null,filtro="todos";
 function campo(t,x){const l=el("label","f"),i=el(t==="textarea"?"textarea":"input");l.append(el("span","",x),i);return[l,i]}
+function bloquePrueba(c){
+  const d=el("div","acc pr"),en=c.prueba_dias!==null;
+  const sel=el("select");[7,15,30].forEach(v=>{const o=el("option","",v+" días");o.value=v;if(v===15)o.selected=true;sel.append(o)});
+  const call=(b,body,msg)=>accion(b,()=>api("POST","/api/clientes/"+c.slug+"/prueba",body),msg);
+  if(en){
+    d.append(el("span","pill "+(c.prueba_dias<0?"vencido":c.prueba_dias<=3?"por_vencer":"al_dia"),c.etiqueta_prueba),sel);
+    const x=el("button","","Extender prueba");x.onclick=()=>call(x,{accion:"extender",dias:Number(sel.value)},j=>"Prueba hasta "+j.hasta);
+    const m=el("select");[1,3,12].forEach(v=>{const o=el("option","",v+(v===1?" mes":" meses"));o.value=v;m.append(o)});
+    const p=el("button","p","Pasar a pago");p.onclick=()=>call(p,{accion:"pagar",meses:Number(m.value)},j=>"Pagado hasta "+j.hasta);
+    d.append(x,m,p);
+  }else{
+    const i=el("button","","Iniciar prueba");i.onclick=()=>call(i,{accion:"iniciar",dias:Number(sel.value)},j=>"Prueba hasta "+j.hasta);
+    d.append(el("span","dom","Sin prueba"),sel,i);
+  }
+  return d;
+}
+function bloqueIA(c){
+  const d=el("div","ia"),t=c.tope_ia,p=t>0?Math.min(c.uso_ia/t,1):0,alto=t>0&&c.uso_ia/t>=0.8;
+  const txt=el("span",alto?"warn":"dom","IA hoy: "+c.uso_ia+" / "+(t>0?t:"sin tope")+" mensajes"+(alto?" · cerca del tope":""));
+  const barra=el("div","bar"),fill=el("i",alto?"hi":"");fill.style.transform="scaleX("+p+")";barra.append(fill);
+  const [l,i]=campo("input","Tope diario (0 = sin tope)");i.type="number";i.min=0;i.max=100000;i.step=1;i.inputMode="numeric";i.value=t;
+  const g=el("button","","Guardar tope");
+  g.onclick=()=>accion(g,()=>api("POST","/api/clientes/"+c.slug+"/config",{tope_ia_dia:Number(i.value)}),null);
+  const f=el("div","acc");f.append(l,g);f.style.alignItems="end";
+  d.append(txt,barra,f);return d;
+}
 function tarjeta(c,cat){
   const k=el("article","card"),t=el("div","top"),n=el("div");
   n.append(el("div","nom",c.slug),el("div","dom",c.dominio||"sin dominio"));
@@ -122,20 +151,22 @@ function tarjeta(c,cat){
   const a=el("div","acc"),p=el("button","",c.activo?"Pausar":"Activar"),r=el("button","","Copia de seguridad");
   p.onclick=()=>accion(p,()=>api("POST","/api/clientes/"+c.slug+"/pausa",{activo:!c.activo}),null);
   r.onclick=()=>accion(r,()=>api("POST","/api/clientes/"+c.slug+"/respaldo"),j=>"Copia: "+j.archivo);
-  a.append(p,r);k.append(t,m,mo,ed,py);
+  a.append(p,r);k.append(t,m,mo,ed,py,bloquePrueba(c),bloqueIA(c));
   if(c.pagos.length){const d=el("details"),h=el("ul","hist");d.append(el("summary","","Pagos ("+c.pagos.length+")"),h);
     c.pagos.forEach(x=>h.append(el("li","",x.fecha+" · US$ "+x.monto+" · "+x.meses+(x.meses===1?" mes":" meses"))));k.append(d)}
   k.append(a);return k;
 }
 function resumen(r){
-  const b=$("resumen");b.replaceChildren(medida(r.activos,"clientes activos"),medida("US$ "+r.ingresos.toFixed(2),"ingresos mensuales esperados"),medida(r.vencidos,"vencidos"));
+  const b=$("resumen");b.replaceChildren(medida(r.activos,"clientes activos"),medida("US$ "+r.ingresos.toFixed(2),"ingresos mensuales esperados"),medida(r.vencidos,"vencidos"),medida(r.en_prueba,"en prueba"),medida(r.pruebas_por_vencer,"pruebas vencen en ≤3 días"));
 }
 function pintar(){
   if(!datos)return;
   resumen(datos.resumen);
   const l=$("lista");
-  const v=datos.clientes.filter(c=>filtro==="todos"||c.estado_pago==="vencido"||c.estado_pago==="por_vencer")
-    .sort((a,b)=>ORDEN[a.estado_pago]-ORDEN[b.estado_pago]||a.slug.localeCompare(b.slug));
+  const pr=c=>c.prueba_dias!==null&&c.prueba_dias<=3;  // prueba vencida o por vencer: primero
+  const v=datos.clientes.filter(c=>filtro==="todos"||(filtro==="pruebas"?c.prueba_dias!==null:c.estado_pago==="vencido"||c.estado_pago==="por_vencer"))
+    .sort((a,b)=>filtro==="pruebas"?a.prueba_dias-b.prueba_dias||a.slug.localeCompare(b.slug)
+      :(pr(b)-pr(a))||ORDEN[a.estado_pago]-ORDEN[b.estado_pago]||a.slug.localeCompare(b.slug));
   l.replaceChildren(...v.map(c=>tarjeta(c,datos.catalogo)));
   if(!v.length)l.append(el("p","dom","Sin clientes."))
 }

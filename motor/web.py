@@ -846,7 +846,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
         """Los ya abiertos conservan su instancia (BD, sesiones, límites); un pausado solo deja de estar en el mapa de hosts.
         ponytail: carpeta o variables de un cliente ya abierto no cambian en caliente (pide reinicio); un pausado sigue con la BD abierta."""
         nonlocal por_host, dominios, activos
-        hosts = {}
+        hosts, doms = {}, {}
         for c in lista:
             if c.activo:
                 if c.slug not in manejadores:
@@ -855,11 +855,19 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
                     manejadores[c.slug], servicios[c.slug] = crear_manejador(sv, secreto_cliente(c), env), sv
                     if al_abrir:
                         al_abrir(sv)
-                servicios[c.slug].modulos_operador = c.modulos  # None = manda su servicio.yaml; se relee en cada petición (panel_web.modulos)
-                hosts[c.dominio] = manejadores[c.slug]
+                sv = servicios[c.slug]
+                sv.modulos_operador = c.modulos  # None = manda su servicio.yaml; se relee en cada petición (panel_web.modulos)
+                sv.tope_ia = clientes.tope_ia(c)
+                hosts[c.dominio] = doms[c.dominio] = (manejadores[c.slug], sv, c.prueba_hasta)
                 if os.environ.get("PROXY") != "1":  # atajo para probar en este PC; tras un proxy sería un segundo nombre que nadie vigila
-                    hosts[c.slug + ".localhost"] = manejadores[c.slug]
-        por_host, dominios, activos = hosts, {c.dominio for c in lista if c.activo}, [servicios[c.slug] for c in lista if c.activo]
+                    hosts[c.slug + ".localhost"] = hosts[c.dominio]
+        por_host, dominios, activos = hosts, doms, [servicios[c.slug] for c in lista if c.activo]
+
+    def vigente(mapa, nombre):
+        """El manejador de ese host/dominio, o None si no es de un cliente activo o su prueba gratis venció (hoy > prueba_hasta en la zona
+        horaria de su servicio). Se mira en cada petición: una resta de fechas, sin tarea de fondo."""
+        h, sv, hasta = mapa.get(nombre) or (None, None, None)
+        return None if h is None or (hasta is not None and sv.ahora().date() > hasta) else h
 
     def recargar():
         nonlocal visto
@@ -897,7 +905,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
             if self.command == "GET" and ruta == "/_ask" and self._caddy() and not reenviada:
                 # Caddy (on-demand TLS) pregunta desde esta máquina antes de emitir un certificado. Lo que el propio Caddy reenvía
                 # de fuera también llega desde 127.0.0.1, pero con X-Forwarded-For: eso no se contesta aquí.
-                return self._enviar(200, {"ok": True}) if (parse_qs(consulta).get("domain") or [""])[0].lower() in dominios else self._err(404, "No encontrado")
+                return self._enviar(200, {"ok": True}) if vigente(dominios, (parse_qs(consulta).get("domain") or [""])[0].lower()) else self._err(404, "No encontrado")
             if self.command == "GET" and ruta == "/salud":  # monitor de la plataforma: llega sin dominio de cliente
                 if not self._caddy() or reenviada:  # desde internet: barato y sin decir nada (un SELECT por cliente a petición de cualquiera, no)
                     return self._enviar(200, {"ok": True})
@@ -907,8 +915,8 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
                     return self._enviar(200, {"ok": True})
                 except Exception:
                     return self._enviar(503, {"ok": False})
-            h = por_host.get((self.headers.get("Host") or "").strip().lower().partition(":")[0].rstrip("."))
-            if not h:  # desconocido o pausado: la misma respuesta, sin decir cuál
+            h = vigente(por_host, (self.headers.get("Host") or "").strip().lower().partition(":")[0].rstrip("."))
+            if not h:  # desconocido, pausado o con la prueba vencida: la misma respuesta, sin decir cuál
                 return self._err(404, "No encontrado")
             self.__dict__.pop("_leido", None)
             self.__class__ = h  # el manejador del cliente atiende esta petición...

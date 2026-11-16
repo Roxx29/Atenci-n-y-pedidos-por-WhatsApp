@@ -27,7 +27,8 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 
 
 MODULOS = ("estadisticas",)  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
-CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas"}
+CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta"}
+TOPE_IA_PRUEBA = 300  # turnos de IA al día de un cliente en prueba si nadie dice otra cosa (TOPE_IA_DIA lo cambia)
 
 
 @dataclass(frozen=True)
@@ -41,26 +42,47 @@ class Cliente:
     pagado_hasta: dt.date | None = None
     precio: float | None = None  # US$/mes
     notas: str = ""
+    tope_ia_dia: int | None = None  # turnos de IA al día; 0 = sin tope; None = el valor por defecto (ver `tope_ia`)
+    prueba_hasta: dt.date | None = None  # prueba gratis: pasado ese día, `alojar` lo trata como pausado
+
+
+def tope_ia(c):
+    """Tope efectivo de turnos de IA al día (0 = sin tope): el suyo; si no tiene, TOPE_IA_DIA (o 300) en prueba y sin tope los demás."""
+    if c.tope_ia_dia is not None:
+        return c.tope_ia_dia
+    if c.prueba_hasta is None:
+        return 0
+    v = os.environ.get("TOPE_IA_DIA", "")
+    return int(v) if v.isascii() and v.isdigit() else TOPE_IA_PRUEBA  # mal escrita: no deja la prueba sin tope
+
+
+def _fecha(slug, c, campo):
+    """Fecha sin hora de `campo` (date de YAML o texto ISO), None si no está. ValueError con el campo que falla."""
+    v = c.get(campo)
+    if isinstance(v, str):
+        try:
+            v = dt.date.fromisoformat(v)
+        except ValueError:
+            v = False
+    if campo in c and (not isinstance(v, dt.date) or isinstance(v, dt.datetime)):
+        raise ValueError(f"cliente {slug}: {campo} debe ser una fecha AAAA-MM-DD")
+    return v
 
 
 def _operador(slug, c):
-    """Valida modulos, pagado_hasta, precio y notas de un cliente. ValueError con el campo que falla."""
-    mods, hasta, precio, notas = c.get("modulos"), c.get("pagado_hasta"), c.get("precio"), c.get("notas", "")
+    """Valida modulos, pagado_hasta, precio, notas, tope_ia_dia y prueba_hasta de un cliente. ValueError con el campo que falla."""
+    mods, precio, notas, tope = c.get("modulos"), c.get("precio"), c.get("notas", ""), c.get("tope_ia_dia")
     if "modulos" in c and not (isinstance(mods, list) and all(isinstance(m, str) and m in MODULOS for m in mods)):
         raise ValueError(f"cliente {slug}: modulos debe ser una lista con solo {', '.join(MODULOS)} (o [] para ninguno)")
-    if isinstance(hasta, str):
-        try:
-            hasta = dt.date.fromisoformat(hasta)
-        except ValueError:
-            hasta = False
-    if "pagado_hasta" in c and (not isinstance(hasta, dt.date) or isinstance(hasta, dt.datetime)):
-        raise ValueError(f"cliente {slug}: pagado_hasta debe ser una fecha AAAA-MM-DD")
+    hasta, prueba = _fecha(slug, c, "pagado_hasta"), _fecha(slug, c, "prueba_hasta")
+    if "tope_ia_dia" in c and not (isinstance(tope, int) and not isinstance(tope, bool) and 0 <= tope <= 100000):
+        raise ValueError(f"cliente {slug}: tope_ia_dia debe ser un entero entre 0 y 100000 (0 = sin tope)")
     if "precio" in c and not (isinstance(precio, (int, float)) and not isinstance(precio, bool) and 0 <= precio < math.inf):
         raise ValueError(f"cliente {slug}: precio debe ser un número mayor o igual que 0 (US$/mes)")
     if not (isinstance(notas, str) and len(notas) <= 500):
         raise ValueError(f"cliente {slug}: notas debe ser un texto de 500 caracteres como máximo")
     return {"modulos": list(dict.fromkeys(mods)) if "modulos" in c else None, "pagado_hasta": hasta,
-            "precio": float(precio) if "precio" in c else None, "notas": notas}
+            "precio": float(precio) if "precio" in c else None, "notas": notas, "tope_ia_dia": tope, "prueba_hasta": prueba}
 
 
 class _SinRepetidos(yaml.SafeLoader):
@@ -100,7 +122,7 @@ def cargar(ruta="clientes.yaml"):
     except ValueError as e:
         if str(e).startswith("clientes.yaml"):
             raise
-        raise ValueError(f"clientes.yaml: fecha imposible ({e}); pagado_hasta debe ser AAAA-MM-DD") from e  # p. ej. 2026-13-01: lo lanza el propio YAML
+        raise ValueError(f"clientes.yaml: fecha imposible ({e}); pagado_hasta y prueba_hasta deben ser AAAA-MM-DD") from e  # p. ej. 2026-13-01: lo lanza el propio YAML
     if not (isinstance(d, dict) and isinstance(d.get("clientes"), dict)):
         raise ValueError("clientes.yaml debe tener `clientes:` con un cliente por slug")
     out, nombres_env = [], set(ENV_POR_CLIENTE)

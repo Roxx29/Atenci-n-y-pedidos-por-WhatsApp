@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -136,7 +137,7 @@ class Consola(unittest.TestCase):
         j = self.req("GET", "/api/clientes", ck=ck)[1]
         c = j["clientes"][0]
         self.assertEqual((c["modulos"], c["precio"], c["notas"], c["estado_pago"]), ([], 30, "ok", "sin_pago"))
-        self.assertEqual(j["resumen"], {"activos": 1, "ingresos": 0, "vencidos": 0})
+        self.assertEqual(j["resumen"], {"activos": 1, "ingresos": 0, "vencidos": 0, "en_prueba": 0, "pruebas_por_vencer": 0})
         self.assertEqual(self.req("POST", ruta + "pago", {"meses": 2}, ck)[0], 400)
         st, r, _ = self.req("POST", ruta + "pago", {"meses": 3}, ck)
         self.assertEqual(r["pagado_hasta"], (base + dt.timedelta(days=90)).isoformat())
@@ -151,6 +152,41 @@ class Consola(unittest.TestCase):
         e = yaml.safe_load(self.ruta.read_text())["clientes"]["uno"]
         self.assertEqual((e["dominio"], e["activo"]), ("uno.com", True))  # conserva el resto
         self.assertEqual([c.slug for c in clientes.cargar(self.ruta)], ["uno"])
+
+    def test_prueba_y_tope_ia(self):
+        ck, hoy, ruta = self.sesion(), dt.date.today(), "/api/clientes/uno/"
+        # contrato: clientes.py los admite; si aún no, se parchea solo en esta prueba
+        cl = lambda: self.req("GET", "/api/clientes", ck=ck)[1]
+        for d in ({"accion": "x"}, {"accion": "iniciar", "dias": 10}, {"accion": "iniciar", "dias": True}, {"accion": "pagar", "meses": 2}):
+            self.assertEqual(self.req("POST", ruta + "prueba", d, ck)[0], 400)
+        for t in (-1, 100001, "5", True, 1.5):
+            self.assertEqual(self.req("POST", ruta + "config", {"tope_ia_dia": t}, ck)[0], 400)
+        j = cl(); c = j["clientes"][0]
+        self.assertEqual((c["prueba_dias"], c["uso_ia"], c["tope_ia"], j["resumen"]["en_prueba"]), (None, 0, 0, 0))  # sin tabla uso_ia: 0
+        self.assertEqual(self.req("POST", ruta + "prueba", {"accion": "iniciar", "dias": 7}, ck)[1]["hasta"], (hoy + dt.timedelta(days=7)).isoformat())
+        j = cl(); c = j["clientes"][0]
+        self.assertEqual((c["prueba_dias"], c["etiqueta_prueba"], c["tope_ia"]), (7, "Prueba: quedan 7 días", 300))  # defecto en prueba
+        self.assertEqual((j["resumen"]["en_prueba"], j["resumen"]["pruebas_por_vencer"]), (1, 0))
+        self.req("POST", ruta + "prueba", {"accion": "extender", "dias": 15}, ck)
+        self.assertEqual(cl()["clientes"][0]["prueba_dias"], 22)
+        self.assertEqual(self.req("POST", ruta + "config", {"tope_ia_dia": 0}, ck)[0], 200)  # 0 explícito = sin tope, no el defecto
+        self.assertEqual(cl()["clientes"][0]["tope_ia"], 0)
+        con = sqlite3.connect(self.raiz / "servicios" / "uno" / "datos.sqlite")
+        con.execute("CREATE TABLE uso_ia(dia TEXT PRIMARY KEY, mensajes INTEGER)")
+        con.execute("INSERT INTO uso_ia VALUES(?,87)", (hoy.isoformat(),)); con.commit(); con.close()
+        self.req("POST", ruta + "config", {"tope_ia_dia": 300}, ck)
+        c = cl()["clientes"][0]
+        self.assertEqual((c["uso_ia"], c["tope_ia"]), (87, 300))
+        y = yaml.safe_load(self.ruta.read_text())["clientes"]["uno"]; y["prueba_hasta"] = (hoy - dt.timedelta(days=2)).isoformat()
+        self.ruta.write_text(yaml.safe_dump({"clientes": {"uno": y}}), encoding="utf-8")
+        c = cl()["clientes"][0]
+        self.assertEqual((c["prueba_dias"], c["etiqueta_prueba"]), (-2, "Prueba terminada hace 2 días (pausado)"))
+        self.assertEqual(cl()["resumen"]["pruebas_por_vencer"], 0)
+        st, r, _ = self.req("POST", ruta + "prueba", {"accion": "pagar", "meses": 1}, ck)
+        self.assertEqual(r["hasta"], (hoy + dt.timedelta(days=30)).isoformat())
+        e = yaml.safe_load(self.ruta.read_text())["clientes"]["uno"]
+        self.assertNotIn("prueba_hasta", e); self.assertEqual((e["dominio"], e["tope_ia_dia"]), ("uno.com", 300))
+        self.assertEqual(cl()["clientes"][0]["prueba_dias"], None)
 
     def test_estado_pago(self):
         h, f = dt.date(2026, 6, 10), operador.Operador.estado_pago

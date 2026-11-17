@@ -3,6 +3,7 @@
 Todo se guarda en una sola tabla `registros` (tipo + datos JSON): citas, leads, cobros,
 mensajes programados, escalados... Así un servicio nuevo casi nunca necesita código nuevo.
 """
+import collections
 import datetime as dt
 import json
 import re
@@ -637,6 +638,43 @@ def guardar_ubicacion(sv, pedido_id, enlace):
     return {"ok": True, "nota": "Ubicación guardada para el repartidor. No muestres ni repitas coordenadas."}
 
 
+# --- venta sugerida: un complemento por pedido, sacado del historial (co-ocurrencia) o de los platos que marca el dueño ---
+VENDIDOS = {"pagado", "en_preparacion", "listo", "en_camino", "entregado"}
+SUG_MIN_PEDIDOS, SUG_MIN_VECES, SUG_MIN_PCT = 8, 3, 20  # historial mínimo para fiarse de la co-ocurrencia
+
+
+def _complemento(sv, ids):
+    """(plato, pct) que más se pide junto a esos platos en pedidos ya pagados; con poco historial, (plato marcado `complemento` por el dueño, None).
+    ponytail: recorre todos los pedidos en cada consulta; con miles al día, precalcular la tabla de co-ocurrencia."""
+    libres = {i: m for i, m in sv.menu.items() if m.get("disponible", True) and i not in ids}
+    base = [s for s in ({l["id"] for l in p["lineas"]} for p in sv.listar("pedido") if p["estado"] in VENDIDOS) if s & ids]
+    veces = collections.Counter(i for s in base for i in s if i in libres)
+    if len(base) >= SUG_MIN_PEDIDOS and veces:
+        iid, n = veces.most_common(1)[0]
+        pct = round(n * 100 / len(base))
+        if n >= SUG_MIN_VECES and pct >= SUG_MIN_PCT:
+            return libres[iid], pct
+    return next((m for m in libres.values() if m.get("complemento")), None), None
+
+
+def sugerir_complemento(sv, pedido_id):
+    """Ofrece UN complemento al pedido por_confirmar (solo la primera vez: queda anotado en `sugerido`). No toca precios ni el pedido."""
+    nada = {"sugerencia": None, "nota": "No hay nada que ofrecer: sigue con el pedido."}
+    if not sv.cfg.get("sugerencias", True):
+        return nada
+    with sv.pedidos_lock:
+        p = next((x for x in sv.listar("pedido") if x["id"] == pedido_id), None)
+        if not p or p["estado"] != "por_confirmar" or p.get("sugerido"):
+            return nada
+        m, pct = _complemento(sv, {l["id"] for l in p["lineas"]})
+        if not m:
+            return nada
+        sv.actualizar(pedido_id, {"sugerido": {"id": m["id"], "nombre": m["nombre"], "precio_c": m["precio_c"], "pct": pct}}, tipo="pedido", desde={"por_confirmar"})
+    texto = f"¿Le sumo {_una_linea(m['nombre'])} por {dinero(m['precio_c'])}?" + (f" El {pct} % lo pide." if pct else "")
+    return {"sugerencia": {"id": m["id"], "nombre": m["nombre"], "precio": dinero(m["precio_c"]), "pct": pct, "texto": texto},
+            "nota": "Ofrécelo una sola vez con ese texto. Si acepta, agrégalo con la lista COMPLETA de ítems; si no, no insistas."}
+
+
 def _s(props, req):
     return {"type": "object", "properties": props, "required": req, "additionalProperties": False}
 
@@ -661,6 +699,7 @@ CATALOGO = {
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "guardar_ubicacion": (guardar_ubicacion, "Guarda la ubicación de entrega cuando el cliente pega un enlace de Google Maps (o 'lat, lon'). Pasa el enlace EXACTO que escribió; nunca inventes ni calcules coordenadas.", _s({"pedido_id": {"type": "integer"}, "enlace": S}, ["pedido_id", "enlace"])),
     "cancelar_pedido": (cancelar_pedido, "Cancela un pedido por_confirmar o confirmado.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
+    "sugerir_complemento": (sugerir_complemento, "Venta sugerida: con el pedido por confirmar devuelve UN complemento que se suele pedir con esos platos (texto listo para ofrecer) o nada. Solo funciona una vez por pedido.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
 }
 
 
@@ -673,7 +712,8 @@ def esquemas(nombres):
 
 CON_TELEFONO = {"agendar_cita", "programar_mensaje", "escalar_a_humano", "registrar", "buscar", "crear_pedido"}
 CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
-          "reportar_pago": ("pedido_id", "pedido"), "pagar_efectivo": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
+          "reportar_pago": ("pedido_id", "pedido"), "pagar_efectivo": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido"),
+          "sugerir_complemento": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
 INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
 
 
@@ -701,6 +741,8 @@ def ejecutar(sv, nombre, entrada, cliente, turno=None):
             raise ValueError("Usa solo el enlace que el cliente escribió en este mensaje.")
         if nombre == "reportar_pago" and "".join(str(entrada.get("referencia", "")).split()).lower() not in "".join(turno["texto"].split()).lower():
             raise ValueError("Pide al cliente el número de referencia del pago; no lo inventes.")
+        if nombre == "sugerir_complemento" and turno.get("canal") == "web":
+            return {"sugerencia": None, "nota": "En la web la sugerencia sale aparte en pantalla: no ofrezcas nada."}
     res = CATALOGO[nombre][0](sv, **entrada)
     if turno is not None and nombre == "crear_pedido":
         turno["creados"].add(res["pedido_id"])

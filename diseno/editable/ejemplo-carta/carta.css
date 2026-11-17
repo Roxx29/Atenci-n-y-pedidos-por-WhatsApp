@@ -13,7 +13,7 @@ button,input,select{font:inherit}
 .mesa{display:grid;grid-template-columns:1fr minmax(300px,360px);gap:32px;max-width:1120px;margin:0 auto;padding:24px 16px 96px}
 .carta{columns:2 300px;column-gap:40px}
 .categoria{break-inside:avoid;margin:0 0 28px}
-.categoria h2{font-family:var(--display, Georgia, serif);font-size:1.05rem;letter-spacing:.2em;text-transform:uppercase;text-align:center;margin:0 0 12px;
+.categoria h2{font-family:var(--display, Georgia, serif);font-size:1.4rem;letter-spacing:.16em;text-transform:uppercase;text-align:center;margin:0 0 12px;
   border-top:1px solid currentColor;border-bottom:1px solid currentColor;padding:6px 0;color:var(--primary)}
 .plato{display:flex;align-items:baseline;gap:8px;padding:6px 0}
 .plato .nombre{flex:none;max-width:70%}

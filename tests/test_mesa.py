@@ -8,11 +8,14 @@ import struct
 import unittest
 import unittest.mock
 import zlib
+from pathlib import Path
 
 from motor import herramientas, mesa, qr
 from tests.test_alojar import Base as BaseAlojar
 from tests.test_motor import herramienta, texto
 from tests.test_web import SECRETO, Base
+
+ROOT = Path(__file__).resolve().parent.parent
 
 try:
     import cv2
@@ -224,14 +227,18 @@ class Servidor(Base):
         c = self.codigo()
         self.assertEqual(self.js("GET", f"/config?m={c['codigo']}")[1]["mesa"], 7)
         self.assertNotIn("mesa", self.js("GET", "/config?m=zzzzzzzz")[1])  # código inválido: se ignora, sin error
-        st, d, r = self.js("POST", "/entrar", {"codigo": c["codigo"], "consentimiento": True, "version_aviso": "v1"})
+        st, d, r = self.js("POST", "/entrar", {"nombre": "Ana", "codigo": c["codigo"], "consentimiento": True, "version_aviso": "v1"})
         ck = (r.getheader("Set-Cookie") or "").split(";")[0]
         self.assertEqual((st, d["mesa"]), (200, 7))
         self.assertIn("Max-Age=14400", r.getheader("Set-Cookie"))  # una visita, no un día
         cid = self.sv.listar("consentimiento")[0]["telefono"]
         self.assertEqual(mesa.de_cid(cid), 7)
         self.js("POST", "/chat", {"texto": "dos sancochos"}, cookie=ck)
-        self.assertIn("[Cliente en la MESA 7", self.llamadas[0][1])
+        pre = self.llamadas[0][1]
+        self.assertIn("MESA 7", pre)
+        self.assertIn("NO online", pre)
+        self.assertIn("NO preguntes dirección, teléfono, entrega ni recogida", pre)
+        self.assertIn("Mesa 7", pre)
         p = self.sv.listar("pedido")[0]
         self.assertEqual((p["modalidad"], p["mesa"], p["envio_c"], p["direccion"], p["telefono"]), ("mesa", 7, 0, "", cid))
         with contextlib.redirect_stdout(io.StringIO()):
@@ -254,8 +261,34 @@ class Servidor(Base):
         self.assertEqual(self.js("GET", "/pedidos", cookie=ck)[1], {"pedidos": []})
         self.assertEqual(self.req("GET", "/ultimo")[0].status, 401)
         # recargar la página con el mismo código conserva la sesión de la mesa
-        _, _, r2 = self.js("POST", "/entrar", {"codigo": c["codigo"], "consentimiento": True, "version_aviso": "v1"}, cookie=ck)
+        _, _, r2 = self.js("POST", "/entrar", {"nombre": "Ana", "codigo": c["codigo"], "consentimiento": True, "version_aviso": "v1"}, cookie=ck)
         self.assertEqual((r2.getheader("Set-Cookie") or "").split(";")[0].split(".")[0], ck.split(".")[0])
+
+    def test_mesa_exige_nombre_y_nunca_telefono(self):
+        self.listo()
+        c = self.codigo()
+        base = {"codigo": c["codigo"], "consentimiento": True, "version_aviso": "v1"}
+        for malo in ({}, {"nombre": ""}, {"nombre": "   "}, {"nombre": "x" * 61}, {"nombre": 5}):
+            self.assertEqual(self.js("POST", "/entrar", {**base, **malo})[0], 400)
+        st, d, r = self.js("POST", "/entrar", {**base, "nombre": "Ana"})
+        self.assertEqual((st, d["mesa"], d["nombre"]), (200, 7, "Ana"))
+        self.assertEqual(mesa.de_cid(self.sv.listar("consentimiento")[0]["telefono"]), 7)  # sin teléfono real
+        # con teléfono y código: flujo normal (no es de mesa)
+        st, d, _ = self.js("POST", "/entrar", {**base, "nombre": "Luis", "telefono": "50761234567"})
+        self.assertEqual((st, "mesa" in d), (200, False))
+        html = (ROOT / "motor" / "web_index.html").read_text(encoding="utf-8")
+        self.assertNotIn("nombre (opcional)", html)
+
+    def test_la_pestana_qr_existe_solo_para_dueno_con_modulo(self):
+        html = (ROOT / "motor" / "panel_web.html").read_text(encoding="utf-8")
+        self.assertIn('data-vista="qr" id="nav-qr" hidden', html)
+        self.assertIn('id="v-qr"', html)
+        self.assertIn('st.rol !== "dueno" || !m.includes("mesas")', html)
+        self.assertNotIn('window.open("/panel/qr"', html)
+        self.listo()
+        r, pag = self.req("GET", "/panel/qr?embed=1", cookie=self.ck)
+        self.assertIn("frame-ancestors 'self'", r.getheader("Content-Security-Policy"))
+        self.assertIn("Cómo funciona para tu cliente".encode(), pag)
 
     def test_sin_aceptacion_va_directo_a_cocina(self):
         self.listo()
@@ -348,7 +381,7 @@ class Aislamiento(BaseAlojar):
         self.assertEqual(self.req("b.com", "GET", f"/m/{ca}")[0], 404)  # el de A en B no existe
         self.assertEqual(self.req("a.com", "GET", f"/m/{cb}")[0], 404)
         self.assertNotIn("mesa", json.loads(self.req("b.com", "GET", f"/config?m={ca}")[1]))
-        entrar = lambda host, c: self.req(host, "POST", "/entrar", {"codigo": c, "consentimiento": True, "version_aviso": "v1"})
+        entrar = lambda host, c: self.req(host, "POST", "/entrar", {"nombre": "Ana", "codigo": c, "consentimiento": True, "version_aviso": "v1"})
         self.assertEqual(entrar("b.com", ca)[0], 400)
         st, raw, ck = entrar("a.com", ca)
         self.assertEqual(st, 200)

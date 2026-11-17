@@ -112,6 +112,18 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .plato .insignia{padding:4px 10px;border-radius:999px;background:var(--sc-high);color:var(--on-variant);font-size:.6875rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .plato.agotado h3,.plato.agotado .precio{color:var(--outline)}
 .plato.agotado .foto{filter:grayscale(1);opacity:.6}
+/* «El sello que cae»: huella del logo en cada tarjeta (estática por defecto; la animación solo si no hay prefers-reduced-motion) */
+.plato{position:relative;overflow:hidden}
+.plato :focus-visible{outline-offset:-2px}
+.sello{position:absolute;left:-12px;bottom:-12px;width:64px;height:64px;border-radius:50%;background:url(/estatico/logo-delifood-v1.png) center/cover no-repeat;opacity:.18;transform:rotate(-12deg);pointer-events:none}
+.plato::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.2) 50%,transparent 60%);opacity:0;transform:translateX(-100%);pointer-events:none}
+.hero{display:flex;align-items:center;gap:14px;margin:12px 0 4px;padding:12px 16px;border-radius:var(--r12);background:var(--inverse);color:var(--on-inverse)}
+.hero-sello{position:relative;flex:none;width:68px;height:68px}
+.hero-sello img{display:block;width:100%;height:100%;border-radius:50%}
+.hero-t{margin:0;font:700 1.125rem/1.2 var(--display)}
+.hero-s{margin:2px 0 0;font-size:.8125rem}
+@media (max-width:1023px){.hero{margin:8px 0 2px;padding:8px 12px;gap:10px}.hero-sello{width:52px;height:52px}.hero-t{font-size:1rem}}
+.vapor{display:none}
 .pedir{min-height:44px;padding:0 20px;border-radius:999px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);font-weight:700;font-size:.875rem;transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s}
 .pedir:hover{background:var(--primary);color:var(--on-primary)}
 .plato .paso{display:inline-flex;align-items:center;min-height:44px;border-radius:999px;background:var(--primary);color:var(--on-primary)}
@@ -297,6 +309,21 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
   .buscar{margin:12px 0 4px}
   .cats{position:sticky;top:0;z-index:2;padding-block:8px;background:var(--surface)}
 }
+@media (prefers-reduced-motion:no-preference){ /* solo transform y opacity */
+  .plato:not(.sellado) .sello{opacity:0}
+  .plato.sella .sello{animation:sella .6s var(--d,0ms) var(--m-out) both}
+  .plato.sella .foto{animation:golpe .32s calc(var(--d,0ms) + .34s) var(--m-out)}
+  .plato.sella::after{animation:brillo .9s calc(var(--d,0ms) + .35s) ease-out}
+  .hero-sello img{animation:sella-hero .8s var(--m-out) both}
+  .vapor{display:block;position:absolute;left:0;right:0;top:-6px;height:0}
+  .vapor i{position:absolute;bottom:0;width:6px;height:18px;border-radius:50%;background:rgba(255,255,255,.45);opacity:0;animation:vapor 2.6s ease-out infinite}
+  .vapor i:nth-child(1){left:22px}.vapor i:nth-child(2){left:34px;animation-delay:.8s}.vapor i:nth-child(3){left:46px;animation-delay:1.6s}
+  @keyframes sella{0%{transform:translateY(-70px) scale(2.4) rotate(-18deg);opacity:0}55%{transform:translateY(0) scale(.85) rotate(-12deg);opacity:.9}72%{transform:scale(1.08) rotate(-10deg);opacity:.5}100%{transform:rotate(-12deg);opacity:.18}}
+  @keyframes sella-hero{0%{transform:translateY(-60px) scale(2.2) rotate(-14deg);opacity:0}55%{transform:scale(.9);opacity:1}72%{transform:scale(1.06) rotate(2deg)}100%{transform:none}}
+  @keyframes golpe{0%,100%{transform:none}30%{transform:translate(2px,3px)}60%{transform:translate(-2px,1px)}}
+  @keyframes brillo{0%{transform:translateX(-100%);opacity:0}30%{opacity:1}100%{transform:translateX(100%);opacity:0}}
+  @keyframes vapor{0%{transform:translateY(0) scaleY(.6);opacity:0}30%{opacity:.5}100%{transform:translateY(-26px) scaleY(1.3);opacity:0}}
+}
 @media (prefers-reduced-motion:reduce){ /* solo fundidos: sin desplazamientos, escalas ni bucles */
   @keyframes entra{from{opacity:0}}@keyframes entra-yo{from{opacity:0}}@keyframes entra-bot{from{opacity:0}}
   .plato{animation-delay:0s!important}
@@ -351,6 +378,7 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
   <p class="info" id="info" hidden><svg class="i" aria-hidden="true"><use href="#i-moto"/></svg><span id="info-txt"></span></p>
   <div class="contenido">
     <section id="menu" class="panel" aria-label="Menú" hidden>
+      <div class="hero"><div class="hero-sello"><span class="vapor" aria-hidden="true"><i></i><i></i><i></i></span><img src="/estatico/logo-delifood-v1.png" alt="" width="68" height="68"></div><div><p class="hero-t">Lo bueno lleva sello</p><p class="hero-s">Cada plato sale sellado por DeliFood.</p></div></div>
       <div class="herramientas">
         <label class="buscar"><span class="sr">Buscar en el menú</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-menu" placeholder="Buscar un plato" autocomplete="off" enterkeyhint="search"></label>
         <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
@@ -587,10 +615,9 @@ async function cargarConfig() { // sin sesión no trae los datos de pago; se vue
   pintarConfig();
   if (st.codigo && CFG.mesa && !st.mesa) pintarMesa(CFG.mesa, CFG.etiqueta);
 }
-function pintarMesa(n, etiqueta) { // el servidor ya validó el código: sin teléfono y con nombre opcional
+function pintarMesa(n, etiqueta) { // el servidor ya validó el código: sin teléfono y solo con el nombre
   st.mesa = n;
   form.telefono.closest("label").hidden = true; form.telefono.required = false;
-  form.nombre.required = false; form.nombre.closest("label").firstChild.textContent = "Tu nombre (opcional)";
   $("#lema").textContent = `Estás en ${etiqueta || "la mesa " + n}: pide por chat y te lo llevamos a la mesa. No hace falta tu teléfono.`;
   $("#hola").textContent = "· " + (etiqueta || "Mesa " + n);
 }
@@ -603,7 +630,7 @@ form.addEventListener("submit", async ev => {
   const nombre = form.nombre.value.trim();
   const tel = form.telefono.value.replace(/\D/g, "").replace(/^507/, "");
   const errores = [
-    [form.nombre, "#e-nombre", nombre || st.mesa ? "" : "Escribe tu nombre."],
+    [form.nombre, "#e-nombre", nombre ? "" : "Escribe tu nombre."],
     [form.telefono, "#e-tel", st.mesa || /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
     [form.privacidad, "#e-priv", form.privacidad.checked ? "" : "Necesitamos tu permiso para tomar el pedido."]
   ];
@@ -757,7 +784,16 @@ function pintarCategorias() {
     caja.append(b);
   }
 }
+/* Sello que cae: al entrar en pantalla, al pasar/tocar y al agregar. Con prefers-reduced-motion el CSS lo deja quieto. */
+const ioSello = "IntersectionObserver" in window ? new IntersectionObserver(es => es.forEach((e, i) => {
+  if (e.isIntersecting) { sellar(e.target, i * 70); ioSello.unobserve(e.target); }
+}), {threshold: .4}) : null;
+function sellar(f, d) {
+  if (Date.now() - (f._t || 0) < 900) return; f._t = Date.now();
+  f.classList.remove("sella"); f.style.setProperty("--d", (d || 0) + "ms"); void f.offsetWidth; f.classList.add("sellado", "sella");
+}
 function pintarMenu(escribiendo) { // al teclear en el buscador no se repite la entrada escalonada
+  if (ioSello) ioSello.disconnect();
   const caja = $("#lista-menu"); caja.textContent = ""; caja.classList.toggle("quieto", !!escribiendo);
   const q = plano(filtro.q.trim()); let hubo = false;
   for (const cat of categorias()) {
@@ -785,7 +821,9 @@ function pintarMenu(escribiendo) { // al teclear en el buscador no se repite la 
         agregar.onclick = () => poner(1); mas.onclick = () => poner(1); menos.onclick = () => poner(-1);
         ver(false); acc.append(agregar, paso);
       }
-      rej.append(fila);
+      const sello = document.createElement("span"); sello.className = "sello"; sello.setAttribute("aria-hidden", "true"); fila.append(sello);
+      if (matchMedia("(hover:hover)").matches) fila.addEventListener("pointerenter", () => sellar(fila));
+      rej.append(fila); if (ioSello) ioSello.observe(fila); else fila.classList.add("sellado");
     }
   }
   if (!hubo) { const v = document.createElement("p"); v.className = "vacio-busca"; v.textContent = "No encontramos ese plato. Prueba con otra palabra o escríbele al asistente."; caja.append(v); }

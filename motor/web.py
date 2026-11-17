@@ -33,7 +33,7 @@ MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "
 FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")
 LEAFLET = {"leaflet-1.9.4.js": "text/javascript", "leaflet-1.9.4.css": "text/css",
            **{f"images/{f}": "image/png" for f in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png", "layers.png", "layers-2x.png")}}
-ESTATICOS = {**{f: "font/woff2" for f in FUENTES}, **LEAFLET}  # lista blanca de /estatico/ (motor/estatico/) -> Content-Type
+ESTATICOS = {**{f: "font/woff2" for f in FUENTES}, **LEAFLET, "logo-delifood-v1.png": "image/png"}  # lista blanca de /estatico/ (motor/estatico/) -> Content-Type
 ESTATICO = Path(__file__).with_name("estatico")
 # sin caché de pedidos (no se guardan en el móvil); solo se guardan las fuentes (Leaflet no)
 SW_REP = ("const C='fuentes-v1',F=%s.map(f=>'/estatico/'+f);self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(F)).catch(()=>{}))});"
@@ -579,7 +579,7 @@ def crear_manejador(sv, secreto=None, env=None):
             if not mesas_on():
                 return self._err(404, "No encontrado")
             if partes == ["", "panel", "qr"]:
-                return self._enviar(200, armar_qr(), "text/html", [("Content-Security-Policy", CSP), *renovar])
+                return self._enviar(200, armar_qr(), "text/html", [("Content-Security-Policy", CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")), *renovar])  # frame-ancestors 'self': va dentro de la pestaña QR del panel
             est, logo, base = mesa.estilo(sv), mesa.logo_uri(sv), self._base()
             if len(partes) == 5 and partes[3] == "svg" and partes[4].isdigit():  # un QR para descargar
                 f = next((c for c in mesa.listar(sv, base) if c["id"] == int(partes[4])), None)
@@ -885,12 +885,11 @@ def crear_manejador(sv, secreto=None, env=None):
                 return
             nombre, tel = d.get("nombre"), re.sub(r"[ \-+]", "", str(d.get("telefono", "")))
             f = mesa.por_codigo(sv, d.get("codigo")) if mesas_on() else None
-            en_mesa = f["mesa"] if f and f["tipo"] == "pedir" and not tel else None  # QR de mesa: sin teléfono y con nombre opcional
+            en_mesa = f["mesa"] if f and f["tipo"] == "pedir" and not tel else None  # QR de mesa: sin teléfono y con nombre obligatorio
             if en_mesa:
                 if limite.excede(("mesa", f["id"]), 20):
                     return self._err(429, "Demasiadas peticiones")
-                nombre = "" if nombre in (None, "") else nombre
-                if not (isinstance(nombre, str) and len(nombre.strip()) <= 60):
+                if not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 60):
                     return self._err(400, "Nombre inválido")
             else:
                 if not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 60):
@@ -1043,7 +1042,7 @@ def crear_manejador(sv, secreto=None, env=None):
             if n := nombres.pop(cid, None):
                 t = f"[Nombre del cliente: {n}] {t}"
             if m := mesa.de_cid(cid):
-                t = f"[Cliente en la MESA {m} (QR): usa modalidad 'mesa'; sin teléfono ni dirección; el nombre es opcional, si no lo dice usa 'Mesa {m}'] {t}"
+                t = f"[Cliente SENTADO en la MESA {m} (pedido en mesa por QR, NO online): usa siempre modalidad 'mesa'; NO preguntes dirección, teléfono, entrega ni recogida ni las ofrezcas; el nombre ya lo tienes (arriba), no lo pidas de nuevo; al confirmar di «Mesa {m}»] {t}"
             antes = {p["id"]: p for p in pedidos_de(cid)}
             try:
                 r = sv.responder(cid, t, canal="web")

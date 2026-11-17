@@ -520,7 +520,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
     <button type="button" data-vista="promos"><svg class="i" aria-hidden="true"><use href="#i-promo"/></svg>Promos</button>
     <button type="button" data-vista="stats" id="nav-stats" hidden><svg class="i" aria-hidden="true"><use href="#i-grafica"/></svg>Estadíst.</button>
-    <button type="button" id="nav-qr" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>QR</button>
+    <button type="button" data-vista="qr" id="nav-qr" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>QR</button>
     <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
     <button type="button" data-vista="config" id="nav-config" hidden><svg class="i" aria-hidden="true"><use href="#i-ajustes"/></svg>Config.</button>
     <span class="hueco"></span>
@@ -596,6 +596,11 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
         <p class="t-espera">Una promoción es un combo u oferta con su precio. Sale arriba del todo en la página de pedidos y el asistente la ofrece. Apágala cuando termine y vuelve a encenderla cuando quieras.</p>
         <div id="lista-promos"></div>
       </div>
+    </div>
+
+    <div class="vista" id="v-qr" hidden>
+      <div class="vista-cab"><h2>Códigos QR</h2></div>
+      <iframe id="qr-marco" title="Códigos QR de las mesas" style="flex:1;min-height:70vh;width:100%;border:0"></iframe>
     </div>
 
     <div class="vista" id="v-stats" hidden>
@@ -1082,9 +1087,9 @@ $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg"
 
 
 /* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
-const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", stats:"Estadísticas", equipo:"Equipo", config:"Configuración"};
+const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", stats:"Estadísticas", qr:"Códigos QR", equipo:"Equipo", config:"Configuración"};
 function irA(v) {
-  if (((v === "equipo" || v === "config") && st.rol !== "dueno") || (v === "stats" && $("#nav-stats").hidden)) v = "pedidos";
+  if (((v === "equipo" || v === "config") && st.rol !== "dueno") || (v === "stats" && $("#nav-stats").hidden) || (v === "qr" && $("#nav-qr").hidden)) v = "pedidos";
   st.vista = v;
   for (const b of document.querySelectorAll(".lado [data-vista]")) b.dataset.vista === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
   for (const k of Object.keys(TITULO)) $("#v-" + k).hidden = k !== v;
@@ -1095,8 +1100,8 @@ function irA(v) {
   if (v === "promos") pintarPromos();
   if (v === "config") pintarConfig();
   if (v === "stats") pintarStats();
+  if (v === "qr" && !$("#qr-marco").src) $("#qr-marco").src = "/panel/qr?embed=1"; // la gestión de QR es la misma página, dentro de la pestaña
 }
-$("#nav-qr").onclick = () => window.open("/panel/qr", "_blank", "noopener");
 document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
 
 /* Piezas comunes: interruptor de un toque y botón que pide confirmar con un segundo toque */
@@ -1284,8 +1289,8 @@ const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["ju
 /* ---------- Módulo extra: Estadísticas (el dueño lo ve solo si el restaurante lo contrató) ---------- */
 function pintarModulos(m) {
   $("#nav-stats").hidden = st.rol !== "dueno" || !m.includes("estadisticas");
-  $("#nav-qr").hidden = st.rol !== "dueno" || !m.includes("mesas"); // módulo «mesas»: códigos QR dinámicos (página aparte)
-  if (st.vista === "stats" && $("#nav-stats").hidden) irA("pedidos");
+  $("#nav-qr").hidden = st.rol !== "dueno" || !m.includes("mesas"); // módulo «mesas»: códigos QR dinámicos (pestaña)
+  if ((st.vista === "stats" && $("#nav-stats").hidden) || (st.vista === "qr" && $("#nav-qr").hidden)) irA("pedidos");
 }
 const cambioTxt = c => c == null ? "" : (c > 0 ? "▲ " : c < 0 ? "▼ " : "= ") + Math.abs(c) + " % vs. periodo anterior";
 async function pintarStats(dias) {

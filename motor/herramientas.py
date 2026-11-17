@@ -15,6 +15,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 import yaml
 
+from . import mesa as mesas
 from . import ubicacion
 
 DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
@@ -311,9 +312,15 @@ def _lineas(sv, items):
 def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_deseada, zona, notas, validar_hora=True):
     """Valida y calcula TODO el pedido (compartido por crear y modificar): dict de campos listo para guardar."""
     nombre, direccion, hora_deseada, zona, notas = _txt(nombre, "nombre"), _txt(direccion, "direccion"), _txt(hora_deseada, "hora_deseada"), _txt(zona, "zona"), _txt(notas, "notas")
+    if modalidad not in ("entrega", "recogida", "mesa"):
+        raise ValueError("Modalidad inválida: debe ser 'entrega', 'recogida' o 'mesa'; pregúntasela al cliente, no inventes datos.")
+    mesa = None
+    if modalidad == "mesa":  # la mesa sale del cid firmado (QR de la mesa), no de lo que diga el cliente ni el modelo
+        mesa = mesas.de_cid(telefono)
+        if not mesa:
+            raise ValueError("La modalidad 'mesa' solo existe si el cliente entró escaneando el QR de su mesa; ofrece entrega o recogida.")
+        nombre, direccion, zona = nombre or f"Mesa {mesa}", "", ""
     _nombre_real(nombre, telefono)
-    if modalidad not in ("entrega", "recogida"):
-        raise ValueError("Modalidad inválida: debe ser 'entrega' o 'recogida'; pregúntasela al cliente, no inventes datos.")
     if modalidad == "entrega" and not direccion.strip():
         raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     cfg = sv.cfg.get("pedidos") or {}
@@ -332,7 +339,7 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
     return {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
-            "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
+            **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
 
 
 def _resumen(d):
@@ -350,6 +357,8 @@ def crear_pedido(sv, items, modalidad, nombre, telefono, direccion="", hora_dese
         caducar_pedidos(sv)
         mios = [p for p in sv.listar("pedido") if p["telefono"] == telefono and p["estado"] in ACTIVOS]
         previo = next((p for p in mios if p["estado"] == "por_confirmar"), None)  # un solo pedido en construcción por cliente
+        if datos.get("mesa") and not previo and sum(1 for p in sv.listar("pedido") if p.get("mesa") == datos["mesa"] and p["estado"] in ACTIVOS) >= mesas.MAX_ACTIVOS_MESA:
+            raise ValueError(f"La mesa {datos['mesa']} ya tiene {mesas.MAX_ACTIVOS_MESA} pedidos en curso; pida ayuda al personal.")
         if aparte and previo:
             raise ValueError(f"Confirme o cancele primero el pedido #{previo['id']}.")
         if aparte and len(mios) >= MAX_ACTIVOS:
@@ -382,9 +391,11 @@ def modificar_pedido(sv, pedido_id, items=None, modalidad=None, direccion=None, 
         c_items = items is not None and not (isinstance(items, list) and all(isinstance(i, dict) for i in items) and _norm_items(items) == _norm_items(previas))
         mod = p["modalidad"] if modalidad is None else modalidad
         c_mod = mod != p["modalidad"]
+        if c_mod and "mesa" in (mod, p["modalidad"]):
+            raise ValueError("Un pedido de mesa no cambia de modalidad (ni se pasa a mesa): si el cliente se va, cancélalo y crea otro.")
         c_zona = mod == "entrega" and zona is not None and _sin_tildes(zona) != _sin_tildes(p["zona"])
-        if mod == "recogida" and direccion not in (None, ""):
-            raise ValueError("Es un pedido de recogida: no lleva dirección. Si el cliente quiere entrega, cambie la modalidad.")
+        if mod != "entrega" and direccion not in (None, ""):
+            raise ValueError(f"Es un pedido de {mod}: no lleva dirección. Si el cliente quiere entrega, cambie la modalidad.")
         if est in YA_PAGADO and (c_items or c_mod or c_zona):
             return _escalar_cambio(sv, p, pedido_id)
         lineas, subtotal = _lineas(sv, items) if c_items else (p["lineas"], p["subtotal_c"])
@@ -418,6 +429,11 @@ def _aviso(sv, p, pedido_id, texto):
     print(f"[aviso restaurante] {texto}")
 
 
+def _donde(p):
+    """Dónde se sirve, para los avisos: «Mesa 7», «entrega» o «recogida»."""
+    return f"Mesa {p['mesa']}" if p.get("mesa") else p["modalidad"]
+
+
 def confirmar_pedido(sv, pedido_id):
     caducar_pedidos(sv)
     try:
@@ -426,7 +442,7 @@ def confirmar_pedido(sv, pedido_id):
         if any(x["id"] == pedido_id and x["estado"] == "caducado" for x in sv.listar("pedido")):
             raise ValueError("Su pedido caducó; cree uno nuevo.")
         raise
-    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} confirmado de {_una_linea(p['nombre'])} ({p['modalidad']}), total {dinero(p['total_c'])}.")
+    _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} confirmado de {_una_linea(p['nombre'])} ({_donde(p)}), total {dinero(p['total_c'])}.")
     return {"ok": True, "estado": "confirmado", "total": dinero(p["total_c"]), "pago": {k: v for k, v in (sv.cfg.get("pago") or {}).items() if v is not None}}
 
 
@@ -443,13 +459,20 @@ def efectivo_ok(sv):
 
 
 def pagar_efectivo(sv, pedido_id):
-    """Pago contra entrega, solo en pedidos con entrega a domicilio: el pedido pasa a cocina sin esperar pago y el repartidor cobra al llegar."""
-    if not efectivo_ok(sv):
-        raise ValueError("Por ahora no aceptamos efectivo; el pago es por Yappy o transferencia.")
+    """Pago contra entrega (el repartidor cobra al llegar) o, en un pedido de mesa, en la mesa o en caja: el pedido pasa a cocina sin esperar pago."""
     p = next((x for x in sv.listar("pedido") if x["id"] == pedido_id), None)
-    if not p or p["modalidad"] != "entrega":
-        raise ValueError("El pago en efectivo es solo para pedidos con entrega a domicilio.")
+    if p and p["modalidad"] != "mesa" and not efectivo_ok(sv):  # en la mesa siempre se puede pagar en caja
+        raise ValueError("Por ahora no aceptamos efectivo; el pago es por Yappy o transferencia.")
+    if not p or p["modalidad"] not in ("entrega", "mesa"):
+        raise ValueError("El pago en efectivo es solo para pedidos con entrega a domicilio o de mesa.")
     ahora = sv.ahora().isoformat()
+    if p["modalidad"] == "mesa":  # anti-bromas: por defecto el personal lo acepta con un toque («Ya pagó / Aceptar» del panel) antes de que pase a cocina
+        acepta = (sv.cfg.get("pedidos") or {}).get("mesa_aceptar", True)
+        p = _transicion(sv, pedido_id, {"confirmado"}, "confirmado" if acepta else "pagado",
+                        {"metodo": "caja", "por_cobrar": True, "espera_personal": bool(acepta), **({} if acepta else {"pagado_at": ahora, "estado_at": ahora})})
+        _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} de {_donde(p)}: pagará en la mesa o en caja, {dinero(p['total_c'])}. " + ("ACEPTARLO en el panel para que pase a cocina." if acepta else "Prepararlo."))
+        return {"ok": True, "estado": p["estado"], "total": dinero(p["total_c"]),
+                "nota": "Pago en la mesa o en caja: " + ("el personal aceptará el pedido enseguida y pasa a cocina." if acepta else "el pedido ya pasa a cocina.") + " Díselo al cliente; no pidas comprobante."}
     p = _transicion(sv, pedido_id, {"confirmado"}, "pagado", {"metodo": "efectivo", "por_cobrar": True, "pagado_at": ahora, "estado_at": ahora})
     _aviso(sv, p, pedido_id, f"Pedido #{pedido_id} de {_una_linea(p['nombre'])}: pagará EN EFECTIVO al repartidor, {dinero(p['total_c'])}. Prepararlo y asignar repartidor.")
     return {"ok": True, "estado": "pagado", "total": dinero(p["total_c"]),
@@ -601,7 +624,7 @@ def marcar_pedido(sv, pedido_id, estado):
     if (sv.cfg.get("comprobantes") or {}).get("borrar_al_marcar", True):
         borrar_comprobante(sv, p)
     if estado == "listo":
-        programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} está listo.")
+        programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} está listo" + (" y va a su mesa." if p.get("mesa") else "."))
     if estado == "en_camino":
         programar_mensaje(sv, p["telefono"], f"{sv.ahora():%Y-%m-%d %H:%M}", f"Hola {p['nombre']}, su pedido #{pedido_id} va en camino.")
     return {"ok": True, "estado": estado}
@@ -692,9 +715,9 @@ CATALOGO = {
     "actualizar_registro": (actualizar_registro, "Cambia campos de un registro existente (p. ej. estado de cita a 'confirmada', cobro a 'pagado').", _s({"id": {"type": "integer"}, "cambios": O}, ["id", "cambios"])),
     "buscar": (buscar, "Busca registros del cliente actual de un tipo (cita, lead, cobro...) que contengan un texto. Devuelve los 20 más recientes.", _s({"tipo": S, "texto": S}, ["tipo"])),
     "escalar_a_humano": (escalar_a_humano, "Pasa la conversación a una persona: el cliente lo pide, está molesto, es urgente o no sabes la respuesta.", _s({"motivo": S}, ["motivo"])),
-    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "nombre": S, "direccion": S, "hora_deseada": HP, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
+    "crear_pedido": (crear_pedido, "Crea el pedido con los ids del menú (el código calcula el total) y devuelve el resumen para leerlo al cliente tal cual. Llámala solo con TODOS los datos (nombre real, modalidad, dirección y zona si es entrega). Solo hay un pedido por confirmar por cliente y no puede tener otro pedido en curso (para cambiarlo usa modificar_pedido; aparte=true solo si pide OTRO pedido aparte): para añadir, quitar o cambiar algo antes de confirmar, vuelve a llamarla con la lista COMPLETA de ítems y datos; eso modifica el mismo pedido (actualizado: true).", _s({"items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida", "mesa"], "description": "'mesa' solo si el mensaje del cliente indica que está en una mesa (QR)"}, "nombre": S, "direccion": S, "hora_deseada": HP, "zona": S, "notas": S, "aparte": {"type": "boolean", "description": "true SOLO si el cliente pide explícitamente OTRO pedido aparte teniendo ya uno en curso (máx. 3)"}}, ["items", "modalidad", "nombre"])),
     "modificar_pedido": (modificar_pedido, "Cambia un pedido existente (dirección, hora, notas, zona, modalidad o la lista COMPLETA de ítems); lo no indicado se conserva. Para cualquier cambio de un pedido existente usa esta herramienta, NUNCA crear_pedido. Si el total cambia en un pedido confirmado, vuelve a por_confirmar: lee el nuevo total y pide un sí en un mensaje nuevo antes de confirmar_pedido. En un pedido ya pagado solo se pueden cambiar dirección, hora y notas; lo demás se escala a una persona.", _s({"pedido_id": {"type": "integer"}, "items": {"type": "array", "items": _s({"id": S, "cantidad": {"type": "integer"}, "nota": S}, ["id", "cantidad"])}, "modalidad": {"type": "string", "enum": ["entrega", "recogida"]}, "direccion": S, "zona": S, "hora_deseada": HP, "notas": S}, ["pedido_id"])),
-    "pagar_efectivo": (pagar_efectivo, "El cliente pide pagar en efectivo al recibir (SOLO pedidos con entrega a domicilio, ya confirmados): pasa a cocina y el repartidor cobra. Úsala solo si el cliente lo pide.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
+    "pagar_efectivo": (pagar_efectivo, "El cliente pide pagar en efectivo al recibir (SOLO pedidos con entrega a domicilio, ya confirmados): pasa a cocina y el repartidor cobra. En un pedido de mesa es pagar en la mesa o en caja (siempre disponible). Úsala solo si el cliente lo pide.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "confirmar_pedido": (confirmar_pedido, "Confirma un pedido por_confirmar tras un 'sí' explícito del cliente; devuelve los datos de pago.", _s({"pedido_id": {"type": "integer"}}, ["pedido_id"])),
     "reportar_pago": (reportar_pago, "Registra que el cliente dice haber pagado (método y referencia). No lo da por verificado.", _s({"pedido_id": {"type": "integer"}, "metodo": S, "referencia": S}, ["pedido_id", "metodo", "referencia"])),
     "guardar_ubicacion": (guardar_ubicacion, "Guarda la ubicación de entrega cuando el cliente pega un enlace de Google Maps (o 'lat, lon'). Pasa el enlace EXACTO que escribió; nunca inventes ni calcules coordenadas.", _s({"pedido_id": {"type": "integer"}, "enlace": S}, ["pedido_id", "enlace"])),

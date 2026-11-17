@@ -21,7 +21,7 @@ import time
 import unicodedata
 from collections.abc import Mapping
 
-from . import clientes
+from . import mesa, clientes
 from . import herramientas
 from . import ruta as reparto
 from . import ubicacion
@@ -430,7 +430,7 @@ class Bloqueo:
 
 def acciones_de(p):
     """Acciones válidas ahora (mismas reglas que marcar_pedido / cancelar_pedido)."""
-    a = [e for e, previos in herramientas.PREVIOS.items() if p["estado"] in previos]
+    a = [e for e, previos in herramientas.PREVIOS.items() if p["estado"] in previos and not (e == "en_camino" and p.get("mesa"))]
     if p["estado"] == "pago_reportado":
         a.append("pago_rechazado")
     if p["estado"] in ("por_confirmar", "confirmado"):
@@ -454,7 +454,9 @@ def _mask(tel, con_prefijo=False):
 def pedido_json(p, detalle=False):
     """Lista: teléfono enmascarado, solo zona y sin imagen. Detalle: teléfono y dirección completos solo en pedidos abiertos."""
     cerrado = p["estado"] in TERMINADOS
-    d = {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"), "telefono": p.get("telefono") if detalle and not cerrado else _mask(p.get("telefono")),
+    mesa = p.get("mesa")  # pedido de mesa: su "teléfono" es un cid interno, no se muestra
+    d = {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"),
+         "telefono": None if mesa else p.get("telefono") if detalle and not cerrado else _mask(p.get("telefono")),
          "modalidad": p.get("modalidad"), "zona": p.get("zona"), "hora_deseada": p.get("hora_deseada"), "notas": p.get("notas"),
          "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"]), **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
          "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
@@ -462,6 +464,8 @@ def pedido_json(p, detalle=False):
          "creado_at": p.get("creado_at"), "estado_at": p.get("estado_at") or p.get("creado_at"), "acciones": acciones_de(p),
          "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion")), "por_cobrar": bool(p.get("por_cobrar")), "cobrado_por": p.get("cobrado_por"),
          "fuera_de_zona": bool((p.get("ubicacion") or {}).get("fuera_de_zona"))}
+    if mesa:  # solo en pedidos de mesa: la API de los demás no cambia
+        d.update(mesa=mesa, espera_personal=bool(p.get("espera_personal")))
     if detalle and not cerrado:
         d["direccion"] = p.get("direccion")
         d["mapa"] = ubicacion.url_mapa(p)
@@ -480,7 +484,8 @@ def estado_panel(sv, desde=0, repartidores=(), rutas=None):
     abiertos = [e for e in sv.listar("escalado") if e.get("estado") == "abierto"]
     # quien pide una persona espera que lo llamen: el panel (con PIN) ve su teléfono completo mientras el aviso está abierto; atendido, deja de salir
     nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
-    esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")), "telefono": e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
+    esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")) or (f"Mesa {mesa.de_cid(e.get('telefono'))}" if mesa.de_cid(e.get("telefono")) else None),
+            "telefono": None if mesa.de_cid(e.get("telefono")) else e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
             "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado")), "modulos": modulos(sv),
             "rutas": rutas or {}}  # repartidor -> ruta (motor/ruta.py); la calcula web.py, que es quien tiene las posiciones
@@ -495,7 +500,7 @@ def marcar(sv, pedido_id, estado, rol):
     else:
         herramientas.marcar_pedido(sv, pedido_id, estado)
     ahora = sv.ahora().isoformat()
-    cambios = {f"{estado}_por": rol, f"{estado}_at": ahora, "estado_at": ahora}
+    cambios = {f"{estado}_por": rol, f"{estado}_at": ahora, "estado_at": ahora, **({"espera_personal": False} if estado == "pagado" else {})}
     if estado == "entregado" and previo and previo.get("por_cobrar"):  # efectivo contra entrega: queda anotado quién cobró y cuánto
         cambios.update(por_cobrar=False, cobrado_por=rol, cobrado_at=ahora, cobrado_c=previo["total_c"])
         herramientas._aviso(sv, previo, pedido_id, f"{rol} cobró {dinero(previo['total_c'])} en efectivo del pedido #{pedido_id}.")
@@ -835,6 +840,55 @@ def preguntar(sv, texto):
                     resultados.append({"type": "tool_result", "tool_use_id": b.id, "content": f"Error: {e}", "is_error": True})
         msgs.append({"role": "user", "content": resultados})
     return {"respuesta": "No pude resolverlo. Prueba con una pregunta más concreta, por ejemplo «¿Cuánto vendí ayer?»."}
+def api_qr(sv, quien, metodo, ruta, d):
+    """Módulo «mesas» (solo dueño; 404 si el restaurante no lo tiene). `d["_base"]` (https://dominio) lo pone el servidor, nunca el cliente."""
+    if "mesas" not in modulos(sv):
+        raise LookupError(ruta)
+    base, entero = d.get("_base", ""), lambda v: isinstance(v, int) and not isinstance(v, bool)
+    if (metodo, ruta) == ("GET", "qr_codigos"):
+        return {"codigos": mesa.listar(sv, base), "estilo": mesa.estilo(sv), "logo": mesa.logo_uri(sv) is not None, "tipos": mesa.TIPOS, "plantillas": mesa.PLANTILLAS,
+                "maximo": mesa.maximo(sv), "modulos": mesa.MODULOS}
+    if (metodo, ruta) == ("POST", "qr_codigo"):  # crea (sin id) o cambia etiqueta/destino/activo de uno; el código impreso no cambia
+        if "id" in d:
+            if not entero(d["id"]):
+                raise ValueError("Id inválido")
+            mesa.actualizar(sv, d["id"], {k: v for k, v in d.items() if k in ("etiqueta", "tipo", "destino", "mesa", "activo")})
+            i = d["id"]
+        else:
+            i = mesa.crear(sv, d)["id"]
+        auditar(sv, quien, f"qr_codigo:{i}")
+        return {"ok": True, "id": i}
+    if (metodo, ruta) == ("POST", "qr_generar"):  # «Mesa N» para un rango; las mesas que ya tienen código no se repiten
+        a, b = d.get("desde"), d.get("hasta")
+        if not (entero(a) and entero(b) and 1 <= a <= b <= mesa.maximo(sv) and b - a < mesa.MAX_MESAS):
+            raise ValueError(f"El rango va de 1 a {mesa.maximo(sv)}")
+        hay = {m for (m,) in sv._q("SELECT mesa FROM qr_codigos WHERE tipo='pedir'")}
+        nuevos = [mesa.crear(sv, {"etiqueta": f"Mesa {n}", "tipo": "pedir", "mesa": n})["id"] for n in range(a, b + 1) if n not in hay]
+        auditar(sv, quien, f"qr_generar:{a}-{b}")
+        return {"ok": True, "creados": len(nuevos)}
+    if (metodo, ruta) == ("POST", "qr_regenerar"):
+        if not entero(d.get("id")):
+            raise ValueError("Id inválido")
+        c = mesa.regenerar(sv, d["id"])
+        auditar(sv, quien, f"qr_regenerar:{d['id']}")
+        return {"ok": True, "codigo": c, "url": f"{base}/m/{c}"}
+    if (metodo, ruta) == ("POST", "qr_borrar"):
+        if not entero(d.get("id")):
+            raise ValueError("Id inválido")
+        mesa.borrar(sv, d["id"])
+        auditar(sv, quien, f"qr_borrar:{d['id']}")
+        return {"ok": True}
+    if (metodo, ruta) == ("POST", "qr_estilo"):
+        e = mesa.guardar_estilo(sv, d.get("estilo"))
+        auditar(sv, quien, "qr_estilo")
+        return {"ok": True, "estilo": e}
+    if (metodo, ruta) == ("POST", "qr_vista"):  # borrador sin guardar: la vista previa en vivo
+        return {"svg": mesa.svg_de(sv, f"{base}/m/{'abcdefgh'}", mesa.estilo_valido(d.get("estilo")))}
+    if (metodo, ruta) == ("POST", "qr_logo_borrar"):
+        mesa.quitar_logo(sv)
+        auditar(sv, quien, "qr_logo_borrar")
+        return {"ok": True}
+    raise LookupError(ruta)
 
 
 def api_dueno(sv, quien, rol, metodo, ruta, d=None):
@@ -863,6 +917,8 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return estadisticas(sv, (d or {}).get("dias"))
     if (metodo, ruta) == ("POST", "preguntar"):
         return preguntar(sv, (d or {}).get("texto"))
+    if ruta.startswith("qr_"):
+        return api_qr(sv, quien, metodo, ruta, d or {})
     raise LookupError(ruta)
 
 

@@ -178,18 +178,21 @@ table.items tr.tot td{font-weight:700;font-size:1rem}
 #estado h2{font-size:1.75rem;font-weight:700}
 #estado-meta{font-family:var(--mono);font-size:.875rem;color:var(--on-variant)}
 .vacio{color:var(--on-variant);margin-top:8px}
-ol.pasos{list-style:none;margin:24px auto;padding:0}
-ol.pasos li{display:grid;grid-template-columns:32px 1fr;gap:4px 14px;position:relative;padding-bottom:22px}
-ol.pasos li::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--sc-highest)}
-ol.pasos li:last-child::before{display:none}
-ol.pasos li.hecho::before{background:var(--tertiary)}
-.marca-paso{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--sc-highest);background:var(--sc-lowest);color:var(--on-variant);grid-row:span 2;font-family:var(--mono);font-size:.8125rem}
+.seguim{background:var(--sc-lowest);border-radius:var(--r12);box-shadow:var(--sombra);padding:20px 12px 16px;margin-top:16px}
+.seguim-txt{font:700 1.375rem/1.25 var(--display);text-align:center;margin:0 8px 20px;text-wrap:balance}
+.linea{position:relative}
+.barra-prog{position:absolute;top:15px;left:calc(50% / var(--n));right:calc(50% / var(--n));height:4px;border-radius:2px;background:var(--sc-highest);overflow:hidden}
+.barra-prog i{display:block;height:100%;background:var(--tertiary);transform-origin:left center;transform:scaleX(var(--f,0));transition:transform .9s var(--m-out)}
+ol.pasos{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));position:relative}
+ol.pasos li{display:grid;justify-items:center;gap:8px;text-align:center;font-size:.75rem;line-height:1.2}
+.marca-paso{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--sc-highest);background:var(--sc-lowest);color:var(--on-variant);font-family:var(--mono);font-size:.8125rem;position:relative}
 .hecho .marca-paso{background:var(--tertiary);border-color:var(--tertiary);color:var(--on-tertiary)}
 .actual .marca-paso{border-color:var(--primary);background:var(--primary);color:var(--on-primary)}
-.pasos b{font-weight:600}
-.actual b{font:700 1.25rem var(--display)}
-.pasos small{color:var(--on-variant)}
+.pasos b{font-weight:600;overflow-wrap:anywhere}
+.actual b{font-weight:800;color:var(--primary)}
 .pendiente b{color:var(--on-variant);font-weight:500}
+.gracias{margin-top:20px;padding-top:16px;border-top:1px solid var(--sc-high);display:grid;gap:12px;text-align:center}
+.gracias p{margin:0;font-size:1.0625rem}
 .tarjeta{background:var(--sc-lowest);border-radius:var(--r12);box-shadow:var(--sombra);padding:16px;margin-top:16px}
 .tarjeta h3{font-size:1.0625rem;margin-bottom:8px}
 .pago{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:10px 0;border-top:1px solid var(--sc-high)}
@@ -244,7 +247,7 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
 .plato{animation:entra var(--m-medio) var(--m-out) backwards}
 .plato:nth-child(2){animation-delay:40ms}.plato:nth-child(3){animation-delay:80ms}.plato:nth-child(4){animation-delay:120ms}.plato:nth-child(5){animation-delay:160ms}.plato:nth-child(n+6){animation-delay:200ms}
 #lista-menu.quieto .plato{animation:none}
-#menu:not([hidden]),#chat:not([hidden]),#estado:not([hidden]),#entrada:not([hidden]),#mapa-cli:not([hidden]),.resumen .det:not([hidden]){animation:fade var(--m-medio) var(--m-out)}
+#menu:not([hidden]),#chat:not([hidden]),#estado:not([hidden]),#entrada:not([hidden]),#mapa-cli:not([hidden]),.resumen .det:not([hidden]),.gracias:not([hidden]){animation:fade var(--m-medio) var(--m-out)}
 #mapa-cli:not(.leaflet-container){animation:latir 1.4s ease-in-out infinite}
 .pin-rep{transition:transform 1s linear}
 .pin-rep span{transition:background-color .3s}
@@ -259,6 +262,8 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
 .abierto .hasta{display:none}
 @media (min-width:560px){.abierto .hasta{display:inline}}
 @media (max-width:420px){.info{font-size:.75rem}.abierto{padding:4px 10px}}
+
+.solo-menu .lateral,.solo-menu .carro,.solo-menu .plato .pedir,.solo-menu .plato .paso{display:none!important} /* QR «ver el menú»: sin pedir */
 
 /* Escritorio: catálogo a la izquierda y chat fijo a la derecha */
 @media (min-width:1024px){
@@ -288,6 +293,7 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
   .plato{animation-delay:0s!important}
   .btn:active,.pedir:active,.enviar:active,.sug:active,.cats button:active,.pestanas button:active,.copiar:active,.icono:active,.plato .paso button:active{transform:none}
   .puntos i,.abierto::before,.actual .marca-paso::after,#mapa-cli:not(.leaflet-container){animation:none}
+  .barra-prog i{transition:none}
   .pin-rep,.aviso{transition:none}
 }
 </style>
@@ -419,11 +425,22 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
       <p class="vacio" id="estado-vacio">Aún no tienes un pedido confirmado. Elige del menú o escribe en el chat lo que quieres comer.</p>
       <div id="estado-lleno" hidden>
         <p id="estado-meta"></p>
+        <div class="tarjeta" id="tarjeta-mapa" hidden>
+          <h3>Tu repartidor</h3>
+          <p id="mapa-cli-txt" role="status" aria-live="polite"></p>
+          <div id="mapa-cli" role="img" aria-label="Mapa con la posición actual de tu repartidor" hidden></div>
+          <p class="ayuda" id="mapa-cli-aviso" hidden>No se pudo cargar el mapa. Te seguimos avisando por aquí.</p>
+        </div>
+        <section class="seguim" id="seguim" aria-label="Seguimiento de tu pedido">
+          <p class="seguim-txt" id="seguim-txt" role="status" aria-live="polite"></p>
+          <div class="linea" id="linea"><div class="barra-prog" aria-hidden="true"><i id="seguim-fill"></i></div><ol class="pasos" id="pasos"></ol></div>
+          <div class="gracias" id="gracias" hidden><p><b>¡Gracias por tu pedido!</b> Esperamos que lo hayas disfrutado.</p><button class="btn btn-ancho" id="repetir" type="button">Repetir este pedido</button></div>
+        </section>
         <div class="tarjeta" id="tarjeta-pago" hidden>
           <h3 id="pago-titulo">Paga y envía tu comprobante</h3>
           <div id="pago-datos"></div>
           <div id="efectivo-caja" hidden>
-            <p class="t-sub" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
+            <p class="t-sub" id="efectivo-p" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
             <button class="btn btn-sec btn-ancho" id="efectivo-boton" type="button">Pagar en efectivo al recibir</button>
             <p class="error" id="efectivo-error" role="alert"></p>
           </div>
@@ -452,13 +469,6 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
             </div>
             <p class="ayuda" id="cp-privacidad">Comprobante de Yappy: solo lo usa el personal del restaurante para confirmar tu pago. No se envía al asistente de IA y se borra a los 7 días de confirmar o rechazar el pago.</p>
           </div>
-        </div>
-        <ol class="pasos" id="pasos"></ol>
-        <div class="tarjeta" id="tarjeta-mapa" hidden>
-          <h3>Tu repartidor</h3>
-          <p id="mapa-cli-txt" role="status" aria-live="polite"></p>
-          <div id="mapa-cli" role="img" aria-label="Mapa con la posición actual de tu repartidor" hidden></div>
-          <p class="ayuda" id="mapa-cli-aviso" hidden>No se pudo cargar el mapa. Te seguimos avisando por aquí.</p>
         </div>
         <div class="tarjeta" id="tarjeta-ubic" hidden>
           <h3>Entrega a domicilio</h3>
@@ -510,7 +520,6 @@ const PASOS = [
 const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado", caducado:"Caducó, pide de nuevo"};
 PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
 ETIQUETA.en_camino = "En camino";
-const PASOS_ENTREGA = [...PASOS.slice(0, 4), ["listo", "Listo", "Sale enseguida con el repartidor."], ["en_camino", "En camino", "El repartidor va hacia ti."]];
 const AVISO = {
   pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
   en_preparacion:"Tu pedido está en preparación.",
@@ -561,9 +570,20 @@ function pintarConfig() {
   }));
   pintarAbierto();
 }
+const params = new URLSearchParams(location.search);
+st.codigo = /^[a-z0-9]{8}$/.test(params.get("m") || "") ? params.get("m") : ""; // QR de mesa: /m/<codigo> nos trae aquí con ?m=
+if (params.get("solo") === "menu") document.body.classList.add("solo-menu"); // QR «ver el menú»: sin pedir
 async function cargarConfig() { // sin sesión no trae los datos de pago; se vuelve a pedir al entrar
-  if (!st.demo) try { CFG = await api("GET", "/config"); } catch (e) { return; }
+  if (!st.demo) try { CFG = await api("GET", "/config" + (st.codigo ? "?m=" + st.codigo : "")); } catch (e) { return; }
   pintarConfig();
+  if (st.codigo && CFG.mesa && !st.mesa) pintarMesa(CFG.mesa, CFG.etiqueta);
+}
+function pintarMesa(n, etiqueta) { // el servidor ya validó el código: sin teléfono y con nombre opcional
+  st.mesa = n;
+  form.telefono.closest("label").hidden = true; form.telefono.required = false;
+  form.nombre.required = false; form.nombre.closest("label").firstChild.textContent = "Tu nombre (opcional)";
+  $("#lema").textContent = `Estás en ${etiqueta || "la mesa " + n}: pide por chat y te lo llevamos a la mesa. No hace falta tu teléfono.`;
+  $("#hola").textContent = "· " + (etiqueta || "Mesa " + n);
 }
 
 /* ---------- Entrada ---------- */
@@ -574,8 +594,8 @@ form.addEventListener("submit", async ev => {
   const nombre = form.nombre.value.trim();
   const tel = form.telefono.value.replace(/\D/g, "").replace(/^507/, "");
   const errores = [
-    [form.nombre, "#e-nombre", nombre ? "" : "Escribe tu nombre."],
-    [form.telefono, "#e-tel", /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
+    [form.nombre, "#e-nombre", nombre || st.mesa ? "" : "Escribe tu nombre."],
+    [form.telefono, "#e-tel", st.mesa || /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
     [form.privacidad, "#e-priv", form.privacidad.checked ? "" : "Necesitamos tu permiso para tomar el pedido."]
   ];
   let primero = null;
@@ -585,12 +605,12 @@ form.addEventListener("submit", async ev => {
     if (msg && !primero) primero = el;
   }
   if (primero) return primero.focus();
-  st.nombre = nombre; st.telefono = "507" + tel; guardar();
+  st.nombre = nombre; st.telefono = st.mesa ? "" : "507" + tel; if (!st.mesa) guardar();
   const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
   if (!st.demo) {
     try {
       if (!st.aviso) await cargarAviso();
-      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version})});
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version, ...(st.mesa ? {codigo:st.codigo} : {})})});
       if (res.status === 400) {
         const err = (await res.json()).error || "Revisa tus datos.";
         btn.disabled = false; btn.textContent = "Empezar a pedir";
@@ -599,15 +619,15 @@ form.addEventListener("submit", async ev => {
           $("#e-priv").textContent = "Actualizamos el aviso de privacidad. Léelo y vuelve a marcar la casilla.";
           return form.privacidad.focus();
         }
-        $("#e-tel").textContent = err; return;
+        $(st.mesa ? "#e-nombre" : "#e-tel").textContent = err; return;
       }
       if (!res.ok) throw new Error(res.status);
     } catch (e) { st.demo = true; $("#modo-demo").hidden = false; if (!CFG.horario) CFG = DEMO_CFG; }
   }
   btn.disabled = false; btn.textContent = "Empezar a pedir";
   st.dentro = true; pestana("chat");
-  $("#hola").textContent = "Hola, " + nombre;
-  if (!$("#mensajes").children.length) burbuja("bot", `¡Hola, ${nombre}! ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres y si es para recoger o para entrega.`);
+  $("#hola").textContent = nombre ? "Hola, " + nombre : "· Mesa " + st.mesa;
+  if (!$("#mensajes").children.length) burbuja("bot", st.mesa ? `¡Hola${nombre ? ", " + nombre : ""}! Estás en la mesa ${st.mesa}. ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres.` : `¡Hola, ${nombre}! ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres y si es para recoger o para entrega.`);
   cargarConfig(); // ahora sí con los datos de pago
   clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
   if ($("#texto").value.trim()) $("#componer").requestSubmit(); else $("#texto").focus(); // venía con el pedido armado desde el menú: se envía solo
@@ -881,6 +901,51 @@ async function sugerir(p) {
               boton("No, gracias", "btn btn-sec", () => caja.remove()));
   caja.append(t, fila); $("#mensajes").append(caja); caja.scrollIntoView({block:"end", behavior:"smooth"});
 }
+/* ---------- Seguimiento vivo: Recibido → Cocinando → Listo → En camino / Para recoger → Entregado ---------- */
+const fases = p => [["Recibido"], ["Cocinando"], ["Listo"], ...(p.modalidad === "mesa" ? [] : [[p.modalidad === "entrega" ? "En camino" : "Para recoger"]]), ["Entregado"]];
+function faseDe(p) { // fase activa (0..); 99 = todo hecho. Solo usa los estados que ya da la API
+  const e = p.estado;
+  return e === "entregado" ? 99 : e === "en_preparacion" ? 1 : e === "listo" ? (p.modalidad === "recogida" ? 3 : 2) : e === "en_camino" ? 3 : 0;
+}
+function textoEstado(p) {
+  const e = p.estado, m = p.modalidad;
+  if (e === "confirmado") return p.espera_personal ? "El personal va a aceptar tu pedido enseguida." : "Recibimos tu pedido. Falta el pago para pasarlo a cocina.";
+  if (e === "pago_reportado") return "Recibimos tu pedido. Estamos verificando tu pago.";
+  if (e === "pagado") return p.por_cobrar ? "Pagarás al recibir. Tu pedido pasa a cocina." : "Pago verificado: tu pedido pasa a cocina.";
+  if (e === "en_preparacion") return "Tu pedido se está cocinando ahora mismo.";
+  if (e === "listo") return m === "mesa" ? "Tu pedido está listo y va a tu mesa." : m === "entrega" ? "Tu pedido está listo y sale enseguida con el repartidor." : "Tu pedido está listo: ya puedes recogerlo.";
+  if (e === "en_camino") return "Tu pedido va en camino.";
+  return "¡Entregado! Buen provecho.";
+}
+const sinMovimiento = matchMedia("(prefers-reduced-motion:reduce)");
+function pintarSeguimiento(p, antes) {
+  const pasos = fases(p), f = faseDe(p), n = pasos.length;
+  const txt = $("#seguim-txt"), nuevo = textoEstado(p);
+  if (txt.textContent !== nuevo) {
+    txt.textContent = nuevo;
+    if (antes && !sinMovimiento.matches && txt.animate) txt.animate([{opacity:0, transform:"translateY(6px)"}, {opacity:1, transform:"none"}], {duration:260, easing:"cubic-bezier(.23,1,.32,1)"});
+  }
+  const lin = $("#linea"); lin.style.setProperty("--n", n); lin.style.setProperty("--f", f >= n ? 1 : f / (n - 1));
+  $("#seguim-fill").style.setProperty("--f", f >= n ? 1 : f / (n - 1));
+  $("#pasos").style.setProperty("--n", n);
+  $("#pasos").replaceChildren(...pasos.map(([t], i) => {
+    const cl = f >= n || i < f ? "hecho" : i === f ? "actual" : "pendiente";
+    const li = document.createElement("li"); li.className = cl; if (cl === "actual") li.setAttribute("aria-current", "step");
+    const marca = document.createElement("span"); marca.className = "marca-paso";
+    if (cl === "hecho") { marca.innerHTML = '<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>'; } else marca.textContent = i + 1; // solo SVG fijo o un número
+    const b = document.createElement("b"); b.textContent = t;
+    const sr = document.createElement("span"); sr.className = "sr"; sr.textContent = ` (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})`; b.append(sr);
+    li.append(marca, b); return li;
+  }));
+  $("#gracias").hidden = p.estado !== "entregado";
+  if (antes && antes !== p.estado) { try { navigator.vibrate && navigator.vibrate([30, 50, 30]); } catch (e) {} } // un toque suave en cada cambio
+}
+$("#repetir").onclick = () => { // reutiliza el chat: arma la frase con los platos de este pedido y la envía
+  const p = st.pedido; if (!p) return;
+  const lineas = p.items.map(i => { const m = MENU.find(x => x.nombre === i.nombre); return `${i.cantidad} ${m ? frase(m) : i.nombre}`; });
+  $("#texto").value = "Quiero repetir mi pedido: " + lineas.join("; ") + (p.modalidad === "mesa" ? ", en mi mesa" : p.modalidad === "entrega" ? ", para entrega" : ", para recoger");
+  pestana("chat"); $("#texto").dispatchEvent(new Event("input")); if (st.dentro) $("#componer").requestSubmit();
+};
 
 function ponerPedido(p) {
   sugerir(p);
@@ -896,26 +961,22 @@ function ponerPedido(p) {
 
   const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
   $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
-  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
+  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "mesa" ? "Mesa " + p.mesa : p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
   pintarRepartidor(p);
-  const pasos = p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
-  const idx = pasos.findIndex(([k]) => k === p.estado);
-  const fin = p.estado === "entregado";
-  $("#pasos").innerHTML = pasos.map(([k, t, d], i) => {
-    if (k === "pagado" && p.por_cobrar) { t = "Pago al recibir"; d = "Pagas en efectivo al repartidor. Pasa a cocina."; }
-    const cl = fin || i < idx ? "hecho" : i === idx ? "actual" : "pendiente";
-    const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
-    return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
-  }).join("");
+  pintarSeguimiento(p, antes);
   const reportado = p.estado === "pago_reportado";
-  $("#tarjeta-pago").hidden = !(p.estado === "confirmado" || reportado);
+  $("#tarjeta-pago").hidden = !(p.estado === "confirmado" || reportado) || !!p.espera_personal;
   $("#pago-datos").hidden = reportado;
   $("#pago-titulo").textContent = reportado ? "Tu pago" : "Paga y envía tu comprobante";
   $("#cp-ok-titulo").textContent = st.comprobante ? "Comprobante recibido" : "Pago reportado";
   $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
   if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
-  $("#r-pagar").hidden = p.estado !== "confirmado";
-  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && p.modalidad === "entrega" && CFG.efectivo); $("#efectivo-monto").textContent = dinero(p.total);
+  $("#r-pagar").hidden = p.estado !== "confirmado" || !!p.espera_personal;
+  const enMesa = p.modalidad === "mesa";
+  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && (enMesa || p.modalidad === "entrega" && CFG.efectivo));
+  const b = document.createElement("b"); b.textContent = dinero(p.total);
+  $("#efectivo-p").replaceChildren(enMesa ? "¿Prefieres pagar en la mesa o en caja? El personal cobra " : "¿Prefieres pagar al recibir? El repartidor cobra ", b, enMesa ? "." : " en efectivo cuando llegue.");
+  $("#efectivo-boton").textContent = enMesa ? "Pagar en la mesa o en caja" : "Pagar en efectivo al recibir";
   const pide = p.modalidad === "entrega" && !["entregado", "cancelado", "caducado"].includes(p.estado);
   const ub = !!(p.ubicacion || p.tiene_ubicacion);
   $("#r-ubic").hidden = !pide || ub; $("#r-ubic-ok").hidden = !pide || !ub;
@@ -933,7 +994,6 @@ function avisar(texto) {
   $("#aviso-texto").textContent = texto; $("#aviso").classList.add("ver");
   burbuja("sistema", texto);
   if ($("#estado").hidden) { $("#punto").hidden = false; $("#punto-sr").textContent = " (novedad)"; document.title = "(1) " + texto; }
-  try { navigator.vibrate && navigator.vibrate(120); } catch (e) {}
   clearTimeout(tAviso); tAviso = setTimeout(() => $("#aviso").classList.remove("ver"), 7000);
 }
 $("#aviso-ver").onclick = () => { $("#aviso").classList.remove("ver"); pestana("estado"); };
@@ -943,7 +1003,11 @@ async function sondear() {
   try {
     const [ped, av] = await Promise.all([api("GET", "/pedidos"), api("GET", "/avisos")]);
     const p = ped.pedidos[0];
-    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total || !!p.ubicacion !== !!st.pedido.ubicacion)) ponerPedido(p);
+    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total || !!p.ubicacion !== !!st.pedido.ubicacion || !!p.espera_personal !== !!st.pedido.espera_personal)) ponerPedido(p);
+    else if (p && p.estado === "en_camino") { st.pedido = p; pintarRepartidor(p); } // la posición del repartidor se mueve aunque el estado no cambie
+    else if (!p && st.pedido && !["entregado", "cancelado", "caducado", "por_confirmar"].includes(st.pedido.estado)) { // se cerró: /pedidos ya no lo lista; si fue entregado, se muestra el final
+      const u = (await api("GET", "/ultimo")).pedido; if (u && u.id === st.pedido.id) ponerPedido(u);
+    }
     for (const m of av.mensajes) burbuja("bot", m);
   } catch (e) { if (e.message === "401") salir(); /* sin conexión: se reintenta en 5 s */ }
 }

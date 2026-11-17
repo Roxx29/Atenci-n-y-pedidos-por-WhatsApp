@@ -12,6 +12,7 @@ horario:   # se cambia en el panel, Configuración
   turnos: [["11:00", "22:00"]]
 menu: menu.yaml   # semilla: después manda el panel, Menú
 modulos: []       # extras contratados: los activa el operador desde su consola
+comision_ref: 25        # % que cobraría una app de delivery: el panel estima lo que el canal propio ahorra (Estadísticas)
 pedidos:
   impuesto_pct: 7          # poner 0 si el restaurante no cobra ITBMS aparte
   pedido_minimo: 0
@@ -27,7 +28,7 @@ pago:   # se cambia en el panel, Configuración
   link: null
 web: {aviso_version: "pendiente", aviso: aviso.md}   # al completar aviso.md, poner aquí su fecha (AAAA-MM-DD)
 comprobantes: {borrar_al_marcar: true, max_dias: 7}
-herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, pagar_efectivo, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
+herramientas: [crear_pedido, modificar_pedido, sugerir_complemento, confirmar_pedido, reportar_pago, pagar_efectivo, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
 conocimiento: conocimiento.md
 instrucciones: |
   1. Responde dudas de menú, horario y ubicación solo con la información dada.

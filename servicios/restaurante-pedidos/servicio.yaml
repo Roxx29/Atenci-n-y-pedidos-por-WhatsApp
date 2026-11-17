@@ -10,6 +10,7 @@ horario:
   turnos: [["11:00", "15:00"], ["18:00", "22:00"]]   # almuerzo y cena
 menu: menu.yaml
 modulos: [estadisticas]   # extras contratados (se venden aparte); quitar la línea para apagarlos. Solo se activan aquí, no desde el panel
+comision_ref: 25        # % que cobraría una app de delivery: el panel estima lo que el canal propio ahorra (Estadísticas)
 pedidos:
   impuesto_pct: 7          # poner 0 si el restaurante no cobra ITBMS aparte
   pedido_minimo: 0
@@ -27,7 +28,7 @@ pago:
   link: null               # Tilopay/PagueloFacil en v2
 web: {aviso_version: "2026-11-10", aviso: aviso.md}
 comprobantes: {borrar_al_marcar: true, max_dias: 7}   # foto del comprobante de Yappy: se borra al marcar pagado o a los 7 días
-herramientas: [crear_pedido, modificar_pedido, confirmar_pedido, reportar_pago, pagar_efectivo, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
+herramientas: [crear_pedido, modificar_pedido, sugerir_complemento, confirmar_pedido, reportar_pago, pagar_efectivo, cancelar_pedido, guardar_ubicacion, buscar, programar_mensaje, escalar_a_humano]
 conocimiento: conocimiento.md
 instrucciones: |
   1. Responde dudas de menú, horario y ubicación solo con la información dada.

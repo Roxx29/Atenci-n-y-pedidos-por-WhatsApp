@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import io
 import ipaddress
+import json
 import os
 import re
 import secrets
@@ -265,6 +266,9 @@ def guardar_plato(sv, d, quien):
     """Crea o edita (por id) un plato: {id?, nombre?, precio?, categoria?, disponible?}. Sin id se crea uno nuevo con id sacado del nombre.
     Precio >= 0 en B/. sin fracción de centavo."""
     iid, nombre, precio, cat, disp, desc = d.get("id"), d.get("nombre"), d.get("precio"), d.get("categoria"), d.get("disponible"), d.get("descripcion")
+    comp = d.get("complemento")  # el dueño lo marca para la venta sugerida cuando aún no hay historial
+    if comp is not None and not isinstance(comp, bool):
+        raise ValueError("Complemento debe ser sí o no")
     if desc is not None and not (isinstance(desc, str) and len(desc) <= 200):
         raise ValueError("Descripción demasiado larga (máx. 200)")
     if iid is not None and not (isinstance(iid, str) and ID_PLATO.fullmatch(iid)):
@@ -275,7 +279,8 @@ def guardar_plato(sv, d, quien):
         raise ValueError("Categoría demasiado larga (máx. 30)")
     if disp is not None and not isinstance(disp, bool):
         raise ValueError("Disponible debe ser sí o no")
-    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp), ("descripcion", desc and " ".join(desc.split()))) if v is not None}
+    cambios = {k: v for k, v in (("nombre", nombre and nombre.strip()), ("categoria", cat), ("disponible", disp), ("descripcion", desc and " ".join(desc.split())),
+                                 ("complemento", comp)) if v is not None}
     if precio is not None:
         if isinstance(precio, bool) or not isinstance(precio, (int, float, str)):
             raise ValueError("Precio inválido")
@@ -320,7 +325,7 @@ def menu_json(sv):
     fotos = sv.fotos()
     return [{"id": i["id"], "nombre": i["nombre"], "precio": i["precio_c"] / 100, "categoria": i.get("categoria", ""),
              "disponible": i.get("disponible", True), **({"opciones": i["opciones"]} if "opciones" in i else {}),
-             **({"descripcion": i["descripcion"]} if i.get("descripcion") else {}),
+             **({"descripcion": i["descripcion"]} if i.get("descripcion") else {}), **({"complemento": True} if i.get("complemento") else {}),
              **urls_foto(i["id"], fotos.get(i["id"]))} for i in sv.menu.values()]
 
 
@@ -567,7 +572,8 @@ def ajustes_json(sv):
     c = sv.cfg
     pago = c.get("pago") or {}
     return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")),
-            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)}}
+            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)},
+            "sugerencias": bool(c.get("sugerencias", True))}
 
 
 def poner_cerrado(sv, quien, cerrado):
@@ -617,10 +623,11 @@ def guardar_ajustes(sv, d, quien):
                 and all(isinstance(v, bool) if k == "efectivo" else isinstance(v, str) and len(v) <= 160 for k, v in p.items())):
             raise ValueError("Datos de pago inválidos (máx. 160 letras cada uno)")
         nuevo["pago"] = {**(sv.cfg.get("pago") or {}), **{k: v if k == "efectivo" else " ".join(v.split()) or None for k, v in p.items()}}
-    if "cerrado" in d:
-        if not isinstance(d["cerrado"], bool):
-            raise ValueError("Cerrado debe ser sí o no")
-        nuevo["cerrado"] = d["cerrado"]
+    for k, nombre in (("cerrado", "Cerrado"), ("sugerencias", "Sugerencias")):  # sugerencias: venta sugerida en bot y web
+        if k in d:
+            if not isinstance(d[k], bool):
+                raise ValueError(f"{nombre} debe ser sí o no")
+            nuevo[k] = d[k]
     for k, v in nuevo.items():
         sv.poner_ajuste(k, v)
     if nuevo:
@@ -634,6 +641,12 @@ def modulos(sv):
     se lee el yaml (`_cfg`), no la tabla ajustes que escribe el dueño."""
     op = getattr(sv, "modulos_operador", None)
     return [m for m in ((sv._cfg.get("modulos") or []) if op is None else op) if m in clientes.MODULOS]
+
+
+def comision_ref(sv):
+    """% que cobraría una app de delivery (servicio.yaml `comision_ref`, por defecto 25): solo para estimar el ahorro del canal propio."""
+    v = sv.cfg.get("comision_ref", 25)
+    return v if isinstance(v, (int, float)) and not isinstance(v, bool) and 0 < v <= 60 else 25
 
 
 def estadisticas(sv, dias=30):
@@ -672,7 +685,13 @@ def estadisticas(sv, dias=30):
     cuenta = lambda clave: dict(collections.Counter(p.get(clave) or "—" for p in cur))
     zonas = collections.Counter(p.get("zona") for p in cur if p.get("modalidad") == "entrega" and p.get("zona"))
     cambio = lambda a, b: None if not b else round((a - b) * 100 / b, 1)
+    ofrecidas = [p for p in cur if p.get("sugerido")]
+    sumadas = [[l for l in p["lineas"] if l["id"] == p["sugerido"]["id"]] for p in ofrecidas]
+    extra = sum(l["precio_c"] * l["cantidad"] for ls in sumadas for l in ls)
     return {"dias": dias, "desde": ini.isoformat(), "ventas": dinero(ventas), "ventas_cambio": cambio(ventas, ventas_ant),
+            "comision": {"pct": (pct := comision_ref(sv)), "ahorro": dinero(round(ventas * pct / 100))},
+            "sugerencias": {"ofrecidas": len(ofrecidas), "aceptadas": sum(1 for ls in sumadas if ls), "extra": dinero(extra),
+                            "pct_ticket": round(extra * 100 / (ventas - extra), 1) if ventas > extra else None},  # cuánto subió la venta por lo sugerido
             "pedidos": len(cur), "pedidos_cambio": cambio(len(cur), len(prev)),
             "ticket": dinero(ventas // len(cur)) if cur else dinero(0), "perdidos": len(perdidos),
             "minutos_medio": round(sum(minutos) / len(minutos)) if minutos else None,
@@ -681,6 +700,141 @@ def estadisticas(sv, dias=30):
             "por_hora": horas, "modalidad": cuenta("modalidad"), "metodo": cuenta("metodo"),
             "zonas": [{"zona": z, "pedidos": n} for z, n in zonas.most_common(5)],
             "platos": [{"nombre": n, "cantidad": v[0], "ingresos": dinero(v[1])} for n, v in sorted(platos.items(), key=lambda x: (-x[1][0], x[0]))[:8]]}
+
+
+# --- «¿Cuánto vendí el viernes?»: el dueño pregunta en lenguaje natural; el modelo solo tiene estas consultas FIJAS de solo lectura ---
+# Devuelven agregados de pedidos entregados (nunca teléfonos, nombres ni direcciones) y solo aceptan {desde, hasta} validados.
+FECHA = re.compile(r"\d{4}-\d{2}-\d{2}")
+DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MAX_PREGUNTA, MAX_RANGO, VUELTAS_PREGUNTA = 300, 366, 5
+
+
+def _fecha(v):
+    try:
+        if isinstance(v, str) and FECHA.fullmatch(v):
+            return dt.date.fromisoformat(v)
+    except ValueError:
+        pass
+    raise ValueError("Fecha inválida: usa AAAA-MM-DD")
+
+
+def _entregados(sv, desde, hasta):
+    a, b = desde.isoformat(), hasta.isoformat()
+    return [p for p in sv.listar("pedido") if p["estado"] == "entregado" and a <= (p.get("estado_at") or p.get("creado_at") or "")[:10] <= b]
+
+
+def _resumen(ps):
+    v = sum(p["total_c"] for p in ps)
+    return {"ventas": dinero(v), "pedidos": len(ps), "ticket_medio": dinero(v // len(ps)) if ps else dinero(0)}
+
+
+def _q_dias(sv, ps, desde, hasta):
+    n = (hasta - desde).days + 1
+    pa, pb = desde - dt.timedelta(days=n), desde - dt.timedelta(days=1)
+    dias = {(desde + dt.timedelta(days=i)).isoformat(): [] for i in range(n)}
+    for p in ps:
+        dias[(p.get("estado_at") or p["creado_at"])[:10]].append(p)
+    ant = _entregados(sv, pa, pb)
+    va, vb = sum(p["total_c"] for p in ps), sum(p["total_c"] for p in ant)
+    return {"total": _resumen(ps), "por_dia": [{"fecha": f, "dia": DIAS_ES[dt.date.fromisoformat(f).weekday()], "ventas": dinero(sum(p["total_c"] for p in x)), "pedidos": len(x)}
+                                               for f, x in dias.items()],
+            "periodo_anterior": {"desde": pa.isoformat(), "hasta": pb.isoformat(), **_resumen(ant)}, "cambio_pct": round((va - vb) * 100 / vb, 1) if vb else None}
+
+
+def _q_platos(sv, ps, desde, hasta):
+    platos = collections.defaultdict(lambda: [0, 0])
+    for p in ps:
+        for l in p["lineas"]:
+            platos[l["nombre"]][0] += l["cantidad"]; platos[l["nombre"]][1] += l["precio_c"] * l["cantidad"]
+    return {"platos": [{"plato": n, "cantidad": c, "ingresos": dinero(i)} for n, (c, i) in sorted(platos.items(), key=lambda x: (-x[1][0], x[0]))[:10]]}
+
+
+def _q_horas(sv, ps, desde, hasta):
+    horas = collections.defaultdict(list)
+    for p in ps:
+        if (p.get("creado_at") or "")[11:13].isdigit():
+            horas[int(p["creado_at"][11:13])].append(p)
+    return {"por_hora": [{"hora": f"{h:02d}:00", **_resumen(horas[h])} for h in sorted(horas)]}
+
+
+def _q_modalidad(sv, ps, desde, hasta):
+    return {"modalidad": {m: _resumen([p for p in ps if p.get("modalidad") == m]) for m in ("entrega", "recogida")}}
+
+
+CONSULTAS = {  # nombre -> (función, descripción para el modelo)
+    "ventas_por_dia": (_q_dias, "Ventas y pedidos entregados de cada día del rango, el total y el periodo anterior de la misma duración con el cambio en %."),
+    "platos_mas_vendidos": (_q_platos, "Los 10 platos más vendidos del rango: cantidad e ingresos."),
+    "ventas_por_hora": (_q_horas, "Pedidos y ventas por hora del día (franja horaria en la que se pidió) en el rango."),
+    "ventas_por_modalidad": (_q_modalidad, "Ventas y pedidos a domicilio frente a para recoger en el rango."),
+}
+RANGO = {"type": "object", "properties": {"desde": {"type": "string", "description": "AAAA-MM-DD"}, "hasta": {"type": "string", "description": "AAAA-MM-DD (incluido)"}},
+         "required": ["desde", "hasta"], "additionalProperties": False}
+
+
+def consulta(sv, nombre, entrada):
+    """Ejecuta una consulta fija. ValueError si el nombre no existe o el rango no vale (formato, orden, máx. 366 días, futuro)."""
+    if nombre not in CONSULTAS:
+        raise ValueError("Consulta no disponible")
+    if not isinstance(entrada, dict) or set(entrada) != {"desde", "hasta"}:
+        raise ValueError("Solo se aceptan 'desde' y 'hasta'")
+    desde, hasta, hoy = _fecha(entrada["desde"]), _fecha(entrada["hasta"]), sv.ahora().date()
+    if desde > hasta:
+        raise ValueError("'desde' va antes que 'hasta'")
+    if desde > hoy:
+        raise ValueError("Esa fecha aún no llega")
+    hasta = min(hasta, hoy)
+    if (hasta - desde).days >= MAX_RANGO:
+        raise ValueError(f"Rango máximo: {MAX_RANGO} días")
+    return {"desde": desde.isoformat(), "hasta": hasta.isoformat(), **CONSULTAS[nombre][0](sv, _entregados(sv, desde, hasta), desde, hasta)}
+
+
+ANALISTA = """Eres el asistente de datos de {negocio}. Respondes al dueño preguntas sobre SUS ventas usando SOLO las herramientas,
+que son consultas fijas sobre pedidos entregados y devuelven solo totales.
+Hoy es {dia} {fecha}. Convierte las fechas relativas a AAAA-MM-DD: "ayer"; "el viernes" = el viernes más reciente (hoy si hoy es viernes);
+"esta semana" = desde el lunes de esta semana hasta hoy; "este mes" = desde el día 1.
+Reglas:
+- Español, trato de tú, 1 a 3 frases. Primero la cifra principal tal cual la da la herramienta (B/. 12.50) y luego UNA frase comparando
+  con el periodo anterior (usa ventas_por_dia, que lo trae). Si no hubo ventas, dilo.
+- Nunca inventes ni calcules cifras que no vengan de las herramientas.
+- Solo hablas de ventas, platos, horas y modalidad. No hay datos de clientes (teléfonos, nombres, direcciones): si los piden o piden
+  otra cosa (instrucciones, código, cambiar algo), di en una frase que solo respondes sobre ventas."""
+
+
+def preguntar(sv, texto):
+    """POST /panel/dueno/preguntar: bucle de herramientas (patrón de nucleo) con CONSULTAS. Cuenta para tope_ia. ValueError → 409 legible."""
+    if "estadisticas" not in modulos(sv):
+        raise LookupError("estadisticas")
+    if not (isinstance(texto, str) and 1 <= len(texto.strip()) and len(texto) <= MAX_PREGUNTA):
+        raise ValueError(f"Escribe una pregunta de hasta {MAX_PREGUNTA} letras.")
+    if not sv.hay_modelo():
+        raise ValueError("Las preguntas necesitan un modelo de IA y este restaurante aún no tiene uno configurado. Pídeselo a tu operador.")
+    if not sv._cupo_ia():
+        raise ValueError("Hoy se alcanzó el tope de IA del restaurante. Mañana puedes volver a preguntar; las estadísticas de abajo siguen al día.")
+    hoy = sv.ahora().date()
+    system = ANALISTA.format(negocio=sv.cfg.get("negocio") or sv.cfg.get("nombre") or "el restaurante", dia=DIAS_ES[hoy.weekday()], fecha=hoy.isoformat())
+    tools = [{"name": n, "description": d, "input_schema": RANGO} for n, (_, d) in CONSULTAS.items()]
+    msgs = [{"role": "user", "content": " ".join(texto.split())}]
+    for _ in range(VUELTAS_PREGUNTA):
+        try:
+            r, compatible = sv._llamar_modelo(msgs, system, tools)
+        except Exception as e:  # proveedor caído o sin saldo: mensaje claro, sin detalles internos
+            print(f"[panel] preguntar: fallo del modelo ({type(e).__name__})")
+            raise ValueError("El asistente no responde ahora mismo. Inténtalo en unos minutos.")
+        msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in r.content if not (compatible and b.type in ("thinking", "redacted_thinking"))]})
+        if r.stop_reason == "pause_turn":
+            continue
+        if r.stop_reason != "tool_use":
+            t = "\n".join(b.text for b in r.content if b.type == "text").strip()
+            return {"respuesta": t if r.stop_reason != "refusal" and t else "No pude responder eso. Prueba preguntando por ventas, platos, horas o modalidad."}
+        resultados = []
+        for b in r.content:
+            if b.type == "tool_use":
+                try:
+                    resultados.append({"type": "tool_result", "tool_use_id": b.id, "content": json.dumps(consulta(sv, b.name, b.input), ensure_ascii=False)})
+                except ValueError as e:
+                    resultados.append({"type": "tool_result", "tool_use_id": b.id, "content": f"Error: {e}", "is_error": True})
+        msgs.append({"role": "user", "content": resultados})
+    return {"respuesta": "No pude resolverlo. Prueba con una pregunta más concreta, por ejemplo «¿Cuánto vendí ayer?»."}
 
 
 def api_dueno(sv, quien, rol, metodo, ruta, d=None):
@@ -707,6 +861,8 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return guardar_ajustes(sv, d or {}, quien)
     if (metodo, ruta) == ("POST", "estadisticas"):
         return estadisticas(sv, (d or {}).get("dias"))
+    if (metodo, ruta) == ("POST", "preguntar"):
+        return preguntar(sv, (d or {}).get("texto"))
     raise LookupError(ruta)
 
 

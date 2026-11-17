@@ -425,6 +425,26 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .rank .fondo i{display:block;height:100%;border-radius:3px;background:var(--primary)}
 .rank span{color:var(--on-variant);font:500 .9375rem var(--mono)}
 .dos-col{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+/* Ahorro en comisión y preguntas del dueño */
+.ahorro{display:grid;gap:4px;padding:16px;margin:8px 0 0;border-radius:10px;background:var(--sc-lowest);box-shadow:var(--sombra);border-left:5px solid var(--tertiary)}
+.ahorro small{font-size:.8125rem;font-weight:700;color:var(--on-variant)}
+.ahorro b{color:var(--tertiary)}
+.ahorro b{font:500 1.75rem var(--mono)}
+.preg-fila{display:flex;gap:8px;align-items:stretch}
+.preg-fila input{flex:1}
+.preg-fila .btn{min-height:48px}
+.preg-mic[aria-pressed=true]{border-color:var(--error);color:var(--error);animation:latido 1s ease-in-out infinite}
+.preg-ejemplos{display:flex;flex-wrap:wrap;gap:8px}
+.preg-resp:empty{display:none}
+.preg-resp{padding:12px 14px;border-radius:8px;background:var(--sc-high);font-size:1rem;line-height:1.5;white-space:pre-line}
+.preg-resp .quien{display:block;margin-bottom:4px;font-size:.8125rem;font-weight:700;color:var(--on-variant)}
+.preg-resp.error{color:var(--error)}
+.pensando{display:inline-flex;gap:5px;align-items:center;color:var(--on-variant)}
+.pensando i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:salto 1s ease-in-out infinite}
+.pensando i:nth-child(2){animation-delay:.15s}.pensando i:nth-child(3){animation-delay:.3s}
+@keyframes salto{0%,80%,100%{transform:translateY(0);opacity:.4}40%{transform:translateY(-5px);opacity:1}}
+@keyframes latido{50%{opacity:.55}}
+@media (max-width:700px){.preg-fila{flex-wrap:wrap}.preg-fila input{flex-basis:100%}.preg-fila .btn{flex:1}}
 /* Teléfono: todo el cuerpo se desplaza junto (solo la cabecera y la barra de abajo quedan fijas) para no perder pantalla */
 @media (max-width:700px){
   .cuerpo{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
@@ -456,6 +476,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
   <symbol id="i-mudo" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 4 6M21 9l-4 6"/></symbol>
   <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
   <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
   <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
@@ -565,7 +586,25 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
         <h2>Estadísticas</h2>
         <div class="seg" role="group" aria-label="Periodo" id="stats-seg"><button type="button" aria-pressed="false" data-d="7">7 días</button><button type="button" aria-pressed="true" data-d="30">30 días</button><button type="button" aria-pressed="false" data-d="90">90 días</button></div>
       </div>
-      <div class="vista-cuerpo" id="stats-cuerpo"></div>
+      <div class="vista-cuerpo">
+        <div id="stats-arriba"></div>
+        <section class="caja-aj preguntas" aria-labelledby="preg-tit">
+          <h3 class="grupo" id="preg-tit">Pregúntale a tus ventas</h3>
+          <form id="f-preguntar" class="preg-fila" autocomplete="off">
+            <input name="texto" maxlength="300" placeholder="Ej.: ¿Cuánto vendí el viernes?" aria-label="Tu pregunta sobre las ventas" required>
+            <button type="button" class="mini preg-mic" id="preg-mic" hidden aria-pressed="false" aria-label="Preguntar con la voz"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
+            <button class="btn">Preguntar</button>
+          </form>
+          <div class="preg-ejemplos" id="preg-ejemplos">
+            <button type="button" class="chip-rep">¿Cuánto vendí ayer?</button>
+            <button type="button" class="chip-rep">¿Cuál fue mi plato estrella esta semana?</button>
+            <button type="button" class="chip-rep">¿A qué hora vendo más este mes?</button>
+            <button type="button" class="chip-rep">¿Vendo más a domicilio o para recoger?</button>
+          </div>
+          <div class="preg-resp" id="preg-resp" role="status" aria-live="polite"></div>
+        </section>
+        <div id="stats-cuerpo"></div>
+      </div>
     </div>
 
     <div class="vista" id="v-config" hidden>
@@ -591,6 +630,11 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
             <label>Transferencia<input name="transferencia" maxlength="160" placeholder="Banco · tipo de cuenta · número · a nombre de"></label>
             <label class="casilla"><input type="checkbox" name="efectivo"> Aceptar efectivo en entregas a domicilio
               <small>El cliente elige pagar al recibir, el pedido pasa a cocina y el repartidor cobra y avisa desde su página.</small></label>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Ventas</h3>
+            <label class="casilla"><input type="checkbox" name="sugerencias"> Sugerir un complemento antes de confirmar
+              <small>Una sola vez por pedido, en WhatsApp y en la web: lo que más se pide junto con esos platos (o los que marques con «Sugerir» en el menú).</small></label>
           </section>
           <div class="config-pie"><button class="btn">Guardar cambios</button><span class="t-espera" id="config-nota" role="status"></span></div>
         </form>
@@ -1112,6 +1156,10 @@ function filaPlato(x, dueno, promo) {
       await api("POST", "/panel/agotado", {plato:x.id, disponible:on}); x.disponible = on; fila.classList.toggle("apagada", !on);
     }, x.nombre + ": disponible hoy"),
     dueno && h("div", {class:"aj-acc"},
+      !promo && h("label", {class:"mini", title:"Se ofrece como complemento mientras no haya historial suficiente"},
+        h("input", {type:"checkbox", checked:!!x.complemento, on:{change:async ev => {
+          try { await api("POST", "/panel/dueno/plato", {id:x.id, complemento:ev.target.checked}); x.complemento = ev.target.checked; aviso(ev.target.checked ? "Se sugerirá " + x.nombre : "Ya no se sugiere " + x.nombre); }
+          catch (e) { ev.target.checked = !ev.target.checked; aviso(e.message, true); } }}}), " Sugerir"),
       x.foto && botonSeguro("Quitar foto", "Quitar la foto de " + x.nombre, async () => { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); repintarCarta(); }),
       botonSeguro("Borrar", "Borrar el plato " + x.nombre, async () => { await api("POST", "/panel/dueno/plato_borrar", {plato:x.id}); aviso(x.nombre + " borrado"); repintarCarta(); })));
   return fila;
@@ -1188,7 +1236,11 @@ async function pintarStats(dias) {
     kpi("Ticket medio", e.ticket),
     kpi("Tiempo medio", e.minutos_medio == null ? "—" : e.minutos_medio + " min", "del pedido a la entrega"),
     kpi("Clientes", String(e.clientes), e.clientes_repiten + " ya habían comprado antes"),
-    kpi("Cancelados o caducados", String(e.perdidos)))];
+    kpi("Cancelados o caducados", String(e.perdidos)),
+    e.sugerencias && e.sugerencias.ofrecidas ? kpi("Venta sugerida", e.sugerencias.pct_ticket == null ? "—" : `+${e.sugerencias.pct_ticket} %`,
+      `de ticket · ${e.sugerencias.aceptadas} de ${e.sugerencias.ofrecidas} aceptadas · +${e.sugerencias.extra}`, "sube") : null)];
+  $("#stats-arriba").replaceChildren(...(e.comision ? [h("div", {class:"ahorro"}, h("small", {}, "Lo que te habrías ahorrado en comisión"), h("b", {}, e.comision.ahorro),
+    h("small", {}, `Estimado: tus ventas propias × ${e.comision.pct} % que cobraría una app de delivery. Ajusta tu % con tu operador.`))] : []));
   if (!e.pedidos) cuerpo.push(h("p", {class:"t-espera"}, "Aún no hay pedidos entregados en este periodo. Las estadísticas se llenan solas a medida que se entregan pedidos."));
   else {
     const pico = e.por_hora.indexOf(Math.max(...e.por_hora));
@@ -1207,10 +1259,36 @@ async function pintarStats(dias) {
 }
 $("#stats-seg").onclick = ev => { const b = ev.target.closest("[data-d]"); if (b) pintarStats(Number(b.dataset.d)); };
 
+/* Preguntas del dueño: «¿Cuánto vendí el viernes?». La respuesta del modelo se pinta solo como texto. */
+async function preguntar(texto) {
+  const caja = $("#preg-resp"), boton = $("#f-preguntar .btn");
+  texto = texto.trim(); if (!texto || boton.disabled) return;
+  boton.disabled = true; caja.classList.remove("error");
+  caja.replaceChildren(h("span", {class:"quien"}, texto), h("span", {class:"pensando", "aria-label":"Pensando"}, h("i", {}), h("i", {}), h("i", {}), " Pensando…"));
+  try { caja.replaceChildren(h("span", {class:"quien"}, texto), (await api("POST", "/panel/dueno/preguntar", {texto})).respuesta); }
+  catch (e) { caja.classList.add("error"); caja.replaceChildren(h("span", {class:"quien"}, texto), e.message); }
+  boton.disabled = false;
+}
+$("#f-preguntar").onsubmit = ev => { ev.preventDefault(); preguntar(ev.target.texto.value); };
+$("#preg-ejemplos").onclick = ev => { const b = ev.target.closest("button"); if (b) { $("#f-preguntar").texto.value = b.textContent; preguntar(b.textContent); } };
+(() => { // micrófono: solo si el navegador trae reconocimiento de voz (Chrome, Edge, Safari); si no, el botón no aparece
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $("#preg-mic");
+  if (!SR) return;
+  mic.hidden = false; let rec = null;
+  mic.onclick = () => {
+    if (rec) return rec.stop();
+    rec = new SR(); rec.lang = "es-PA"; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec.onresult = ev => { const t = ev.results[0][0].transcript; $("#f-preguntar").texto.value = t; preguntar(t); };
+    rec.onerror = ev => { if (ev.error !== "aborted" && ev.error !== "no-speech") aviso("No pude usar el micrófono. Escribe tu pregunta.", true); };
+    rec.onend = () => { rec = null; mic.setAttribute("aria-pressed", "false"); };
+    try { rec.start(); mic.setAttribute("aria-pressed", "true"); } catch (e) { rec = null; }
+  };
+})();
+
 async function pintarConfig() {
   let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
   const f = $("#f-config");
-  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo;
+  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo; f.sugerencias.checked = a.sugerencias !== false;
   $("#config-nota").textContent = "";
   $("#horario-dias").replaceChildren(...DIAS_H.map(([d, nombre]) => {
     const t = a.horario[d] || [], abre = h("input", {type:"checkbox", "data-dia":d}); abre.checked = t.length > 0;
@@ -1233,7 +1311,7 @@ $("#f-config").onsubmit = async ev => {
     horario[abre.dataset.dia] = turnos;
   }
   try {
-    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}});
+    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
     nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
   } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
 };
@@ -1428,7 +1506,9 @@ function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la d
   if (fin === "usuarios") return {usuarios:U.map(x => ({...x}))};
   if (fin === "estadisticas") { const n = d.dias || 30, v = i => 20 + ((i * 37) % 60); return {dias:n, ventas:"B/. 1,240.50", ventas_cambio:12.4, pedidos:96, pedidos_cambio:-3.1, ticket:"B/. 12.92", minutos_medio:34, perdidos:5, clientes:61, clientes_repiten:23,
     por_dia:Array.from({length:n}, (_, i) => ({fecha:"2026-11-" + String(1 + i % 28).padStart(2, "0"), ventas:"B/. " + v(i), centavos:v(i) * 100, pedidos:v(i) % 9})), por_hora:[0,0,0,0,0,0,0,0,0,1,2,9,14,8,3,1,2,6,12,15,9,3,0,0],
-    modalidad:{entrega:58, recogida:38}, metodo:{}, zonas:[{zona:"Chitré", pedidos:41}, {zona:"La Villa de Los Santos", pedidos:17}], platos:[{nombre:"Sancocho", cantidad:48, ingresos:"B/. 216.00"}, {nombre:"Tasajo con arroz", cantidad:31, ingresos:"B/. 186.00"}]}; }
+    modalidad:{entrega:58, recogida:38}, metodo:{}, zonas:[{zona:"Chitré", pedidos:41}, {zona:"La Villa de Los Santos", pedidos:17}], platos:[{nombre:"Sancocho", cantidad:48, ingresos:"B/. 216.00"}, {nombre:"Tasajo con arroz", cantidad:31, ingresos:"B/. 186.00"}],
+    comision:{pct:25, ahorro:"B/. 310.12"}, sugerencias:{ofrecidas:40, aceptadas:14, extra:"B/. 31.50", pct_ticket:2.6}}; }
+  if (fin === "preguntar") return new Promise(ok => setTimeout(() => ok({respuesta:"El viernes vendiste B/. 186.50 en 14 pedidos. Es un 12 % más que el viernes anterior (B/. 166.50). (Ejemplo de la demostración.)"}), 900));
   if (fin === "ajustes") { const {horario, ...c} = d; Object.assign(DEMO.ajustes, c, horario ? {horario} : {}); return {ajustes:DEMO.ajustes}; }
   if (fin === "agotado") plato.disponible = d.disponible;
   if (fin === "plato") { const c = {...d, ...(d.precio != null ? {precio:Number(d.precio)} : {})}; plato ? Object.assign(plato, c) : M.push({id:"p" + Date.now(), categoria:"", disponible:true, foto:null, ...c}); }

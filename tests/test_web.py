@@ -32,7 +32,7 @@ class Base(unittest.TestCase):
         sv.ahora = lambda: dt.datetime(2026, 11, 2, 12, 0, tzinfo=sv.tz)
         self.llamadas = []
         orig = sv.responder
-        sv.responder = lambda cid, t: (self.llamadas.append((cid, t)), orig(cid, t))[1]
+        sv.responder = lambda cid, t, **k: (self.llamadas.append((cid, t)), orig(cid, t, **k))[1]
         srv = web.crear_servidor(sv, 0, SECRETO)
         self.puerto = srv.server_address[1]
         threading.Thread(target=srv.serve_forever, daemon=True).start()

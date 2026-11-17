@@ -141,6 +141,11 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .yo{align-self:flex-end;background:var(--primary);color:var(--on-primary);border-bottom-right-radius:var(--r4)}
 .sistema{align-self:center;font-size:.75rem;font-weight:600;color:var(--on-variant);text-align:center;max-width:90%;padding:4px 12px;background:var(--sc);border-radius:999px}
 .escribiendo{align-self:flex-start;color:var(--on-variant);font-size:.8125rem;padding:4px 8px}
+/* venta sugerida: una tarjeta discreta antes de confirmar, se descarta con un toque */
+.sugerencia{align-self:flex-start;display:grid;gap:8px;max-width:min(88%,420px);margin-left:36px;padding:10px 12px;border-radius:var(--r12);background:var(--sc-lowest);border:1.5px dashed var(--outline-variant);animation:entra var(--m-medio) var(--m-out)}
+.sugerencia p{margin:0;font-size:.9375rem}
+.sugerencia div{display:flex;gap:8px;flex-wrap:wrap}
+.sugerencia .btn{min-height:44px;padding:0 14px;font-size:.875rem}
 .resumen{margin:0 12px 8px;border-radius:var(--r12);background:var(--sc-lowest);box-shadow:var(--sombra);border-left:4px solid var(--primary)}
 .resumen>#btn-resumen{width:100%;display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 14px;border:0;background:none;text-align:left}
 .resumen strong{font:700 .9375rem var(--display)}
@@ -862,7 +867,23 @@ async function pintarRepartidor(p) {
   } catch (e) { $("#mapa-cli").hidden = true; $("#mapa-cli-aviso").hidden = false; }
 }
 
+/* Venta sugerida: una sola vez por pedido y solo por confirmar; el servidor decide qué (o nada) y no toca el pedido. Aceptar = pedírselo al asistente. */
+async function sugerir(p) {
+  if (st.demo || p.estado !== "por_confirmar" || st.sugerido === p.id) return;
+  st.sugerido = p.id;
+  let s; try { s = (await api("POST", "/sugerencia", {pedido:p.id})).sugerencia; } catch (e) { return; }
+  if (!s) return;
+  const caja = document.createElement("div"), t = document.createElement("p"), fila = document.createElement("div");
+  caja.className = "sugerencia"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Sugerencia para tu pedido");
+  t.textContent = `¿Te sumo ${s.nombre} por ${s.precio}?` + (s.pct ? ` El ${s.pct} % lo pide.` : "");
+  const boton = (texto, clase, alTocar) => { const b = document.createElement("button"); b.type = "button"; b.className = clase; b.textContent = texto; b.onclick = alTocar; return b; };
+  fila.append(boton("Sí, súmalo", "btn", () => { if (st.ocupado) return; caja.remove(); $("#texto").value = `Sí, súmame 1 ${s.nombre} al pedido`; $("#componer").requestSubmit(); }),
+              boton("No, gracias", "btn btn-sec", () => caja.remove()));
+  caja.append(t, fila); $("#mensajes").append(caja); caja.scrollIntoView({block:"end", behavior:"smooth"});
+}
+
 function ponerPedido(p) {
+  sugerir(p);
   if (st.pedido && st.pedido.id !== p.id) st.comprobante = false;
   const antes = st.pedido && st.pedido.estado;
   st.pedido = p;

@@ -23,7 +23,7 @@
  "ajustes": {"marca": "Mi Restaurante", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false,
              "horario": {"lun": [["11:00", "22:00"]], "mar": [["11:00", "22:00"]], "mie": [["11:00", "22:00"]], "jue": [["11:00", "22:00"]],
                          "vie": [["11:00", "22:00"]], "sab": [["11:00", "22:00"]], "dom": [["11:00", "22:00"]]},
-             "pago": {"yappy": "@mirestaurante", "transferencia": "", "efectivo": true}},
+             "pago": {"yappy": "@mirestaurante", "transferencia": "", "efectivo": true}, "sugerencias": true},
  "usuarios": [{"nombre": "Dueno", "rol": "dueno", "activo": true}, {"nombre": "Caja", "rol": "personal", "activo": true}, {"nombre": "Juan", "rol": "repartidor", "activo": true}],
  "pedidos": [
   {"id": 101, "estado": "pago_reportado", "nombre": "Carla", "telefono": "50760002222", "modalidad": "recogida", "zona": "", "direccion": "", "hora_deseada": "12:30", "notas": "",

@@ -86,6 +86,9 @@ Salida: `{"ok": true, "pedido_id": 2, "ubicacion": true}` (`pedido_id: null` si 
 ### `POST /efectivo` → pagar en efectivo al recibir — requiere `sesion`
 Entrada: `{"pedido": 2}`. Salida: `{"ok": true, "pedido": {…, "estado": "pagado", "por_cobrar": true}}`. 409 si no aplica (no es entrega, el restaurante no acepta efectivo, no está confirmado).
 
+### `POST /sugerencia` → venta sugerida antes de confirmar — requiere `sesion`
+Entrada: `{"pedido": 2}`. Salida: `{"sugerencia": {"id", "nombre", "precio": "B/. 1.75", "pct": 40|null, "texto"}}` o `{"sugerencia": null}` (ya se ofreció, no está por confirmar, el dueño la apagó o no hay qué ofrecer). Solo una vez por pedido; no cambia el pedido: para aceptarla, pídeselo al asistente por `/chat`. 404 si el pedido no es del cliente.
+
 ### `POST /comprobante?pedido=2&referencia=123456` → comprobante de pago (Yappy/transferencia) — requiere `sesion`
 Cuerpo: la imagen cruda con `Content-Type: image/jpeg` o `image/png`, máx. 5 MB (413); `referencia` opcional ≤ 40. El servidor borra los metadatos y la guarda; solo la ve el personal.
 Salida: `{"ok": true, "pedido": {…, "estado": "pago_reportado"}}`. 409 «El pedido no está esperando pago»; 415 si no es JPEG/PNG de verdad.
@@ -135,11 +138,12 @@ Solo entregas pagadas o en curso (409 si no).
 - `GET /panel/repartidores_mapa` → `{"restaurante": {"lat": 7.96, "lon": -80.43, "nombre": "Fonda"}, "repartidores": [{"repartidor": "Juan", "pedido_id": 2, "lat": 7.962, "lon": -80.432, "precision": 10.0, "edad_s": 0, "viejo": false}]}` (`restaurante` puede ser `null`).
 
 ### Solo el dueño: `/panel/dueno/…` (403 para el personal)
-- `GET /panel/dueno/ajustes` → `{"ajustes": {"marca": "Fonda", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "horario": {"lun": [["11:00", "21:00"]], …}, "pago": {"yappy": "@fonda", "transferencia": "", "efectivo": true}}}`; `POST /panel/dueno/ajustes` con las claves a cambiar → `{"ok": true, "ajustes": {…}}`.
+- `GET /panel/dueno/ajustes` → `{"ajustes": {"marca": "Fonda", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "horario": {"lun": [["11:00", "21:00"]], …}, "pago": {"yappy": "@fonda", "transferencia": "", "efectivo": true}, "sugerencias": true}}` (`sugerencias`: venta sugerida activa); `POST /panel/dueno/ajustes` con las claves a cambiar → `{"ok": true, "ajustes": {…}}`.
 - `GET /panel/dueno/menu` → `{"menu": […]}`; `POST /panel/dueno/plato {id?, nombre?, precio?, categoria?, disponible?}` → `{"ok": true, "plato": {…}}`; `POST /panel/dueno/plato_borrar {plato}` → `{"ok": true}`.
 - `POST /panel/dueno/foto?plato=<id>` (imagen cruda JPEG/PNG/WebP ≤ 3 MB) → `{"ok": true, "foto": "…", "foto2x": "…"}`; `POST /panel/dueno/foto_borrar {plato}` → `{"ok": true}`.
 - `GET /panel/dueno/usuarios` → `{"usuarios": [{"nombre": "Dueno", "rol": "dueno", "activo": true}, {"nombre": "Juan", "rol": "repartidor", "activo": true}]}`; `POST /panel/dueno/usuario {nombre, rol?, pin?, activo?}` → `{"ok": true, "usuario": {"nombre", "rol", "activo"}}`; `POST /panel/dueno/usuario_borrar {nombre}` → `{"ok": true}`. Nunca devuelve PINs.
-- `POST /panel/dueno/estadisticas {dias: 7|30|90}` → resumen de ventas (solo con el módulo `estadisticas`; si no, 404).
+- `POST /panel/dueno/estadisticas {dias: 7|30|90}` → resumen de ventas, con `comision {pct, ahorro}` y `sugerencias {ofrecidas, aceptadas, extra, pct_ticket}` (solo con el módulo `estadisticas`; si no, 404).
+- `POST /panel/dueno/preguntar {texto ≤ 300}` → `{"respuesta": "…"}` (mismo módulo; 409 sin modelo o con el tope de IA alcanzado; 429 a la 11.ª pregunta del minuto).
 
 ---
 

@@ -493,6 +493,8 @@ def crear_manejador(sv, secreto=None, env=None):
                         return self._err(403, "Solo el dueño puede hacer esto")
                     if (metodo, partes[3]) == ("POST", "foto"):
                         return self._subir_foto(quien, renovar)
+                    if partes[3] == "preguntar" and limite.excede(("preguntar", quien), 10):  # cada pregunta es una llamada al modelo
+                        return self._err(429, "Demasiadas preguntas seguidas; espera un minuto.")
                     d = self._json() if metodo == "POST" else {}
                     if d is None:
                         return
@@ -723,7 +725,24 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._ubicacion()
             if ruta == "/efectivo":
                 return self._efectivo()
+            if ruta == "/sugerencia":
+                return self._sugerencia()
             self._err(404, "No encontrado")
+
+        def _sugerencia(self):
+            """POST /sugerencia {pedido}: la venta sugerida de la web (una vez por pedido, solo del propio cliente y por confirmar). No cambia el pedido."""
+            cid = self._cid()
+            if not cid:
+                return self._err(401, "Sesión inválida")
+            if limite.excede(("cid", cid), 30):
+                return self._err(429, "Demasiadas peticiones")
+            d = self._json()
+            if d is None:
+                return
+            p = next((p for p in pedidos_de(cid) if str(p["id"]) == str(d.get("pedido"))), None)
+            if not p:
+                return self._err(404, "No existe ese pedido")
+            self._enviar(200, {"sugerencia": herramientas.sugerir_complemento(sv, p["id"])["sugerencia"]})
 
         def _entrar(self):
             d = self._json()
@@ -874,7 +893,7 @@ def crear_manejador(sv, secreto=None, env=None):
                 t = f"[Nombre del cliente: {n}] {t}"
             antes = {p["id"]: p for p in pedidos_de(cid)}
             try:
-                r = sv.responder(cid, t)
+                r = sv.responder(cid, t, canal="web")
             except Exception:
                 print(f"Error atendiendo a {enmascarar(cid)}")  # sin teléfono completo ni mensajes
                 traceback.print_exc()

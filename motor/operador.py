@@ -435,7 +435,10 @@ class Operador:
 
     def personalizado_actual(self, slug):
         f = self._carpeta(slug) / "personalizado.css"
-        return {"css": f.read_text(encoding="utf-8") if f.is_file() else ""}
+        if not f.is_file():
+            return {"css": "", "bytes": 0, "modificado": None}
+        css = f.read_text(encoding="utf-8")
+        return {"css": css, "bytes": len(css.encode()), "modificado": dt.datetime.fromtimestamp(f.stat().st_mtime, dt.timezone.utc).isoformat(timespec="seconds")}
 
     def pagina(self, slug, d):
         """Página propia del cliente (servicios/<slug>/web/, motor/paginas.py): `{archivos}` o `{zip}` la sube y activa; `{quitar: true}` vuelve a la estándar."""

@@ -307,9 +307,11 @@ class Consola(Base):
 
     def test_personalizado_llega_a_las_tres_paginas_solo_de_ese_cliente(self):
         css = ".logo{outline:3px solid lime}\n.barra{background:url(data:image/png;base64,iVBORw0KGgo=)}"
-        self.assertEqual(self.get("/api/clientes/napa/personalizado")[1], {"ok": True, "css": ""})
+        self.assertEqual(self.get("/api/clientes/napa/personalizado")[1], {"ok": True, "css": "", "bytes": 0, "modificado": None})
         self.assertEqual(self.post("/api/clientes/napa/personalizado", {"css": f"  {css}\n"}), (200, {"ok": True, "bytes": len(css)}))
-        self.assertEqual(self.get("/api/clientes/napa/personalizado")[1], {"ok": True, "css": css})
+        j = self.get("/api/clientes/napa/personalizado")[1]
+        self.assertEqual((j["css"], j["bytes"]), (css, len(css.encode())))
+        self.assertRegex(j["modificado"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")
         for h, limpia in zip(self.paginas(self.carpeta), self.paginas(self.otra)):
             self.assertTrue(h.split("</style>")[0].endswith(css))  # al final del tema: manda sobre él
             self.assertEqual(h.lower().count("</style"), limpia.lower().count("</style"))

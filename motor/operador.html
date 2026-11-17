@@ -455,24 +455,65 @@ function tTema(c){
     const ac=el("div","acc");ac.append(ap,ver);
     cont.replaceChildren(a,tarjetas(l,elegido,id=>{elegido=id;pinta()}),pre,lc,ac);pinta();
   });
-  return[sec("Tema",cont),tPers(slug)];
+  return[sec("Tema",cont),tPers(slug),tPagina(c)];
 }
 const MAXCSS=20480;
 const EJ=[["Cambiar la tipografía","body{font-family:Georgia,serif}"],["Redondear los botones","button{border-radius:999px}"],["Ocultar un bloque","footer{display:none}"]];
+const fecha=i=>{const d=new Date(i);return isNaN(d)?"":d.toLocaleString("es")};
+const b64=buf=>{let s="";const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode(...u.subarray(i,i+32768));return btoa(s)};
+const leer=(f,fn)=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>ko(new Error("No se pudo leer "+f.name));r[fn](f)});
 function tPers(slug){
   const ta=el("textarea","cod");ta.setAttribute("aria-label","CSS de personalización");ta.spellcheck=false;ta.disabled=true;
-  const cn=el("span","dom","0 KB / "+kb(MAXCSS)),er=el("p","err");er.setAttribute("role","status");
-  const g=el("button","p","Guardar personalización"),q=el("button","bad","Quitar personalización");g.type=q.type="button";g.disabled=true;
+  const cn=el("span","dom","0 KB / "+kb(MAXCSS)),er=el("p","err"),est=el("p","dom","Cargando…");er.setAttribute("role","status");est.setAttribute("role","status");
+  const g=el("button","p","Guardar personalización"),q=el("button","bad","Quitar personalización"),de=el("button","","Descargar el actual");g.type=q.type=de.type="button";g.disabled=q.disabled=de.disabled=true;
+  let actual="";
   const cuenta=()=>{const n=new TextEncoder().encode(ta.value).length;cn.textContent=n+" / "+MAXCSS+" bytes";cn.className=n>MAXCSS?"warn":"dom";g.disabled=n>MAXCSS||ta.disabled};
-  const envia=(b,css,msg)=>accionLocal(b,async()=>{er.textContent="";try{await api("POST",R(slug)+"personalizado",{css});ta.value=css;cuenta();aviso(msg)}catch(e){er.textContent=e.message}});
+  const pinta=j=>{actual=j.css||"";ta.value=actual;ta.disabled=false;q.disabled=de.disabled=!actual;cuenta();
+    est.textContent=actual?"Archivo en uso: personalizado.css · "+(j.bytes<1024?j.bytes+" bytes":(j.bytes/1024).toFixed(1).replace(".",",")+" KB")+(j.modificado?" · actualizado "+fecha(j.modificado):""):"Sin personalización (se usa solo el tema)"};
+  const recarga=()=>api("GET",R(slug)+"personalizado").then(pinta);
+  const envia=(b,css,msg)=>accionLocal(b,async()=>{er.textContent="";try{await api("POST",R(slug)+"personalizado",{css});await recarga();aviso(msg)}catch(e){er.textContent=e.message}});
   g.onclick=()=>envia(g,ta.value,"Personalización guardada");q.onclick=()=>envia(q,"","Personalización quitada");
   ta.oninput=cuenta;
-  api("GET",R(slug)+"personalizado").then(j=>{ta.value=j.css||"";ta.disabled=false;cuenta()}).catch(()=>{er.textContent="Personalización no disponible."});
+  recarga().catch(()=>{er.textContent="Personalización no disponible.";est.textContent=""});
+  const fi=el("input");fi.type="file";fi.accept=".css,text/css";fi.hidden=true;fi.setAttribute("aria-label","Elegir archivo .css");
+  const sube=el("button","","Subir archivo .css");sube.type="button";sube.onclick=()=>fi.click();
+  const carga=async f=>{er.textContent="";if(!f)return;
+    if(!/\.css$/i.test(f.name)){er.textContent="Solo se admiten archivos .css.";return}
+    if(f.size>MAXCSS){er.textContent=f.name+" pesa "+kb(f.size)+": el máximo es "+kb(MAXCSS)+".";return}
+    try{ta.value=await leer(f,"readAsText");ta.disabled=false;cuenta();aviso("Revisa el texto y pulsa «Guardar personalización»");ta.focus()}catch(e){er.textContent=e.message}fi.value=""};
+  fi.onchange=()=>carga(fi.files[0]);
+  ta.ondragover=e=>e.preventDefault();ta.ondrop=e=>{e.preventDefault();carga(e.dataTransfer.files[0])};
+  de.onclick=()=>{const u=URL.createObjectURL(new Blob([actual],{type:"text/css"})),a=el("a");a.href=u;a.download=slug+"-personalizado.css";a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
   const ej=el("div");ej.style.cssText="display:grid;gap:8px";
   EJ.forEach(([t,cs])=>{const d=el("div");d.style.cssText="display:grid;gap:4px";const b=el("button","","Pegar: "+t);b.type="button";
     b.onclick=()=>{if(ta.disabled)return;ta.value+=(ta.value&&!ta.value.endsWith(String.fromCharCode(10))?String.fromCharCode(10):"")+cs+String.fromCharCode(10);cuenta();ta.focus()};d.append(el("pre","ej",cs),b);ej.append(d)});
-  const a=el("div","acc");a.append(g,q,cn);
-  return sec("Personalización",el("p","warn","Solo afecta a este restaurante."),ta,a,er,el("h3","","Ejemplos (los selectores dependen de cada página)"),ej);
+  const a=el("div","acc");a.append(g,q,cn);const u=el("div","acc");u.append(sube,fi,de);
+  return sec("Personalización",el("p","warn","Solo afecta a este restaurante."),est,u,el("p","dom","Sube un .css (máx. "+kb(MAXCSS)+") o arrástralo al cuadro; se carga aquí para revisarlo y no se aplica hasta pulsar Guardar."),ta,a,er,el("h3","","Ejemplos (los selectores dependen de cada página)"),ej);
+}
+const EXT_PAG=/\.(html|css|js|png|jpe?g|webp|svg|woff2)$/i,MAXPAG=7500000;
+function tPagina(c){
+  const slug=c.slug,est=el("p","dom","Cargando…"),er=el("p","err"),lis=el("ul"),sub=el("button","p","Subir y activar"),vol=el("button","bad","Volver a la página estándar");
+  est.setAttribute("role","status");er.setAttribute("role","status");sub.type=vol.type="button";sub.disabled=vol.disabled=true;
+  let sel=[];
+  const pinta=j=>{vol.disabled=!j.activa;est.textContent=j.activa?"Página propia activa: "+j.paginas.join(", ")+" · "+j.archivos+" archivos · "+kb(j.bytes):"Usando la página estándar"};
+  api("GET",R(slug)+"pagina").then(pinta).catch(()=>{est.textContent="";er.textContent="Página propia no disponible."});
+  const fi=el("input");fi.type="file";fi.multiple=true;fi.accept=".html,.css,.js,.png,.jpg,.jpeg,.webp,.svg,.woff2,.zip";fi.hidden=true;fi.setAttribute("aria-label","Elegir archivos de la página");
+  const el1=el("button","","Elegir archivos o .zip");el1.type="button";el1.onclick=()=>fi.click();
+  const lista=()=>{lis.replaceChildren(...sel.map(f=>el("li","dom",f.name+" · "+kb(f.size))));sub.disabled=!sel.length};
+  fi.onchange=()=>{er.textContent="";sel=[...fi.files];fi.value="";
+    const zip=sel.some(f=>/\.zip$/i.test(f.name)),mal=sel.find(f=>!EXT_PAG.test(f.name)&&!/\.zip$/i.test(f.name));
+    if(zip&&sel.length>1)er.textContent="Sube un solo .zip, o varios archivos sueltos, no ambos.";
+    else if(mal)er.textContent=mal.name+": tipo no permitido (html, css, js, png, jpg, webp, svg, woff2 o un .zip).";
+    else if(sel.reduce((t,f)=>t+f.size,0)>MAXPAG*0.74)er.textContent="Demasiado grande: el máximo es unos 5 MB en total.";
+    if(er.textContent)sel=[];lista()};
+  sub.onclick=()=>accionLocal(sub,async()=>{er.textContent="";
+    try{const d=sel.length===1&&/\.zip$/i.test(sel[0].name)?{zip:b64(await leer(sel[0],"readAsArrayBuffer"))}:{archivos:Object.fromEntries(await Promise.all(sel.map(async f=>[f.name,b64(await leer(f,"readAsArrayBuffer"))])))};
+      pinta(await api("POST",R(slug)+"pagina",d));sel=[];lista();aviso("Página propia activada")}catch(e){er.textContent=e.message}});
+  vol.onclick=()=>{if(!confirm("¿Volver a la página estándar? Se borra la página propia de este restaurante."))return;
+    accionLocal(vol,async()=>{er.textContent="";try{pinta(await api("DELETE",R(slug)+"pagina"));aviso("Página estándar restaurada")}catch(e){er.textContent=e.message}})};
+  const a=el("div","acc");a.append(el1,fi,sub,vol);
+  const ver=el("a","",c.dominio?"Ver la web del cliente":"");ver.target="_blank";ver.rel="noopener";if(c.dominio)ver.href="https://"+c.dominio+"/";
+  return sec("Página propia",el("p","warn","Solo sube páginas que hayas revisado: su código corre en el dominio del restaurante."),est,a,lis,er,ver,el("p","dom","Cómo preparar los archivos: diseno/editable/README.md. Las páginas son index.html, panel.html o repartidor.html; el resto (css, js, imágenes) va junto."));
 }
 async function selAlta(){
   const l=await cargarTemas(),w=$("temsel");tAlta=null;

@@ -126,9 +126,10 @@ class Carta(Base):
         self.assertEqual(self.sv._q("SELECT COUNT(*) FROM platos WHERE foto IS NOT NULL")[0][0], 0)
 
     def test_sin_vision_error_claro(self):
-        with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic"}):
-            with self.assertRaisesRegex(carta.SinVision, "LLM_VISION_MODEL"):
-                carta.extraer(self.sv, [imagen()])
+        falso = self.modelo(CARTA)  # con DeepSeek se usa su modelo con visión, no el del chatbot
+        with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic", "LLM_MODEL": "deepseek-v4-flash"}):
+            carta.extraer(self.sv, [imagen()])
+        self.assertEqual(falso.simple["model"], "deepseek-flash")
         self.sv._cliente = None
         with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}):
             with self.assertRaisesRegex(carta.SinVision, "modelo"):
@@ -158,8 +159,6 @@ class Carta(Base):
         self.assertEqual(self.js("POST", "/panel/dueno/carta_foto", {"fotos": [base64.b64encode(b"hola" * 50).decode()]}, cookie=ck)[0], 415)
         with unittest.mock.patch.object(carta, "MAX_CUERPO", 1000):  # tope real ~16 MB: se prueba la regla, no el tamaño
             self.assertEqual(self.req("POST", "/panel/dueno/carta_foto", crudo=b"x" * 1001, cookie=ck)[0].status, 413)
-        with unittest.mock.patch.dict(os.environ, {"ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic"}):
-            self.assertEqual(self.js("POST", "/panel/dueno/carta_foto", fotos, cookie=ck)[0], 503)
         self.sv.tope_ia = 1
         self.sv._cupo_ia()
         self.assertEqual(self.js("POST", "/panel/dueno/carta_foto", fotos, cookie=ck)[0], 429)

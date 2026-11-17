@@ -42,8 +42,8 @@ class Tope(Exception):
 
 
 def _vision(sv):
-    """(cliente, modelo, compatible). LLM_VISION_MODEL (+ LLM_VISION_BASE_URL, LLM_VISION_API_KEY) manda; si no, el modelo principal
-    salvo que sea DeepSeek (su API compatible no admite imágenes)."""
+    """(cliente, modelo, compatible). LLM_VISION_MODEL (+ LLM_VISION_BASE_URL, LLM_VISION_API_KEY) manda; si no, con DeepSeek `deepseek-flash`
+    (su modelo con visión, mismo endpoint y clave) y si no, el modelo principal."""
     env = os.environ
     if env.get("LLM_VISION_MODEL"):
         import anthropic
@@ -52,7 +52,7 @@ def _vision(sv):
         return anthropic.Anthropic(base_url=base, api_key=clave), env["LLM_VISION_MODEL"], "anthropic.com" not in base
     base = env.get("ANTHROPIC_BASE_URL", "")
     if "deepseek" in base:
-        raise SinVision("El modelo de IA configurado (DeepSeek) no lee fotos. Configure LLM_VISION_MODEL (y LLM_VISION_BASE_URL / LLM_VISION_API_KEY) con un modelo con visión.")
+        return sv.cliente, "deepseek-flash", True  # el único de DeepSeek con visión; el chatbot sigue con LLM_MODEL (solo se usa al subir fotos)
     if sv._cliente is None and not (env.get("ANTHROPIC_API_KEY") or base):
         raise SinVision("No hay modelo de IA configurado: falta ANTHROPIC_API_KEY o LLM_VISION_MODEL.")
     return sv.cliente, env.get("LLM_MODEL") or sv.cfg.get("modelo", "claude-opus-5-5"), bool(base and "anthropic.com" not in base)

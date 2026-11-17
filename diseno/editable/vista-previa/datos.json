@@ -1,0 +1,40 @@
+{
+ "_nota": "DATOS FALSOS para la vista previa (diseno/editable/vista.py). Puedes cambiarlos para ver tu página con otros platos o pedidos. Nada de esto llega al servidor real.",
+ "config": {"marca": "Mi Restaurante", "horario": {"dias": ["lun", "mar", "mie", "jue", "vie", "sab", "dom"], "desde": "11:00", "hasta": "22:00"},
+            "impuesto_pct": 7, "envio": {"Centro": 2.5, "Norte": 3.0}, "telefono": "+507 6000-0000", "anuncio": "Hoy: postre gratis en pedidos de más de B/. 20",
+            "cerrado": false, "efectivo": true},
+ "pago": {"yappy": "@mirestaurante", "transferencia": "Banco Ejemplo · Cuenta 00-000-000 · A nombre de Mi Restaurante"},
+ "aviso": {"version": "ejemplo", "texto": "Aviso de privacidad de EJEMPLO. En el servidor real aquí sale el aviso del restaurante (aviso.md)."},
+ "menu": [
+  {"id": "sancocho", "nombre": "Sancocho de gallina", "precio": 6.5, "categoria": "Sopas", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "crema-zapallo", "nombre": "Crema de zapallo", "precio": 4.25, "categoria": "Sopas", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "corvina", "nombre": "Filete de corvina con patacones", "precio": 11.0, "categoria": "Platos fuertes", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "ropa-vieja", "nombre": "Ropa vieja con arroz", "precio": 8.75, "categoria": "Platos fuertes", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "pollo-guisado", "nombre": "Pollo guisado", "precio": 7.5, "categoria": "Platos fuertes", "disponible": false, "foto": null, "foto2x": null},
+  {"id": "carimanola", "nombre": "Carimañola (2)", "precio": 2.5, "categoria": "Para picar", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "hojaldra", "nombre": "Hojaldra", "precio": 1.25, "categoria": "Para picar", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "chicha", "nombre": "Chicha de maracuyá", "precio": 1.75, "categoria": "Bebidas", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "cafe", "nombre": "Café chiricano", "precio": 1.5, "categoria": "Bebidas", "disponible": true, "foto": null, "foto2x": null},
+  {"id": "tres-leches", "nombre": "Tres leches", "precio": 3.5, "categoria": "Postres", "disponible": true, "foto": null, "foto2x": null}
+ ],
+ "restaurante": {"lat": 7.96, "lon": -80.43},
+ "repartidores": ["Juan"],
+ "aviso_ubicacion": "Mientras tengas un pedido en camino, esta app envía tu ubicación cada pocos segundos al restaurante (texto de EJEMPLO).",
+ "ajustes": {"marca": "Mi Restaurante", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false,
+             "horario": {"lun": [["11:00", "22:00"]], "mar": [["11:00", "22:00"]], "mie": [["11:00", "22:00"]], "jue": [["11:00", "22:00"]],
+                         "vie": [["11:00", "22:00"]], "sab": [["11:00", "22:00"]], "dom": [["11:00", "22:00"]]},
+             "pago": {"yappy": "@mirestaurante", "transferencia": "", "efectivo": true}},
+ "usuarios": [{"nombre": "Dueno", "rol": "dueno", "activo": true}, {"nombre": "Caja", "rol": "personal", "activo": true}, {"nombre": "Juan", "rol": "repartidor", "activo": true}],
+ "pedidos": [
+  {"id": 101, "estado": "pago_reportado", "nombre": "Carla", "telefono": "50760002222", "modalidad": "recogida", "zona": "", "direccion": "", "hora_deseada": "12:30", "notas": "",
+   "items": [{"nombre": "Ropa vieja con arroz", "cantidad": 1, "precio": 8.75}, {"nombre": "Chicha de maracuyá", "cantidad": 2, "precio": 1.75}],
+   "metodo": "yappy", "referencia": "123456", "comprobante": true, "repartidor": null, "ubicacion": false, "por_cobrar": false},
+  {"id": 102, "estado": "en_preparacion", "nombre": "Luis", "telefono": "50760003333", "modalidad": "entrega", "zona": "Norte", "direccion": "Calle 3, casa 12", "hora_deseada": "", "notas": "Sin cebolla",
+   "items": [{"nombre": "Filete de corvina con patacones", "cantidad": 2, "precio": 11.0}],
+   "metodo": "efectivo", "referencia": null, "comprobante": false, "repartidor": "Juan", "ubicacion": true, "por_cobrar": true},
+  {"id": 103, "estado": "listo", "nombre": "Marta", "telefono": "50760004444", "modalidad": "entrega", "zona": "Centro", "direccion": "Av. Central, edificio Sol, 4B", "hora_deseada": "", "notas": "",
+   "items": [{"nombre": "Sancocho de gallina", "cantidad": 1, "precio": 6.5}, {"nombre": "Tres leches", "cantidad": 1, "precio": 3.5}],
+   "metodo": "yappy", "referencia": "654321", "comprobante": false, "repartidor": "Juan", "ubicacion": true, "por_cobrar": false}
+ ],
+ "avisos": [{"id": 1, "tipo": "pago", "texto": "Pedido #101: Carla reportó pago por Yappy (ref. 123456). Revise el comprobante.", "pedido_id": 101}]
+}

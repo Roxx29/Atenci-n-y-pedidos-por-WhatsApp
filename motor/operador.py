@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from . import clientes, panel_web, temas
+from . import clientes, paginas, panel_web, temas
 from .nucleo import Servicio
 
 SLUG = re.compile(r"[a-z0-9-]{1,40}")
@@ -444,6 +444,14 @@ class Operador:
         f = self._carpeta(slug) / "personalizado.css"
         return {"css": f.read_text(encoding="utf-8") if f.is_file() else ""}
 
+    def pagina(self, slug, d):
+        """Página propia del cliente (servicios/<slug>/web/, motor/paginas.py): `{archivos}` o `{zip}` la sube y activa; `{quitar: true}` vuelve a la estándar."""
+        carpeta = self._carpeta(slug)
+        return paginas.quitar(carpeta) if d.get("quitar") is True and len(d) == 1 else paginas.instalar(carpeta, d)
+
+    def pagina_actual(self, slug):
+        return paginas.estado(self._carpeta(slug))
+
     def _rellenar(self, destino, nombre, slug, color, tema="clasico"):
         """Pone nombre, marca y slug en la copia de la plantilla. En YAML el nombre entra como escalar entre comillas de safe_dump (nunca texto pegado)."""
         y = lambda v: yaml.safe_dump(v, default_style='"', allow_unicode=True, width=float("inf")).strip()
@@ -680,6 +688,7 @@ RUTAS = {
     "ajustes": ("ajustes", lambda op, s, d: op.ajustes(s, d)),
     "tema": ("tema", lambda op, s, d: op.tema(s, d)),
     "personalizado": ("personalizado", lambda op, s, d: op.personalizado(s, d)),  # al registro va la acción, nunca el CSS
+    "pagina": ("pagina", lambda op, s, d: op.pagina(s, d)),  # al registro va la acción, nunca nombres ni contenido de archivos
     "archivar": ("archivar", lambda op, s, d: {"copia": op.archivar(s, d.get("confirmar"))}),
     "restaurar": ("restaurar", lambda op, s, d: op.restaurar(s)),
     "eliminar": ("eliminar", lambda op, s, d: op.eliminar(s, d.get("confirmar"))),
@@ -757,12 +766,22 @@ def handler(op):
                 return self._send(*self._hacer(lambda: op.equipo(partes[2])))
             if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "personalizado":
                 return self._send(*self._hacer(lambda: op.personalizado_actual(partes[2])))
+            if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pagina":
+                return self._send(*self._hacer(lambda: op.pagina_actual(partes[2])))
             self._send(404, {"error": "no existe"})
 
         def do_POST(self):
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self._send(415, {"error": "json"})
-            d = self._json(MAX_CUERPO_CSS if self.path.endswith("/personalizado") else 4096)
+            tope = MAX_CUERPO_CSS if self.path.endswith("/personalizado") else paginas.MAX_CUERPO if self.path.endswith("/pagina") else 4096
+            try:
+                largo = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                largo = 0
+            if tope == paginas.MAX_CUERPO and largo > tope:  # la subida de página: no se lee ni se trunca
+                self.close_connection = True
+                return self._send(413, {"error": f"máximo {tope // 1_000_000} MB por subida"})
+            d = self._json(tope)
             if self.path == "/api/entrar":
                 try:
                     ck = op.entrar(str(d.get("clave", "")), self._ip())
@@ -783,10 +802,22 @@ def handler(op):
                 slug, f = partes[2], lambda: g(op, partes[2], d)
             else:
                 return self._send(404, {"error": "no existe"})
+            self._accion(accion, slug, f)
+
+        def _accion(self, accion, slug, f):
             st, cuerpo = self._hacer(f)
             # el slug solo se anota si tiene forma de slug: lo demás es texto de quien llama
             op.anotar(accion, slug if isinstance(slug, str) and SLUG.fullmatch(slug) else "", self._ip(), "ok" if st == 200 else f"error {st}")
             self._send(st, cuerpo)
+
+        def do_DELETE(self):
+            """DELETE /api/clientes/<slug>/pagina = POST …/pagina {quitar: true}."""
+            if not op.valida(self.headers.get("Cookie")):
+                return self._send(401, {"error": "no autorizado"})
+            partes = self.path.strip("/").split("/")
+            if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "pagina":
+                return self._accion("pagina", partes[2], lambda: op.pagina(partes[2], {"quitar": True}))
+            self._send(404, {"error": "no existe"})
     return H
 
 

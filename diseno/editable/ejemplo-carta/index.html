@@ -1,0 +1,75 @@
+<!doctype html>
+<!-- EJEMPLO de página propia: una «carta de restaurante» impresa, con la comanda al lado. Otra distribución, la MISMA API (../API.md).
+     Archivos: index.html (estructura), carta.css (aspecto), carta.js (lógica), sello.svg (adorno). Probar: python diseno/editable/vista.py diseno/editable/ejemplo-carta -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeliFood · Carta</title>
+<!--TEMA-->
+<link rel="stylesheet" href="/web/carta.css">
+</head>
+<body>
+<!-- === PORTADA: nombre (el servidor cambia «DeliFood» por el del restaurante), horario y anuncio === -->
+<header class="portada">
+  <img src="/web/sello.svg" alt="" width="56" height="56">
+  <h1>DeliFood</h1>
+  <p class="estado" id="estado">Cargando…</p>
+  <p class="anuncio" id="anuncio" hidden></p>
+</header>
+
+<div class="mesa">
+  <!-- === LA CARTA: se rellena con GET /menu, agrupada por categoría === -->
+  <main class="carta" id="carta" aria-label="Carta"></main>
+
+  <!-- === LA COMANDA: lo elegido, cómo lo quieres y quién pide. El pedido lo crea el asistente (POST /chat) con las reglas del restaurante === -->
+  <aside class="comanda" id="comanda" aria-label="Tu comanda">
+    <h2>Tu comanda</h2>
+    <ol class="lineas" id="lineas"><li class="vacia">Toca «+» en un plato.</li></ol>
+    <p class="aprox" id="aprox" hidden></p>
+
+    <form id="pedir" novalidate>
+      <fieldset class="modo">
+        <legend>¿Cómo lo quieres?</legend>
+        <label><input type="radio" name="modo" value="recoger" checked> Paso a recoger</label>
+        <label><input type="radio" name="modo" value="entrega"> A domicilio</label>
+      </fieldset>
+      <div id="entrega" hidden>
+        <label>Zona <select name="zona" id="zona"></select></label>
+        <label>Dirección <input name="direccion" autocomplete="street-address" maxlength="200"></label>
+      </div>
+      <div id="quien">
+        <label>Tu nombre <input name="nombre" autocomplete="given-name" maxlength="60" required></label>
+        <label>Celular <input name="telefono" inputmode="tel" autocomplete="tel" placeholder="6000-0000" required></label>
+        <label class="casilla"><input type="checkbox" name="privacidad" required> Acepto el aviso de privacidad</label>
+        <details><summary>Leer el aviso</summary><p id="aviso-texto">…</p></details>
+      </div>
+      <p class="error" id="error" role="alert"></p>
+      <button type="submit" id="enviar">Enviar a cocina</button>
+    </form>
+
+    <!-- === CONVERSACIÓN: lo que responde el asistente (confirmar, dudas) === -->
+    <section class="charla" id="charla" hidden aria-live="polite">
+      <div id="mensajes"></div>
+      <form id="responder"><input name="texto" maxlength="1000" placeholder="Escribe al restaurante" aria-label="Mensaje"><button>Enviar</button></form>
+    </section>
+
+    <!-- === TU PEDIDO: estado y pago (GET /pedidos cada 5 s). Los botones solo salen cuando el servidor lo permite === -->
+    <section class="ticket" id="ticket" hidden>
+      <h3>Pedido <span id="t-num"></span> · <span id="t-estado"></span></h3>
+      <table id="t-items"></table>
+      <p id="t-repartidor" hidden></p>
+      <div class="acciones">
+        <button type="button" id="b-confirmar" hidden>Confirmar pedido</button>
+        <button type="button" id="b-efectivo" hidden>Pagaré en efectivo al recibir</button>
+        <label class="boton" id="b-comprobante" hidden>Enviar comprobante de pago<input type="file" accept="image/jpeg,image/png" hidden></label>
+        <button type="button" id="b-ubicacion" hidden>Compartir mi ubicación</button>
+      </div>
+      <p class="pago" id="t-pago" hidden></p>
+    </section>
+  </aside>
+</div>
+<button type="button" class="ver-comanda" id="ver-comanda">Ver comanda <span id="n-comanda">0</span></button>
+<script src="/web/carta.js"></script>
+</body>
+</html>

@@ -182,7 +182,7 @@ def extraer(sv, fotos):
         r = cliente.messages.create(model=modelo, max_tokens=16000, system=SISTEMA, messages=[{"role": "user", "content": contenido}],
                                     **({"thinking": {"type": "disabled"}} if compatible else {}))
     except Exception as e:  # sin detalle: podría arrastrar datos de la petición
-        print(f"[carta] fallo del modelo: {type(e).__name__}")
+        print(f"[carta] fallo del modelo ({modelo}): {type(e).__name__} {getattr(e, 'status_code', '')} {str(getattr(e, 'message', ''))[:200]}")  # lo que dice la API, nunca la petición
         raise SinVision("No se pudo leer la carta ahora: el servicio de IA falló o no admite fotos. Inténtelo en unos minutos.")
     filas, descartados = validar("".join(b.text for b in r.content if getattr(b, "type", "") == "text"))
     if not filas:

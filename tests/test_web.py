@@ -307,5 +307,29 @@ console.log(JSON.stringify(casos.map(c => ser(formato(c)))));
         self.assertEqual(json.loads(r.stdout), list(casos.values()))
 
 
+class PlatosEnTexto(unittest.TestCase):
+    """platosEn() de la web: qué platos con foto nombra el bot (se prueba con node; se omite sin él)."""
+
+    def test_deteccion(self):
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("sin node")
+        h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")
+        fn = h[h.index("const plano ="):h.index("function pedirPlato(")]
+        js = fn + """
+const M = [{id:1,nombre:"Tasajo Asado",foto:"a",disponible:true},{id:2,nombre:"Café",foto:"b",disponible:true},{id:3,nombre:"Sancocho",disponible:true},
+ {id:4,nombre:"Hojaldre",foto:"d",disponible:false},{id:5,nombre:"Combo",foto:"e",disponible:true},{id:6,nombre:"Arroz",foto:"f",disponible:true},{id:7,nombre:"Ceviche",foto:"g",disponible:true},{id:8,nombre:"Empanada",foto:"h",disponible:true},{id:9,nombre:"Pastel",foto:"i",disponible:true}];
+const ids = (t, v = []) => platosEn(t, M, v).map(m => m.id);
+console.log(JSON.stringify([ids("Te recomiendo el TASAJO asado!"), ids("tasajo asado"), ids("Sancocho y hojaldre"), ids("un combo"), ids("arroz con pollo"),
+ ids("tasajo asado y ceviche", [1]), ids("ceviche, empanada, pastel y tasajo asado"), ids("pasteles"), ids("")]));
+"""
+        r = subprocess.run([node, "-e", js], capture_output=True, text=True, encoding="utf-8", timeout=30)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # tildes/mayúsculas ok; sin foto, agotado y genérico/corto fuera; ya mostrado fuera; máximo 3; palabra completa
+        self.assertEqual(json.loads(r.stdout), [[1], [1], [], [], [6], [7], [1, 7, 8], [], []])
+
+
 if __name__ == "__main__":
     unittest.main()

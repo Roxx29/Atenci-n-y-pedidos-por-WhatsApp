@@ -146,6 +146,15 @@ summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-h
 .sugerencia p{margin:0;font-size:.9375rem}
 .sugerencia div{display:flex;gap:8px;flex-wrap:wrap}
 .sugerencia .btn{min-height:44px;padding:0 14px;font-size:.875rem}
+/* fotos del plato en el chat: mini-tarjetas bajo el mensaje del bot y foto en la venta sugerida (alto reservado: sin saltos) */
+.minis{align-self:flex-start;display:flex;gap:8px;max-width:calc(100% - 36px);margin-left:36px;overflow-x:auto;scrollbar-width:none;animation:entra var(--m-medio) var(--m-out)}
+.minis::-webkit-scrollbar{display:none}
+.mini{flex:0 0 148px;display:grid;grid-template-rows:auto 1fr auto auto;gap:4px;padding:8px;border-radius:var(--r12);background:var(--sc-lowest);box-shadow:var(--sombra);font-size:.8125rem}
+.mini b{font-size:.875rem;line-height:1.25;overflow-wrap:anywhere}
+.mini .pedir{min-height:44px;padding:0 12px}
+.mini-foto{display:block;width:100%;height:auto;aspect-ratio:8/5;object-fit:cover;border-radius:var(--r8);background:var(--sc-low);transition:opacity var(--m-medio) var(--m-out)}
+.mini-foto.carga{opacity:0}
+.sugerencia .mini-foto{max-width:220px}
 .resumen{margin:0 12px 8px;border-radius:var(--r12);background:var(--sc-lowest);box-shadow:var(--sombra);border-left:4px solid var(--primary)}
 .resumen>#btn-resumen{width:100%;display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 14px;border:0;background:none;text-align:left}
 .resumen strong{font:700 .9375rem var(--display)}
@@ -710,6 +719,34 @@ const esPromo = m => catDe(m).toLowerCase() === "promociones";
 const visibles = () => MENU.filter(m => !esPromo(m) || m.disponible); // una promoción apagada no se enseña
 const categorias = () => [...new Set(visibles().map(catDe))].sort((a, b) => (b.toLowerCase() === "promociones") - (a.toLowerCase() === "promociones")); // las del menú, en su orden (promociones arriba): una categoría nueva del panel aparece sola
 const plano = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); // sin tildes ni mayúsculas, para buscar
+const GENERICOS = new Set(["combo", "promo", "bebida", "bebidas", "postre", "postres", "agua", "jugo", "refresco", "extra", "adicional", "plato"]);
+/* Platos del menú (con foto y disponibles) que el texto del bot nombra: nombre normalizado, palabra completa, sin nombres cortos/genéricos, sin los ya mostrados; máx. 3. Pura: se prueba con node. */
+function platosEn(texto, menu, vistos, max = 3) {
+  const t = plano(String(texto)), r = [];
+  for (const m of menu) {
+    const n = plano(m.nombre || "").trim().replace(/\s+/g, " ");
+    if (r.length >= max) break;
+    if (!m.foto || !m.disponible || vistos.includes(m.id) || n.length < 5 || GENERICOS.has(n)) continue;
+    if (new RegExp("(^|[^a-z0-9])" + n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z0-9]|$)").test(t)) r.push(m);
+  }
+  return r;
+}
+const recientes = []; // ids con tarjeta ya mostrada en la conversación (los últimos 6)
+function pedirPlato(m) { if (st.ocupado) return; $("#texto").value = `Quiero 1 ${m.nombre}`; $("#componer").requestSubmit(); }
+function tarjetasPlato(texto) { // fila de mini-tarjetas bajo el mensaje del bot; sin foto no hay tarjeta
+  const ms = platosEn(texto, MENU, recientes); if (!ms.length) return;
+  const caja = document.createElement("div"); caja.className = "minis"; caja.setAttribute("role", "group"); caja.setAttribute("aria-label", "Platos mencionados");
+  for (const m of ms) {
+    const f = fotoDe(m); if (!f) continue;
+    f.alt = m.nombre; f.width = 160; f.height = 100; f.classList.add("mini-foto");
+    const c = document.createElement("div"), n = document.createElement("b"), p = document.createElement("span"), b = document.createElement("button");
+    c.className = "mini"; n.textContent = m.nombre; p.className = "num"; p.textContent = dinero(m.precio);
+    b.type = "button"; b.className = "pedir"; b.textContent = "Agregar"; b.setAttribute("aria-label", "Pedir 1 " + m.nombre); b.onclick = () => pedirPlato(m);
+    c.append(f, n, p, b); caja.append(c); recientes.push(m.id);
+  }
+  recientes.splice(0, Math.max(0, recientes.length - 6));
+  if (caja.children.length) $("#mensajes").append(caja);
+}
 const filtro = {cat:"todos", q:""};
 function pintarCategorias() {
   const caja = $("#cats"); caja.textContent = "";
@@ -798,7 +835,9 @@ function burbuja(quien, texto) {
     const av = document.createElement("span"); av.className = "avatar"; av.setAttribute("aria-hidden", "true"); av.textContent = MARCA.trim().charAt(0).toUpperCase();
     fila = document.createElement("div"); fila.className = "fila-bot"; fila.append(av, d);
   }
-  $("#mensajes").append(fila); fila.scrollIntoView({block:"end", behavior:"smooth"});
+  $("#mensajes").append(fila);
+  if (quien === "bot") tarjetasPlato(texto);
+  ($("#mensajes").lastElementChild).scrollIntoView({block:"end", behavior:"smooth"});
 }
 $("#texto").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
 $("#texto").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#componer").requestSubmit(); } });
@@ -899,6 +938,7 @@ async function sugerir(p) {
   const boton = (texto, clase, alTocar) => { const b = document.createElement("button"); b.type = "button"; b.className = clase; b.textContent = texto; b.onclick = alTocar; return b; };
   fila.append(boton("Sí, súmalo", "btn", () => { if (st.ocupado) return; caja.remove(); $("#texto").value = `Sí, súmame 1 ${s.nombre} al pedido`; $("#componer").requestSubmit(); }),
               boton("No, gracias", "btn btn-sec", () => caja.remove()));
+  const m = MENU.find(x => x.id === s.id), f = m && fotoDe(m); if (f) { f.alt = m.nombre; f.width = 160; f.height = 100; f.classList.add("mini-foto"); caja.prepend(f); }
   caja.append(t, fila); $("#mensajes").append(caja); caja.scrollIntoView({block:"end", behavior:"smooth"});
 }
 /* ---------- Seguimiento vivo: Recibido → Cocinando → Listo → En camino / Para recoger → Entregado ---------- */

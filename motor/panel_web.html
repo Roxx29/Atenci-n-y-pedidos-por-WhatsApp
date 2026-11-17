@@ -363,6 +363,14 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .nuevo-aj input,.nuevo-aj select{min-height:48px;width:100%;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);font-weight:600}
 .nuevo-aj input:focus,.nuevo-aj select:focus{outline:none;border-color:var(--primary)}
 .nuevo-aj .btn{min-height:48px}
+.carta-rev{margin:8px 0 16px;padding:14px;background:var(--sc-lowest);border-radius:10px;box-shadow:var(--sombra);border-top:3px solid var(--primary)}
+.carta-rev h3{font:800 1.125rem var(--display);margin:0 0 4px}
+.carta-rev>.aj-acc{margin-top:12px}
+.fila-carta{grid-template-columns:44px minmax(0,1fr) 104px 160px;box-shadow:none;border:1px solid var(--sc-high)}
+.fila-carta .incluir{width:22px;height:22px;justify-self:center;accent-color:var(--primary)}
+.fila-carta .nota{grid-column:2/-1;margin:0;font-size:.8125rem;color:var(--on-variant)}
+.fila-carta.fuera>:not(.incluir){opacity:.45}
+@media (max-width:700px){.fila-carta{grid-template-columns:44px minmax(0,1fr) 96px}.fila-carta .cat{grid-column:2/-1}}
 .ini-persona{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--sc-high);font:800 1rem var(--display)}
 .pin-linea{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--outline-variant)}
 .pin-linea input{min-height:44px;width:150px;padding:0 12px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);letter-spacing:.2em}
@@ -532,6 +540,8 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
       <div class="vista-cab">
         <h2>Menú</h2>
         <label class="buscar-p"><span class="sr">Buscar plato</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-plato" placeholder="Buscar plato" autocomplete="off"></label>
+        <button class="btn suave" id="btn-carta" type="button" hidden><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Subir mi carta</button>
+        <input type="file" id="carta-archivos" accept="image/jpeg,image/png,image/webp" multiple hidden>
       </div>
       <div class="vista-cuerpo">
         <form class="nuevo-aj" id="f-plato" autocomplete="off" hidden>
@@ -540,6 +550,12 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
           <label>Categoría<input name="categoria" maxlength="30" list="cats-lista" placeholder="platos, bebidas…"></label>
           <button class="btn">Agregar</button>
         </form>
+        <section class="carta-rev" id="carta-rev" hidden aria-labelledby="carta-tit">
+          <h3 id="carta-tit">Revisa tu carta</h3>
+          <p class="t-espera" id="carta-pista"></p>
+          <div id="carta-filas"></div>
+          <div class="aj-acc"><button class="mini" type="button" id="carta-descartar">Descartar</button><button class="btn" type="button" id="carta-publicar">Publicar</button></div>
+        </section>
         <datalist id="cats-lista"></datalist>
         <p class="t-espera" id="menu-pista" hidden>Marca aquí lo que se agotó: el cliente y el asistente lo ven al momento.</p>
         <div id="lista-platos"></div>
@@ -1058,7 +1074,7 @@ function botonSeguro(texto, etiqueta, hacer) {
 async function pintarMenu(recargar = true) {
   if (recargar) { try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); } }
   const dueno = st.rol === "dueno", q = plano(st.qMenu), carta = st.menu.filter(x => !esPromo(x)), cats = [...new Set(carta.map(x => x.categoria || ""))], filas = [];
-  $("#f-plato").hidden = !dueno; $("#menu-pista").hidden = dueno;
+  $("#f-plato").hidden = $("#btn-carta").hidden = !dueno; $("#menu-pista").hidden = dueno;
   $("#cats-lista").replaceChildren(...cats.filter(Boolean).map(c => h("option", {value:c})));
   for (const c of cats) {
     const items = carta.filter(x => (x.categoria || "") === c && (!q || plano(x.nombre).includes(q))); if (!items.length) continue;
@@ -1148,6 +1164,55 @@ async function subirFoto(x, archivo, boton) {
     aviso("Foto guardada"); await repintarCarta();
   } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; }
 }
+
+/* ---------- Carta por foto: 1 a 4 fotos de la carta de papel → la IA propone un borrador → el dueño corrige y pulsa Publicar (nada se publica solo) ---------- */
+async function reducirCarta(archivo) { // texto legible: lado máx. 1568 px en JPEG (~0,5 MB); el servidor vuelve a comprobar y limpiar
+  const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+  return c.toDataURL("image/jpeg", .85).split(",")[1];
+}
+$("#btn-carta").onclick = () => $("#carta-archivos").click();
+$("#carta-archivos").onchange = async ev => {
+  const fs = [...ev.target.files]; ev.target.value = "";
+  if (!fs.length) return;
+  if (fs.length > 4) return aviso("Máximo 4 fotos por carta", true);
+  if (st.demo) return aviso("En la demostración no se leen cartas");
+  const b = $("#btn-carta"); b.disabled = true; b.lastChild.textContent = "Leyendo tu carta…";
+  try {
+    const r = await api("POST", "/panel/dueno/carta_foto", {fotos:await Promise.all(fs.map(reducirCarta))});
+    st.carta = r.borrador.map(f => ({...f, incluir:true})); pintarCarta(r.descartados);
+  } catch (e) { aviso(e.message || "No se pudo leer la carta.", true); }
+  b.disabled = false; b.lastChild.textContent = "Subir mi carta";
+};
+function pintarCarta(descartados) {
+  const dup = st.carta.filter(f => f.actualizar).length;
+  $("#carta-pista").textContent = `${st.carta.length} platos leídos${dup ? `; ${dup} ya estaban en tu menú (solo se actualiza su precio)` : ""}${descartados ? `; ${descartados} líneas no se entendieron` : ""}. Corrige lo que haga falta, desmarca lo que sobre y pulsa Publicar.`;
+  $("#carta-filas").replaceChildren(...st.carta.map(f => {
+    const campo = (k, attrs) => { const i = h("input", {class:"campo-aj", value:f[k], ...attrs}); i.oninput = () => { f[k] = i.value.trim(); }; return i; };
+    const chk = h("input", {type:"checkbox", class:"incluir", checked:f.incluir, "aria-label":"Incluir " + f.nombre});
+    const fila = h("div", {class:"fila-aj fila-carta"}, chk,
+      campo("nombre", {maxlength:80, class:"campo-aj nom", "aria-label":"Nombre del plato"}),
+      campo("precio", {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + f.nombre}),
+      campo("categoria", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + f.nombre}),
+      f.actualizar && h("p", {class:"nota"}, `Ya está en tu menú a ${dinero(f.precio_actual)}: se actualizará solo el precio.`));
+    chk.onchange = () => { f.incluir = chk.checked; fila.classList.toggle("fuera", !chk.checked); };
+    return fila;
+  }));
+  $("#carta-rev").hidden = false; $("#carta-rev").scrollIntoView({block:"start"});
+}
+const cerrarCarta = () => { st.carta = null; $("#carta-rev").hidden = true; $("#carta-filas").replaceChildren(); };
+$("#carta-descartar").onclick = cerrarCarta;
+$("#carta-publicar").onclick = async () => {
+  const platos = st.carta.filter(f => f.incluir).map(({incluir, precio_actual, ...f}) => f);
+  if (!platos.length) return aviso("Marca al menos un plato", true);
+  const b = $("#carta-publicar"); b.disabled = true;
+  try {
+    const r = await api("POST", "/panel/dueno/carta_publicar", {platos});
+    aviso(`Carta publicada: ${r.creados} nuevos, ${r.actualizados} con precio actualizado`); cerrarCarta(); await pintarMenu();
+  } catch (e) { aviso(e.message, true); }
+  b.disabled = false;
+};
 
 /* ---------- Tienda abierta / cerrada a mano (todo el panel) ---------- */
 const swTienda = interruptor(true, on => on ? "Recibiendo pedidos" : "Tienda cerrada", async on => {

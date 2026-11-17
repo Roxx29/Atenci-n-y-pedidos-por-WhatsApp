@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import clientes, paginas, panel_web, temas, ubicacion
+from . import carta, clientes, paginas, panel_web, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -361,14 +361,14 @@ def crear_manejador(sv, secreto=None, env=None):
         def _cid(self):
             return cid_de_cookie(secreto, self.headers.get("Cookie"))
 
-        def _json(self):
+        def _json(self, tope=MAX_CUERPO):
             if not self.headers.get("Content-Type", "").startswith("application/json"):
                 return self._err(415, "Se requiere application/json")
             try:
                 largo = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 return self._err(400, "Cuerpo inválido")
-            if not 0 < largo <= MAX_CUERPO:  # antes de leer
+            if not 0 < largo <= tope:  # antes de leer
                 return self._err(413, "Cuerpo demasiado grande")
             try:
                 self._leido = True
@@ -493,6 +493,8 @@ def crear_manejador(sv, secreto=None, env=None):
                         return self._err(403, "Solo el dueño puede hacer esto")
                     if (metodo, partes[3]) == ("POST", "foto"):
                         return self._subir_foto(quien, renovar)
+                    if (metodo, partes[3]) in (("POST", "carta_foto"), ("POST", "carta_publicar")):
+                        return self._carta(partes[3], quien, renovar)
                     d = self._json() if metodo == "POST" else {}
                     if d is None:
                         return
@@ -505,6 +507,26 @@ def crear_manejador(sv, secreto=None, env=None):
             except ValueError:  # int() de la ruta
                 return self._err(400, "Datos inválidos")
             self._err(404, "No encontrado")
+
+        def _carta(self, accion, quien, renovar):
+            """Carta por foto (motor/carta.py): carta_foto {fotos: [base64]} → borrador; carta_publicar {platos} → menú."""
+            foto = accion == "carta_foto"
+            if foto and limite.excede(("carta", self._ip()), 5):  # cada lectura es una llamada al modelo
+                return self._err(429, "Demasiadas cartas seguidas, espere un minuto")
+            d = self._json(carta.MAX_CUERPO if foto else carta.MAX_CUERPO_PUBLICAR)
+            if d is None:
+                return
+            try:
+                r = carta.extraer(sv, carta.de_base64(d.get("fotos"))) if foto else carta.publicar(sv, quien, d.get("platos"))
+            except carta.Tope as e:
+                return self._err(429, str(e))
+            except carta.SinVision as e:
+                return self._err(503, str(e))
+            except panel_web.TipoNoValido as e:
+                return self._err(415, str(e))
+            except ValueError as e:
+                return self._err(400, str(e))
+            return self._enviar(200, r, extra=renovar)
 
         def _subir_foto(self, quien, renovar):
             """POST /panel/dueno/foto?plato=<id>, cuerpo = bytes crudos. Exigir image/* bloquea formularios ajenos (CSRF) sin CORS."""

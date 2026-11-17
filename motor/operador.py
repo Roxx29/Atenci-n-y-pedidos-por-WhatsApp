@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from . import clientes, paginas, panel_web, temas, web
+from . import carta, clientes, paginas, panel_web, temas, web
 from .nucleo import Servicio
 
 SLUG = re.compile(r"[a-z0-9-]{1,40}")
@@ -535,6 +535,13 @@ class Operador:
             raise LookupError("usuario desconocido")
         return nombre
 
+    def carta_foto(self, slug, d):
+        """Carta por foto para el alta: {fotos: [base64]} → {borrador, descartados}. No escribe el menú (eso lo hace el dueño o la consola después).
+        Cuenta en uso_ia del cliente, pero sin su tope (aquí sv.tope_ia = 0): es trabajo del operador, no gasto del restaurante."""
+        fotos = carta.de_base64(d.get("fotos"))
+        with self._sv(slug) as sv:
+            return carta.extraer(sv, fotos)
+
     def equipo(self, slug):
         with self._sv(slug) as sv:
             return [{k: u[k] for k in ("nombre", "rol", "activo")} for u in panel_web._todos(sv)]  # nunca pin_hash
@@ -681,7 +688,8 @@ RUTAS = {
     "ajustes": ("ajustes", lambda op, s, d: op.ajustes(s, d)),
     "tema": ("tema", lambda op, s, d: op.tema(s, d)),
     "personalizado": ("personalizado", lambda op, s, d: op.personalizado(s, d)),  # al registro va la acción, nunca el CSS
-    "pagina": ("pagina", lambda op, s, d: op.pagina(s, d)),  # al registro va la acción, nunca nombres ni contenido de archivos
+    "pagina": ("pagina", lambda op, s, d: op.pagina(s, d)),
+    "carta_foto": ("carta_foto", lambda op, s, d: op.carta_foto(s, d)),  # ni fotos ni platos al registro  # al registro va la acción, nunca nombres ni contenido de archivos
     "archivar": ("archivar", lambda op, s, d: {"copia": op.archivar(s, d.get("confirmar"))}),
     "restaurar": ("restaurar", lambda op, s, d: op.restaurar(s)),
     "eliminar": ("eliminar", lambda op, s, d: op.eliminar(s, d.get("confirmar"))),
@@ -729,6 +737,10 @@ def handler(op):
             try:
                 r = f()
                 return 200, r if isinstance(r, list) else {"ok": True, **(r or {})}
+            except carta.Tope as e:
+                return 429, {"error": str(e)}
+            except carta.SinVision as e:
+                return 503, {"error": str(e)}
             except (FileExistsError, Conflicto) as e:
                 return 409, {"error": str(e)}
             except LookupError as e:
@@ -775,12 +787,12 @@ def handler(op):
         def do_POST(self):
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self._send(415, {"error": "json"})
-            tope = MAX_CUERPO_CSS if self.path.endswith("/personalizado") else paginas.MAX_CUERPO if self.path.endswith("/pagina") else 4096
+            tope = MAX_CUERPO_CSS if self.path.endswith("/personalizado") else paginas.MAX_CUERPO if self.path.endswith("/pagina")                 else carta.MAX_CUERPO if self.path.endswith("/carta_foto") else 4096
             try:
                 largo = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 largo = 0
-            if tope == paginas.MAX_CUERPO and largo > tope:  # la subida de página: no se lee ni se trunca
+            if tope in (paginas.MAX_CUERPO, carta.MAX_CUERPO) and largo > tope:  # subidas grandes: no se leen ni se truncan
                 self.close_connection = True
                 return self._send(413, {"error": f"máximo {tope // 1_000_000} MB por subida"})
             d = self._json(tope)

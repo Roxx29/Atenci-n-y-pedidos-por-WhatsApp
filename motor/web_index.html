@@ -516,7 +516,7 @@ const AVISO = {
 };
 const num = x => typeof x === "string" ? parseFloat(((x.match(/-?\d+(?:[.,]\d+)?/) || ["0"])[0]).replace(",", ".")) : Number(x); // "B/. 7.00" → 7
 const dinero = n => { const v = num(n); return "B/. " + (isFinite(v) ? v : 0).toFixed(2); }; // siempre B/. 0.00
-const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "file:", ocupado:false, sondeo:0, dentro:false};
+const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "file:" || window.VISTA_DEMO === true, ocupado:false, sondeo:0, dentro:false};
 const guardar = () => { try { localStorage.setItem("cliente", JSON.stringify({nombre:st.nombre, telefono:st.telefono.replace(/^507/, "")})); } catch (e) {} }; // sin prefijo: el campo ya muestra +507
 
 /* ---------- Datos del restaurante: GET /config (salen de servicio.yaml). Lo fijo de aquí es solo para la demostración sin servidor. ---------- */

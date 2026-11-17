@@ -314,7 +314,7 @@ const ORDEN = {en_camino:0, listo:1, en_preparacion:2};
 
 const paradaDe = p => ((st.ruta && st.ruta.paradas) || []).find(x => x.id === p.id);
 const sinUbic = p => { const x = paradaDe(p); return !!x && (x.lat == null || x.lon == null); };
-const st = {cambiaron:new Set(), firma:null, ruta:null, demo:location.protocol === "file:", pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0, vistos:new Set()};
+const st = {cambiaron:new Set(), firma:null, ruta:null, demo:location.protocol === "file:" || window.VISTA_DEMO === true, pedidos:[], conocidos:null, nuevos:new Set(), abierto:null, sondeo:0, vistos:new Set()};
 
 /* ---------- PWA ---------- */
 if ("serviceWorker" in navigator && !st.demo) navigator.serviceWorker.register("/repartidor/sw.js", {scope:"/repartidor/"}).catch(() => {});

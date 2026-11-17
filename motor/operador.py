@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from . import clientes, panel_web, temas
+from . import clientes, panel_web, temas, web
 from .nucleo import Servicio
 
 SLUG = re.compile(r"[a-z0-9-]{1,40}")
@@ -408,14 +408,7 @@ class Operador:
 
     @staticmethod
     def _tema_de(carpeta):
-        """-> {tema, color} del tema.json del cliente; sin archivo (o roto): el clásico sin color."""
-        try:
-            d = json.loads((carpeta / "tema.json").read_text(encoding="utf-8"))
-            tema, color = d["tema"], d.get("color")
-            temas.generar_tema(tema, color)
-            return {"tema": tema, "color": color}
-        except (OSError, ValueError, KeyError, TypeError):
-            return {"tema": "clasico", "color": None}
+        return temas.tema_de(carpeta)
 
     def tema(self, slug, d):
         """Aplica un tema del catálogo (y, opcional, un color primario) SOLO a ese cliente: regenera su tema.css y anota el tema en su tema.json.
@@ -706,9 +699,10 @@ def handler(op):
         def _send(self, st, cuerpo, tipo="application/json", extra=()):
             b = cuerpo if isinstance(cuerpo, bytes) else json.dumps(cuerpo, ensure_ascii=False).encode()
             self.send_response(st)
-            for k, v in (("Content-Type", tipo + "; charset=utf-8"), ("Content-Length", str(len(b))), ("Cache-Control", "no-store"),
-                         ("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"), ("Referrer-Policy", "no-referrer"),
-                         ("Content-Security-Policy", "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'"), *extra):
+            cab = {"Content-Type": tipo + "; charset=utf-8", "Content-Length": str(len(b)), "Cache-Control": "no-store",
+                   "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
+                   "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'"}
+            for k, v in {**cab, **dict(extra)}.items():  # extra sustituye (CSP de la vista previa) o añade (Set-Cookie)
                 self.send_header(k, v)
             self.end_headers()
             self.wfile.write(b)
@@ -751,8 +745,16 @@ def handler(op):
                 if not (n.isascii() and n.isdigit() and len(n) <= 6 and int(n) >= 1):
                     return self._send(400, {"error": "n: un entero de 1 a 500"})
                 return self._send(200, op.registro(min(int(n), 500)))
-            if u.path == "/api/temas":
-                return self._send(200, temas.catalogo())
+            if u.path == "/api/temas":  # sin las reglas css (solo las usa la página servida)
+                return self._send(200, [{k: v for k, v in t.items() if k != "css"} for t in temas.catalogo()])
+            if len(partes) == 3 and partes[0] == "vista":  # /vista/<tema>/<web|panel|repartidor>: página real, datos de ejemplo
+                try:
+                    h = web.armar_vista(partes[1], partes[2])
+                except ValueError:
+                    return self._send(404, {"error": "no existe"})
+                return self._send(200, h, "text/html", [("Content-Security-Policy", web.CSP_VISTA), ("X-Frame-Options", "SAMEORIGIN")])
+            if u.path.startswith("/estatico/") and u.path[10:] in web.ESTATICOS:  # fuentes de la vista previa (lista blanca)
+                return self._send(200, (web.ESTATICO / u.path[10:]).read_bytes(), web.ESTATICOS[u.path[10:]], [("Cache-Control", "max-age=86400")])
             if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "equipo":
                 return self._send(*self._hacer(lambda: op.equipo(partes[2])))
             if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "personalizado":

@@ -1,5 +1,6 @@
 """Temas de las tres páginas (web de pedidos, panel y repartidor) y CSS personalizado por cliente.
-Un solo origen: motor/estatico/temas.json (tokens de color). El tema.css de cada cliente se GENERA de ahí con generar_tema()."""
+Un solo origen: motor/estatico/temas.json. Los tokens de color van al tema.css de cada cliente (generar_tema()); la forma, la tipografía
+y las reglas propias de cada página (estilo()) se añaden al servir, así un cambio en el catálogo llega a todos sin regenerar nada."""
 import json
 import re
 from pathlib import Path
@@ -14,8 +15,40 @@ URL = re.compile(r"url\s*\(", re.I)
 DATA = re.compile(r"""url\(\s*(["']?)data:image/(?:png|jpeg|webp|svg\+xml)[;,][A-Za-z0-9+/=%;,._:~-]*\1\s*\)""")
 
 
+PAGINAS = ("web", "panel", "repartidor")
+
+
 def catalogo():
     return json.loads((ESTATICO / "temas.json").read_text(encoding="utf-8"))
+
+
+def _buscar(tema_id):
+    t = next((t for t in catalogo() if t["id"] == tema_id), None) if isinstance(tema_id, str) else None
+    if t is None:
+        raise ValueError("tema desconocido")
+    return t
+
+
+def tema_de(carpeta):
+    """-> {tema, color} del tema.json de un cliente; sin archivo, roto o fuera del catálogo: el clásico sin color."""
+    try:
+        d = json.loads((carpeta / "tema.json").read_text(encoding="utf-8"))
+        tema, color = d["tema"], d.get("color")
+        generar_tema(tema, color)  # valida los dos
+        return {"tema": tema, "color": color}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"tema": "clasico", "color": None}
+
+
+def estilo(tema_id, pagina):
+    """CSS estructural de un tema para una página: variables de forma y tipografía + sus reglas `[data-tema="id"] …`.
+    El clásico no trae nada (es la base). Sin colores: el color propio del cliente (tema.css) sigue mandando."""
+    t = _buscar(tema_id)
+    if pagina not in PAGINAS:
+        raise ValueError("página desconocida")
+    v = {**t.get("forma", {}), **t.get("tipografia", {})}
+    css = ':root[data-tema="%s"]{%s}\n' % (t["id"], ";".join(f"{k}:{x}" for k, x in v.items())) if v else ""
+    return css + "\n".join(t.get("css", {}).get(pagina, []))
 
 
 def contraste(a, b):
@@ -30,9 +63,7 @@ def contraste(a, b):
 
 def generar_tema(tema_id="clasico", color=None):
     """CSS de un cliente: tema.css del motor + los tokens del tema + (opcional) su color primario #rrggbb. ValueError si algo no vale."""
-    t = next((t for t in catalogo() if t["id"] == tema_id), None) if isinstance(tema_id, str) else None
-    if t is None:
-        raise ValueError("tema desconocido")
+    t = _buscar(tema_id)
     if color is not None and not (isinstance(color, str) and COLOR.fullmatch(color)):
         raise ValueError("color inválido: usa el formato #rrggbb")
     css = (ESTATICO / "tema.css").read_text(encoding="utf-8")

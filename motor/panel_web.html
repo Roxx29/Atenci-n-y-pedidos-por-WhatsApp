@@ -697,7 +697,7 @@ function siguiente(p) { // acción principal: en una entrega lista, sale con el 
 }
 const NOMBRE_ESTADO = {en_camino:"En camino", cancelado:"Cancelado", pagado:"Pagado", en_preparacion:"En cocina", listo:"Listo", entregado:"Entregado", confirmado:"Nuevos"};
 
-const st = {demo:location.protocol === "file:", vista:"pedidos", rol:"dueno", menu:[], qMenu:"", pedidos:new Map(), avisos:[], escalados:[], repartidores:[], ultimo:0, primera:true,
+const st = {demo:location.protocol === "file:" || window.VISTA_DEMO === true, vista:"pedidos", rol:"dueno", menu:[], qMenu:"", pedidos:new Map(), avisos:[], escalados:[], repartidores:[], ultimo:0, primera:true,
             nuevos:new Set(), sinLeer:0, cerrados:false, sonido:true, sondeo:0, abierto:null};
 try { st.sonido = localStorage.getItem("panel-sonido") !== "no"; } catch (e) {}
 

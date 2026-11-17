@@ -48,7 +48,7 @@ class Catalogo(unittest.TestCase):
         self.assertEqual(len({(t["tokens"]["--primary"], t["tokens"]["--surface"]) for t in cat}), 8)  # distintos entre sí
         self.assertEqual({t["modo"] for t in cat}, {"claro", "oscuro"})
         for t in cat:
-            self.assertEqual(set(t), {"id", "nombre", "descripcion", "modo", "muestra", "tokens"}, t["id"])
+            self.assertEqual(set(t), {"id", "nombre", "descripcion", "modo", "muestra", "tokens", "forma", "tipografia", "css"}, t["id"])
             self.assertRegex(t["id"], r"^[a-z0-9-]{1,30}$")
             self.assertTrue(t["nombre"] and 0 < len(t["descripcion"]) <= 90, t["id"])
             self.assertEqual(len(t["muestra"]), 3)
@@ -69,6 +69,56 @@ class Catalogo(unittest.TestCase):
             g = lambda x: x if x.startswith("#") else t["tokens"][x]
             for a, b in PARES:
                 self.assertGreaterEqual(temas.contraste(g(a), g(b)), 4.5, f"{t['id']}: {a} sobre {b}")
+
+
+CLASE = re.compile(r"\.([a-zA-Z][\w-]*)")
+FICHERO = {"web": web.PAGINA, "panel": web.PAGINA_PANEL, "repartidor": web.PAGINA_REP}
+VARS = {"--r4", "--r8", "--r12", "--display", "--texto", "--mono"}
+SIN_MOV = "@media (prefers-reduced-motion:no-preference){"
+
+
+class Estructura(unittest.TestCase):
+    """Cada tema cambia forma, tipografía y estructura de las tres páginas, no solo colores."""
+
+    def test_el_clasico_no_trae_nada_propio(self):
+        t = temas.catalogo()[0]
+        self.assertEqual((t["forma"], t["tipografia"]), ({}, {}))
+        for p in temas.PAGINAS:
+            self.assertEqual(temas.estilo("clasico", p), "")
+
+    def test_cada_tema_tiene_reglas_propias_en_las_tres_paginas(self):
+        vistos = set()
+        for t in temas.catalogo()[1:]:
+            pre = '[data-tema="%s"]' % t["id"]
+            self.assertTrue(t["forma"] and t["tipografia"], t["id"])
+            self.assertLessEqual(set(t["forma"]) | set(t["tipografia"]), VARS, t["id"])
+            for v in [*t["forma"].values(), *t["tipografia"].values()]:
+                self.assertRegex(v, r"^[\w\s,.'-]+$", t["id"])  # nada que cierre la declaración
+            for p in temas.PAGINAS:
+                reglas = t["css"][p]
+                self.assertGreaterEqual(len(reglas), 8, (t["id"], p))
+                html = FICHERO[p].read_text(encoding="utf-8")
+                for r in reglas:
+                    if r.startswith(SIN_MOV):  # el movimiento propio, solo si no se pidió reducirlo
+                        self.assertIn(pre, r); continue
+                    self.assertTrue(r.startswith(pre), (t["id"], r[:50]))
+                    self.assertNotIn("animation", r, (t["id"], r[:50]))
+                    sel = r.split("{")[0]
+                    for c in CLASE.findall(sel):  # clases reales de esa página
+                        self.assertIn(c, html, (t["id"], p, c))
+                css = temas.estilo(t["id"], p)
+                self.assertEqual(temas.sanear_css(css), css.strip())  # pasa la misma lista estricta que un personalizado
+                self.assertNotRegex(css, r"#[0-9a-fA-F]{3,8}\b")  # colores solo por tokens (con contraste comprobado arriba)
+                self.assertIn(SIN_MOV, css)
+                vistos.add(css)
+        self.assertEqual(len(vistos), 21)  # 7 temas x 3 páginas, todas distintas
+
+    def test_invalidos(self):
+        for malo in ("nadie", None, "../clasico"):
+            with self.assertRaises(ValueError):
+                temas.estilo(malo, "web")
+        with self.assertRaises(ValueError):
+            temas.estilo("dulce", "admin")
 
 
 class Generar(unittest.TestCase):
@@ -137,9 +187,58 @@ class Consola(Base):
         return {f: (c / f).read_bytes() if (c / f).exists() else None for f in ("tema.css", "tema.json", "personalizado.css", "servicio.yaml")}
 
     def test_catalogo_por_http(self):
-        st, j = self.get("/api/temas")
-        self.assertEqual((st, j), (200, temas.catalogo()))
+        st, j = self.get("/api/temas")  # sin las reglas css: solo las usa la página servida
+        self.assertEqual((st, j), (200, [{k: v for k, v in t.items() if k != "css"} for t in temas.catalogo()]))
         self.assertEqual(self.get("/api/temas", ck="x")[0], 401)
+
+    def test_clasico_identico_y_data_tema(self):
+        marca = Servicio(self.carpeta, env={}); m = web.marca_de(marca).encode(); marca.cerrar()
+        for f, h in zip((web.PAGINA, web.PAGINA_PANEL, web.PAGINA_REP), self.paginas(self.carpeta)):
+            antes = f.read_bytes().replace(web.ENLACE_TEMA, b"<style>" + BASE.encode() + b"</style>").replace(b"DeliFood", m)
+            self.assertEqual(h.encode(), antes.replace(b'<html lang="es"', b'<html lang="es" data-tema="clasico"', 1))
+        self.assertEqual(self.post("/api/clientes/otra/tema", {"tema": "parrilla"})[0], 200)
+        self.post("/api/clientes/otra/personalizado", {"css": ".logo{outline:3px solid lime}"})
+        for p, h in zip(temas.PAGINAS, self.paginas(self.otra)):
+            self.assertIn('<html lang="es" data-tema="parrilla"', h)
+            estilo = temas.estilo("parrilla", p)
+            self.assertIn(estilo, h)
+            self.assertLess(h.index(estilo), h.index("solid lime"))  # el personalizado va después: manda
+        for h in self.paginas(self.carpeta):  # el otro cliente sigue clásico
+            self.assertNotIn("parrilla", h)
+        (self.otra / "tema.json").write_text('{"tema": "\\"><script>x</script>"}', encoding="utf-8")  # puesto a mano
+        self.assertIn('data-tema="clasico"', self.paginas(self.otra)[0])
+
+    def vista(self, ruta, ck=None):
+        c = http.client.HTTPConnection("127.0.0.1", self.srv.server_port, timeout=10)
+        c.request("GET", ruta, headers={"Cookie": self.ck if ck is None else ck})
+        r = c.getresponse(); h = r.read().decode("utf-8", "replace"); c.close()
+        return r, h
+
+    def test_vista_previa_real_sin_datos_de_clientes(self):
+        self.post("/api/clientes/napa/personalizado", {"css": ".logo{outline:3px solid lime}"})
+        self.post("/api/clientes/napa/tema", {"tema": "dulce", "color": "#123456"})
+        for t in temas.catalogo():
+            for p in temas.PAGINAS:
+                r, h = self.vista(f"/vista/{t['id']}/{p}")
+                self.assertEqual(r.status, 200, (t["id"], p))
+                self.assertIn(f'<html lang="es" data-tema="{t["id"]}"', h)
+                self.assertIn("window.VISTA_DEMO=true", h); self.assertIn(temas.estilo(t["id"], p), h)
+                for dato in ("Ñapa", "napa", "lime", "#123456", "otra.example"):  # ningún dato ni tema de un cliente
+                    self.assertNotIn(dato, h, (t["id"], p, dato))
+                csp = dict(x.strip().split(" ", 1) for x in r.getheader("Content-Security-Policy").split(";"))
+                self.assertEqual((csp["frame-ancestors"], csp["connect-src"]), ("'self'", "'none'"))
+                self.assertEqual(r.getheader("X-Frame-Options"), "SAMEORIGIN")
+        self.assertIn('"Sazón"', self.vista("/vista/fresco/web")[1].replace("data-marca=", ""))
+        for malo in ("/vista/nadie/web", "/vista/..%2Fclasico/web", "/vista/dulce/admin", "/vista/dulce", "/vista/dulce/web/x"):
+            self.assertEqual(self.vista(malo)[0].status, 404, malo)
+        r, h = self.vista("/vista/dulce/web", ck="x")
+        self.assertEqual(r.status, 401); self.assertNotIn("<html", h)
+        r, _ = self.vista("/api/clientes")
+        self.assertIn("frame-ancestors 'none'", r.getheader("Content-Security-Policy"))  # el resto de la consola no se enmarca
+        self.assertEqual(r.getheader("X-Frame-Options"), "DENY")
+        self.assertEqual(self.vista("/estatico/jakarta-v1.woff2")[0].status, 200)  # fuentes de la vista previa
+        self.assertEqual(self.vista("/estatico/../temas.json")[0].status, 404)
+        self.assertEqual(self.vista("/estatico/jakarta-v1.woff2", ck="x")[0].status, 401)
 
     def test_alta_con_tema(self):
         st, j = self.post("/api/clientes", {"nombre": "Mar", "slug": "mar", "dominio": "mar.example.com", "tema": "oceano", "color": "#1A73E8"})

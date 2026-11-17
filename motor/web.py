@@ -1,4 +1,5 @@
 """Canal web: página de pedidos con chat (solo stdlib). Cookie firmada = identidad del cliente (cid = teléfono)."""
+import base64
 import datetime as dt
 import hashlib
 import hmac
@@ -55,18 +56,77 @@ def marca_de(sv):
     return str(sv.cfg.get("marca") or MARCA)
 
 
+PAGINAS = {PAGINA: "web", PAGINA_PANEL: "panel", PAGINA_REP: "repartidor"}
+
+
+def _componer(f, css, tema_id, marca):
+    """HTML de una de las tres páginas con su <style> incrustado, data-tema en <html> y el nombre de marca."""
+    return (f.read_bytes().replace(ENLACE_TEMA, b"<style>" + css + b"</style>", 1)
+            .replace(b'<html lang="es"', b'<html lang="es" data-tema="%s"' % tema_id.encode(), 1)
+            .replace(MARCA.encode(), html.escape(marca).encode()))
+
+
 def armar_pagina(sv, f):
-    """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico), al final el
-    personalizado.css de ESE cliente si lo tiene, y nombre de marca."""
+    """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico), las reglas
+    estructurales de su tema (temas.estilo), al final el personalizado.css de ESE cliente si lo tiene, y nombre de marca."""
     if not f.is_file():
         return b""
     tema = sv.dir / "tema.css"
     css = (tema if tema.is_file() else ESTATICO / "tema.css").read_bytes()
+    tema_id = temas.tema_de(sv.dir)["tema"]  # validado contra el catálogo: entra tal cual en el atributo
+    propio = temas.estilo(tema_id, PAGINAS[f])  # vacío en el clásico: su página queda byte a byte como antes (más data-tema)
+    css += b"\n" + propio.encode() if propio else b""
     try:  # se sanea también al servir: un archivo puesto a mano tampoco puede cerrar el <style>
         css += b"\n" + temas.sanear_css((sv.dir / "personalizado.css").read_text(encoding="utf-8")).encode()
     except (OSError, ValueError):  # sin archivo, ilegible o fuera de la lista: la página sale con su tema
         pass
-    return f.read_bytes().replace(ENLACE_TEMA, b"<style>" + css + b"</style>").replace(MARCA.encode(), html.escape(marca_de(sv)).encode())
+    return _componer(f, css, tema_id, marca_de(sv))
+
+
+# ---------- Vista previa de un tema (consola del operador): página real, datos de ejemplo, sin red ni sesión ----------
+MARCA_DEMO = "Sazón"
+CSP_VISTA = CSP.replace("default-src 'self';", "default-src 'self'; connect-src 'none';").replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+# Corre antes que la página: activa su modo demostración (datos de ejemplo que ya trae), corta toda la red y entra sin PIN.
+JS_VISTA = b"""<script>"use strict";window.VISTA_DEMO=true;(()=>{
+const no=()=>Promise.resolve(new Response("{}",{status:404,headers:{"Content-Type":"application/json"}}));
+window.fetch=no;window.EventSource=function(){return{close(){},addEventListener(){}}};navigator.sendBeacon=()=>false;
+try{Object.defineProperty(navigator,"serviceWorker",{value:undefined})}catch(e){}
+addEventListener("load",()=>{const f=document.getElementById("form-pin");if(f){document.getElementById("pin").value="000000";f.requestSubmit()}
+setTimeout(()=>{const d=document.getElementById("dlg-aviso"),ok=document.getElementById("aviso-ok");if(d&&d.open&&ok){ok.click();document.getElementById("aviso-seguir").click()}},250)})})();</script>"""
+
+
+def _foto_demo(tono, forma):
+    """Ilustración SVG genérica de un plato (data:), sin fotos reales."""
+    svg = (f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 320'><rect width='320' height='320' fill='hsl({tono} 45% 82%)'/>"
+           f"<circle cx='160' cy='170' r='118' fill='hsl({tono} 30% 96%)'/><circle cx='160' cy='170' r='86' fill='hsl({tono} 60% 58%)'/>{forma}</svg>")
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+
+_F = ["<circle cx='130' cy='150' r='26' fill='hsl(40 80% 70%)'/><circle cx='190' cy='190' r='22' fill='hsl(120 40% 45%)'/>",
+      "<rect x='100' y='140' width='120' height='50' rx='25' fill='hsl(25 60% 40%)'/>",
+      "<path d='M110 200q50-90 100 0z' fill='hsl(45 85% 65%)'/>"]
+MENU_DEMO = [dict(id=i, nombre=n, descripcion=d, precio=p, categoria=c, disponible=a, foto=_foto_demo(t, _F[k % 3]))
+             for k, (i, n, d, p, c, a, t) in enumerate([
+                 ("bowl", "Bowl de pollo a la plancha", "Arroz, aguacate, maíz y salsa de la casa", 8.50, "platos", True, 20),
+                 ("pasta", "Pasta al pesto", "Albahaca fresca, parmesano y piñones", 7.75, "platos", True, 110),
+                 ("hamburguesa", "Hamburguesa clásica", "Carne de res, queso, tomate y papas", 9.25, "platos", True, 10),
+                 ("pescado", "Filete de pescado", "Con puré de yuca y ensalada verde", 11.00, "platos", True, 200),
+                 ("empanadas", "Empanadas (3 u.)", "De carne o de queso", 3.50, "entradas", True, 35),
+                 ("ensalada", "Ensalada fresca", "Hojas verdes, pepino y vinagreta", 5.25, "entradas", True, 140),
+                 ("limonada", "Limonada con hierbabuena", "", 2.50, "bebidas", True, 70),
+                 ("flan", "Flan de coco", "", 3.75, "postres", False, 300)])]
+
+
+def armar_vista(tema_id, pagina):
+    """Vista previa de un tema: la página REAL con ese tema, la marca de ejemplo y datos ficticios. No lee ningún cliente."""
+    temas.estilo(tema_id, pagina)  # valida tema y página (ValueError)
+    f = {v: k for k, v in PAGINAS.items()}[pagina]
+    css = (temas.generar_tema(tema_id) + "\n" + temas.estilo(tema_id, pagina)).encode()
+    h = _componer(f, css, tema_id, MARCA_DEMO).replace(b"<head>", b"<head>" + JS_VISTA, 1)
+    if pagina == "web":  # el menú de ejemplo, con fotos ilustradas
+        h = re.sub(rb'(<script type="application/json" id="datos-menu">).*?(</script>)',
+                   lambda m: m[1] + json.dumps(MENU_DEMO, ensure_ascii=False).encode() + m[2], h, count=1, flags=re.S)
+    return h
 
 
 def config_publica(sv, con_pago=False):

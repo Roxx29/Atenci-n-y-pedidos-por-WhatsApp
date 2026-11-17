@@ -60,3 +60,9 @@ página propia de la-fonda».
 **Para el operador:** subir = `POST /api/clientes/<slug>/pagina` (archivos o zip, ver MOTOR.md «Páginas propias»); queda en
 `servicios/<slug>/web/`. Fuentes o imágenes de fuera: `web: {permitir: [fonts.googleapis.com, fonts.gstatic.com]}` en su `servicio.yaml`
 (se lee al abrir el cliente: reinicia `alojar`).
+
+## 6. Pídele el diseño a otra IA (ChatGPT, Claude, etc.)
+1. Abre un chat nuevo y sube **`PEDIR-DISENO.md`** (este mismo kit, ya empaquetado) y la página base que quieras cambiar (`base/index.html`, `base/panel.html` o `base/repartidor.html`). Si el restaurante tiene logo, súbelo también.
+2. Escribe qué quieres: nombre del restaurante, ambiente, colores y qué debe verse distinto.
+3. Guarda lo que te devuelva en `diseno/editable/<restaurante>/` (con los nombres de archivo que indique), pruébalo con `vista.py` y, si te gusta, dime «aplica lo de `diseno/editable/<restaurante>`».
+4. Si cambia la API o este README, vuelve a generar el archivo con `python diseno/editable/armar_pedido.py`.

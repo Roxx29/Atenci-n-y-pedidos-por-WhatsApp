@@ -1,0 +1,1107 @@
+<!doctype html>
+<!-- ==========================================================================================
+  COPIA DE PARTIDA de la página web de pedidos del cliente (/) (motor/web_index.html). Cámbiala como quieras: distribución, textos, CSS, JS.
+  - El marcador TEMA (más abajo, dentro de head): ahí el servidor pone los colores del cliente (su tema + su personalizado.css). No lo borres.
+  - «DeliFood» : donde aparezca, el servidor escribe el nombre del restaurante.
+  - Tus archivos (css, js, imágenes, fuentes) van en esta misma carpeta y se piden como /web/<nombre> (p. ej. /web/logo.png).
+  - NO cambies las llamadas a la API (fetch/api): rutas, métodos y datos están en ../API.md. Las reglas (precios, pagos, estados) las pone el servidor.
+  - Nada de scripts, hojas de estilo o llamadas a otros dominios: el servidor los bloquea (CSP). Fuentes/imágenes de fuera: pídelo (web.permitir).
+  Probar: python diseno/editable/vista.py diseno/editable/<tu-carpeta>
+=========================================================================================== -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111113">
+<title>DeliFood · Pedidos</title>
+<link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
+<!-- === TEMA DEL CLIENTE: el servidor sustituye este marcador por sus colores === -->
+<!--TEMA-->
+<!-- === ESTILOS de la página (los colores salen de las variables del tema: var(--primary), var(--surface)…; úsalas) === -->
+<style>
+:root{--m-out:cubic-bezier(.23,1,.32,1);--m-rapido:.16s;--m-medio:.22s}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--surface);color:var(--on-surface);font:15px/1.5 var(--texto);-webkit-text-size-adjust:100%}
+::selection{background:var(--primary);color:var(--on-primary)}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px;border-radius:6px}
+.barra :focus-visible,.carro :focus-visible,.chat-cab :focus-visible,.aviso :focus-visible{outline-color:#fff}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+h1,h2,h3{font-family:var(--display);line-height:1.15;margin:0;text-wrap:balance;letter-spacing:-.01em}
+.num{font-family:var(--mono);font-weight:500;font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.etq{font-size:.6875rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r8);border:0;font-weight:700;font-size:.9375rem;background:var(--primary);color:var(--on-primary);transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s}
+.btn:hover{background:var(--primary-container);color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sec{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
+.btn-sec:hover{background:var(--primary-fixed);color:var(--primary)}
+.btn:active,.pedir:active,.enviar:active,.sug:active,.cats button:active,.pestanas button:active,.copiar:active,.icono:active,.plato .paso button:active{transform:scale(.97)}
+
+/* ---------- Entrada (panel de la pestaña Pedir hasta identificarse) ---------- */
+#entrada{overflow-y:auto;padding:24px 16px 32px;background:var(--surface)}
+#entrada>*{max-width:440px;margin-left:auto;margin-right:auto}
+#entrada h2{font-size:1.5rem;font-weight:700}
+.lema{color:var(--on-variant);margin-top:6px;margin-bottom:20px}
+form.datos{display:grid;gap:18px}
+label.campo{display:grid;gap:6px;font-weight:700;font-size:.875rem}
+.ayuda{font-weight:400;font-size:.8125rem;color:var(--on-variant)}
+.entrada-tel{display:flex;align-items:stretch;border:1.5px solid var(--outline-variant);border-radius:var(--r8);background:var(--sc-lowest);overflow:hidden}
+.entrada-tel span{display:flex;align-items:center;padding:0 12px;border-right:1.5px solid var(--outline-variant);color:var(--on-variant);font-family:var(--mono)}
+input[type=text],input[type=tel],input[type=search],textarea{width:100%;min-height:52px;padding:10px 14px;border:1.5px solid var(--outline-variant);border-radius:var(--r8);background:var(--sc-lowest);caret-color:var(--primary)}
+.entrada-tel input{border:0;border-radius:0}
+input:focus,textarea:focus{outline:none;border-color:var(--primary)}
+.entrada-tel:focus-within{border-color:var(--primary)}
+[aria-invalid=true]{border-color:var(--error)!important}
+.error{color:var(--error);font-size:.8125rem;font-weight:700;min-height:1.3em;margin:0}
+.privacidad{display:flex;gap:12px;align-items:flex-start;font-weight:400;font-size:.875rem}
+.privacidad input{width:22px;height:22px;margin:2px 0 0;accent-color:var(--primary);flex:none}
+details{font-size:.875rem;color:var(--on-variant)}
+summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-height:32px}
+.horario{margin-top:20px;padding-top:16px;border-top:1px solid var(--sc-high);font-size:.8125rem;color:var(--on-variant);white-space:pre-line}
+
+/* ---------- App ---------- */
+#app{height:100%;height:100dvh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr)}
+.barra{display:flex;align-items:center;gap:12px;min-height:64px;padding:max(8px,env(safe-area-inset-top)) 16px 8px;background:var(--inverse);color:var(--on-inverse)}
+.barra h1{font-size:1.125rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barra small{display:block;font:500 .75rem var(--texto);opacity:.8;margin-top:1px;overflow:hidden;text-overflow:ellipsis}
+.abierto{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:rgba(163,246,156,.14);color:#a3f69c;font-size:.6875rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.abierto::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;animation:latir 2s ease-in-out infinite}
+.abierto.cerrado{background:rgba(255,255,255,.1);color:var(--on-inverse)}
+.llamar{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:999px;border:1.5px solid rgba(255,255,255,.35);color:inherit;font-size:.8125rem;font-weight:700;text-decoration:none;white-space:nowrap}
+.llamar:hover{background:rgba(255,255,255,.1)}
+.anuncio{margin:0;padding:10px 16px;background:var(--secondary-fixed);color:var(--on-surface);font-size:.875rem;font-weight:700;text-align:center}
+.anuncio.cerrado{background:var(--error-container)}
+.plato .desc{display:block;margin:2px 0 4px;font-size:.8125rem;color:var(--on-variant)}
+.promo-cat{color:var(--primary)}
+.abierto.cerrado::before{animation:none;opacity:.6}
+.demo{font-size:.6875rem;padding:4px 10px;border-radius:999px;background:var(--secondary-container);color:#17171a;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.info{margin:0;display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--sc-lowest);border-bottom:1px solid var(--sc-high);color:var(--on-variant);font-size:.8125rem;font-weight:600}
+.info svg{color:var(--primary);width:18px;height:18px}
+.info span{min-width:0}
+.contenido{grid-row:3;min-height:0;display:flex;flex-direction:column}
+.lateral{display:contents}
+.panel{min-height:0}
+
+/* Pestañas */
+.pestanas{order:-1;display:flex;background:var(--sc-lowest);border-bottom:1px solid var(--sc-high);flex:none}
+.pestanas button{flex:1;min-height:48px;border:0;background:none;font-weight:700;font-size:.875rem;color:var(--on-variant);border-bottom:3px solid transparent;position:relative;transition:transform var(--m-rapido) var(--m-out),color .15s,border-color .15s}
+.pestanas button[aria-selected=true]{color:var(--primary);border-bottom-color:var(--primary)}
+.punto{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--primary-container);margin-left:6px;vertical-align:middle}
+
+/* Aviso de cambio de estado */
+.aviso{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translate(-50%,-140%);width:min(440px,calc(100% - 32px));display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:var(--r12);background:var(--inverse);color:var(--on-inverse);box-shadow:var(--sombra-2);z-index:20;transition:transform .3s cubic-bezier(.16,1,.3,1);visibility:hidden}
+.aviso.ver{transform:translate(-50%,0);visibility:visible}
+.aviso p{margin:0;flex:1}
+.aviso button{color:var(--secondary-container);background:none;border:0;font-weight:700;min-height:44px}
+
+/* ---------- Catálogo ---------- */
+#menu{overflow-y:auto;padding:0 16px 16px;background:var(--surface);position:relative}
+.herramientas{position:sticky;top:0;z-index:2;display:grid;gap:10px;margin:0 -16px;padding:12px 16px 10px;background:var(--surface)}
+.buscar{position:relative;display:block}
+.buscar svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--outline);width:20px;height:20px;pointer-events:none}
+.buscar input{padding-left:44px;border-radius:999px}
+.cats{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px}
+.cats::-webkit-scrollbar{display:none}
+.cats button{transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s,border-color .15s;flex:none;min-height:44px;padding:0 18px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:700;font-size:.875rem;color:var(--on-variant);text-transform:capitalize;transition:background-color .15s,color .15s,border-color .15s}
+.cats button[aria-pressed=true]{background:var(--on-surface);border-color:var(--on-surface);color:var(--surface)}
+#menu h2{font-size:1.25rem;font-weight:700;margin:20px 0 12px;text-transform:capitalize}
+#lista-menu>h2:first-child{margin-top:8px}
+.rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.plato{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;min-height:116px;padding:14px;background:var(--sc-lowest);border-radius:var(--r12);box-shadow:var(--sombra);transition:box-shadow .2s}
+.plato:hover{box-shadow:var(--sombra-2)}
+.plato h3{font-size:1rem;font-weight:600;line-height:1.3}
+.plato .precio{display:block;margin-top:4px;font-size:.9375rem;color:var(--on-variant)}
+.plato .acc{margin-top:10px;display:flex;align-items:center;min-height:44px}
+.plato .foto{display:block;width:104px;height:104px;border-radius:var(--r8);object-fit:cover;background:var(--sc-low)}
+.plato .insignia{padding:4px 10px;border-radius:999px;background:var(--sc-high);color:var(--on-variant);font-size:.6875rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.plato.agotado h3,.plato.agotado .precio{color:var(--outline)}
+.plato.agotado .foto{filter:grayscale(1);opacity:.6}
+.pedir{min-height:44px;padding:0 20px;border-radius:999px;border:1.5px solid var(--primary);background:transparent;color:var(--primary);font-weight:700;font-size:.875rem;transition:transform var(--m-rapido) var(--m-out),background-color .15s,color .15s}
+.pedir:hover{background:var(--primary);color:var(--on-primary)}
+.plato .paso{display:inline-flex;align-items:center;min-height:44px;border-radius:999px;background:var(--primary);color:var(--on-primary)}
+.plato .paso button{transition:transform var(--m-rapido) var(--m-out);width:44px;height:44px;border:0;border-radius:50%;background:none;color:inherit;font-size:1.375rem;font-weight:700;line-height:1}
+.plato .paso output{min-width:1.6em;text-align:center;font-family:var(--mono);font-weight:500;font-size:1.0625rem}
+.vacio-busca{padding:32px 0;text-align:center;color:var(--on-variant)}
+.carro{position:sticky;bottom:0;margin:16px -16px -16px;padding:12px 16px max(12px,env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;background:var(--inverse);color:var(--on-inverse);box-shadow:0 -6px 20px rgba(0,0,0,.18);animation:entra var(--m-medio) var(--m-out)}
+.carro p{margin:0;flex:1;min-width:0;line-height:1.25}
+.carro p span{font-size:.75rem;font-weight:600;opacity:.85;text-transform:uppercase;letter-spacing:.06em}
+.carro p b{display:block;font:500 1.25rem var(--mono)}
+.carro .btn{flex:none;background:var(--primary-container);color:#fff}
+.carro .btn:hover{background:var(--primary);color:var(--on-primary)}
+
+/* ---------- Chat ---------- */
+#chat{display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto auto auto;height:100%;min-height:0;background:var(--surface)}
+.chat-cab{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--inverse);color:var(--on-inverse)}
+.chat-cab .logo{width:36px;height:36px;border-radius:50%;font-size:1.0625rem}
+.chat-cab b{display:block;font:700 .9375rem var(--display)}
+.chat-cab small{display:flex;align-items:center;gap:6px;font-size:.75rem;opacity:.85}
+.chat-cab small::before{content:"";width:7px;height:7px;border-radius:50%;background:#a3f69c}
+.mensajes{overflow-y:auto;padding:16px 12px 8px;display:flex;flex-direction:column;gap:12px;scrollbar-color:var(--outline-variant) transparent}
+.fila-bot{display:flex;gap:8px;align-items:flex-end;align-self:flex-start;max-width:min(88%,560px)}
+.avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--on-surface);color:var(--surface);font:800 .8125rem/1 var(--display);flex:none}
+.burbuja{padding:10px 14px;border-radius:var(--r12);white-space:pre-wrap;overflow-wrap:anywhere;max-width:min(82%,520px);font-size:.9375rem}
+.fila-bot .burbuja{max-width:none}
+.bot{background:var(--sc-lowest);border:1px solid var(--sc-high);border-bottom-left-radius:var(--r4);box-shadow:var(--sombra)}
+.yo{align-self:flex-end;background:var(--primary);color:var(--on-primary);border-bottom-right-radius:var(--r4)}
+.sistema{align-self:center;font-size:.75rem;font-weight:600;color:var(--on-variant);text-align:center;max-width:90%;padding:4px 12px;background:var(--sc);border-radius:999px}
+.escribiendo{align-self:flex-start;color:var(--on-variant);font-size:.8125rem;padding:4px 8px}
+.resumen{margin:0 12px 8px;border-radius:var(--r12);background:var(--sc-lowest);box-shadow:var(--sombra);border-left:4px solid var(--primary)}
+.resumen>#btn-resumen{width:100%;display:flex;align-items:center;gap:10px;min-height:56px;padding:8px 14px;border:0;background:none;text-align:left}
+.resumen strong{font:700 .9375rem var(--display)}
+.resumen strong span{font-family:var(--mono);font-weight:500}
+.resumen .total{margin-left:auto;font-size:1.0625rem;white-space:nowrap}
+.resumen .det{padding:0 14px 12px}
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.6875rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--sc-high);color:var(--on-variant);white-space:nowrap}
+.chip.ok{background:var(--tertiary-fixed);color:var(--tertiary)}
+table.items{width:100%;border-collapse:collapse;font-size:.875rem}
+table.items td{padding:5px 0;vertical-align:top}
+table.items td:last-child{text-align:right;white-space:nowrap;padding-left:12px;font-family:var(--mono)}
+table.items tr.sum td{border-top:1px solid var(--sc-high);padding-top:8px}
+table.items tr.tot td{font-weight:700;font-size:1rem}
+.resumen .cta{margin:0 14px 12px;width:calc(100% - 28px)}
+.ubic-ok{display:flex;gap:6px;align-items:center;margin:0 14px 12px;color:var(--tertiary);font-weight:700}
+.sugerencias{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:4px 12px 8px}
+.sugerencias::-webkit-scrollbar{display:none}
+.sug{flex:none;min-height:44px;padding:0 16px;border-radius:999px;border:1.5px solid var(--outline-variant);background:var(--sc-lowest);font-weight:600;font-size:.8125rem;color:var(--on-surface);transition:transform var(--m-rapido) var(--m-out),background-color .15s,border-color .15s}
+.sug:hover{border-color:var(--primary);background:var(--primary-fixed)}
+.componer{display:flex;gap:8px;align-items:flex-end;padding:10px 12px max(10px,env(safe-area-inset-bottom));background:var(--sc-lowest);border-top:1px solid var(--sc-high)}
+.componer textarea{resize:none;max-height:140px;border-radius:24px;padding:12px 18px;background:var(--sc-low);border-color:transparent}
+.componer textarea:focus{border-color:var(--primary);background:var(--sc-lowest)}
+.enviar{width:48px;height:48px;border-radius:50%;border:0;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;flex:none;transition:transform var(--m-rapido) var(--m-out),background-color .15s}
+.enviar:hover{background:var(--primary-container);color:#fff}
+.enviar:disabled{opacity:.5}
+
+/* ---------- Mi pedido ---------- */
+#estado{overflow-y:auto;padding:20px 16px 32px;background:var(--surface)}
+#estado>*{max-width:560px;margin-left:auto;margin-right:auto}
+#estado h2{font-size:1.75rem;font-weight:700}
+#estado-meta{font-family:var(--mono);font-size:.875rem;color:var(--on-variant)}
+.vacio{color:var(--on-variant);margin-top:8px}
+ol.pasos{list-style:none;margin:24px auto;padding:0}
+ol.pasos li{display:grid;grid-template-columns:32px 1fr;gap:4px 14px;position:relative;padding-bottom:22px}
+ol.pasos li::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--sc-highest)}
+ol.pasos li:last-child::before{display:none}
+ol.pasos li.hecho::before{background:var(--tertiary)}
+.marca-paso{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--sc-highest);background:var(--sc-lowest);color:var(--on-variant);grid-row:span 2;font-family:var(--mono);font-size:.8125rem}
+.hecho .marca-paso{background:var(--tertiary);border-color:var(--tertiary);color:var(--on-tertiary)}
+.actual .marca-paso{border-color:var(--primary);background:var(--primary);color:var(--on-primary)}
+.pasos b{font-weight:600}
+.actual b{font:700 1.25rem var(--display)}
+.pasos small{color:var(--on-variant)}
+.pendiente b{color:var(--on-variant);font-weight:500}
+.tarjeta{background:var(--sc-lowest);border-radius:var(--r12);box-shadow:var(--sombra);padding:16px;margin-top:16px}
+.tarjeta h3{font-size:1.0625rem;margin-bottom:8px}
+.pago{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:10px 0;border-top:1px solid var(--sc-high)}
+.pago:first-of-type{border-top:0}
+.pago span{min-width:0;overflow-wrap:anywhere}
+.comprobante{margin-top:12px;padding-top:14px;border-top:1px solid var(--sc-high);display:grid;gap:10px}
+.btn-ancho{width:100%}
+.comprobante .ayuda{margin:0}
+.previa{display:flex;gap:12px;align-items:center}
+.previa img{width:72px;height:96px;object-fit:cover;border-radius:var(--r8);border:1px solid var(--sc-high);background:var(--sc-low);flex:none}
+.previa div{min-width:0;flex:1}
+.fila-btn{display:flex;gap:8px;flex-wrap:wrap}
+.fila-btn .btn{flex:1 1 140px}
+progress{width:100%;height:6px;accent-color:var(--primary)}
+.recibido{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:var(--r12);background:var(--secondary-fixed)}
+.recibido p{margin:0}
+.enlace{background:none;border:0;padding:0;min-height:44px;color:var(--primary);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.espera{display:block;font-size:.75rem}
+.copiar{transition:transform var(--m-rapido) var(--m-out),background-color .15s;min-height:44px;padding:0 14px;border-radius:999px;border:1.5px solid var(--outline-variant);background:none;font-weight:700;font-size:.8125rem;flex:none}
+.copiar:hover{background:var(--sc-low)}
+#pago-datos[hidden]+.comprobante{border-top:0;margin-top:0;padding-top:0}
+dialog.hoja{margin:auto auto 0;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border:0;border-radius:20px 20px 0 0;padding:24px 16px max(20px,env(safe-area-inset-bottom));background:var(--sc-lowest);color:var(--on-surface)}
+dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
+.hoja h2{font-size:1.5rem;margin:0 44px 6px 0}
+.hoja>*+*{margin-top:12px}
+.hoja .cerrar{position:absolute;top:12px;right:12px;color:var(--on-surface)}
+.hoja details{font-size:1rem;color:var(--on-surface)}
+.hoja details[open]{display:grid;gap:10px}
+.hoja summary{font-weight:700;color:var(--primary);min-height:44px;display:flex;align-items:center}
+#ubic-aviso-texto{white-space:pre-wrap;max-height:40vh;overflow-y:auto;font-size:.875rem;color:var(--on-variant);background:var(--sc-low);border-radius:var(--r12);padding:12px}
+.comprobante .error{margin:0;min-height:0}
+.icono{transition:transform var(--m-rapido) var(--m-out),background-color .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 10px;border:0;border-radius:999px;background:transparent;color:inherit;font-weight:600}
+.icono:hover{background:var(--sc-high)}
+
+/* Movimiento (solo transform/opacity) */
+@keyframes entra{from{opacity:0;transform:translateY(8px)}}
+@keyframes punto{0%,60%,100%{opacity:.3;transform:none}30%{opacity:1;transform:translateY(-3px)}}
+@keyframes anillo{from{opacity:.5;transform:scale(1)}to{opacity:0;transform:scale(1.5)}}
+@keyframes fade{from{opacity:0}}
+@keyframes entra-yo{from{opacity:0;transform:translateX(10px) scale(.97)}}
+@keyframes entra-bot{from{opacity:0;transform:translateX(-10px) scale(.97)}}
+#mapa-cli{height:260px;border-radius:var(--r12);margin-top:12px;background:var(--sc);z-index:0}
+.pin-rep span,.pin-yo span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--primary-container);color:#fff;font:700 .8125rem var(--texto);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pin-yo span{background:var(--inverse);color:#fff}
+.pin-rep.viejo span{background:#6f6f73;border-style:dashed}
+.leaflet-container{font-family:var(--texto)}
+@keyframes latir{0%,100%{opacity:1}50%{opacity:.35}}
+.burbuja,.sistema,.escribiendo,.resumen{animation:entra var(--m-medio) var(--m-out)}
+.fila-bot{animation:entra-bot var(--m-medio) var(--m-out);transform-origin:left bottom}
+.yo{animation:entra-yo var(--m-medio) var(--m-out);transform-origin:right bottom}
+.fila-bot .burbuja{animation:none}
+.plato{animation:entra var(--m-medio) var(--m-out) backwards}
+.plato:nth-child(2){animation-delay:40ms}.plato:nth-child(3){animation-delay:80ms}.plato:nth-child(4){animation-delay:120ms}.plato:nth-child(5){animation-delay:160ms}.plato:nth-child(n+6){animation-delay:200ms}
+#lista-menu.quieto .plato{animation:none}
+#menu:not([hidden]),#chat:not([hidden]),#estado:not([hidden]),#entrada:not([hidden]),#mapa-cli:not([hidden]),.resumen .det:not([hidden]){animation:fade var(--m-medio) var(--m-out)}
+#mapa-cli:not(.leaflet-container){animation:latir 1.4s ease-in-out infinite}
+.pin-rep{transition:transform 1s linear}
+.pin-rep span{transition:background-color .3s}
+.plato .foto{transition:opacity var(--m-medio) var(--m-out)}
+.plato .foto.carga{opacity:0}
+.puntos{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle}
+.puntos i{width:5px;height:5px;border-radius:50%;background:currentColor;animation:punto 1.1s infinite}
+.puntos i:nth-child(2){animation-delay:.15s}.puntos i:nth-child(3){animation-delay:.3s}
+.actual .marca-paso{position:relative}
+.actual .marca-paso::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--primary);animation:anillo 1.8s var(--m-out) infinite}
+
+.abierto .hasta{display:none}
+@media (min-width:560px){.abierto .hasta{display:inline}}
+@media (max-width:420px){.info{font-size:.75rem}.abierto{padding:4px 10px}}
+
+/* Escritorio: catálogo a la izquierda y chat fijo a la derecha */
+@media (min-width:1024px){
+  .contenido{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:20px;width:100%;max-width:1440px;margin:0 auto;padding:20px}
+  .lateral{display:flex;flex-direction:column;min-height:0;background:var(--sc-lowest);border-radius:var(--r12);box-shadow:var(--sombra);overflow:hidden}
+  #menu{display:block!important;padding:0 8px 0 0;background:none}
+  .herramientas{margin:0;padding:0 0 10px}
+  .cats{margin:0;padding:2px 0}
+  .carro{margin:16px 0 0;border-radius:var(--r12);bottom:0}
+  .pestanas button#tab-menu{display:none}
+  #chat,#estado,#entrada{flex:1}
+  #entrada,#estado{background:none}
+  .barra{padding-inline:max(20px,calc((100% - 1440px)/2 + 20px))}
+  .info{padding-inline:max(20px,calc((100% - 1440px)/2 + 20px))}
+}
+/* Teléfono: menos cosas fijas arriba; el buscador se va al desplazar y solo quedan las categorías pegadas */
+@media (max-width:1023px){
+  .barra{min-height:0;padding-block:8px}
+  .info{padding:6px 12px;font-size:.75rem;white-space:nowrap}
+  .info span{overflow:hidden;text-overflow:ellipsis}
+  .herramientas{display:contents}
+  .buscar{margin:12px 0 4px}
+  .cats{position:sticky;top:0;z-index:2;padding-block:8px;background:var(--surface)}
+}
+@media (prefers-reduced-motion:reduce){ /* solo fundidos: sin desplazamientos, escalas ni bucles */
+  @keyframes entra{from{opacity:0}}@keyframes entra-yo{from{opacity:0}}@keyframes entra-bot{from{opacity:0}}
+  .plato{animation-delay:0s!important}
+  .btn:active,.pedir:active,.enviar:active,.sug:active,.cats button:active,.pestanas button:active,.copiar:active,.icono:active,.plato .paso button:active{transform:none}
+  .puntos i,.abierto::before,.actual .marca-paso::after,#mapa-cli:not(.leaflet-container){animation:none}
+  .pin-rep,.aviso{transition:none}
+}
+</style>
+</head>
+<!-- === CUERPO === -->
+<body data-marca="DeliFood">
+
+<!-- === ICONOS: sprite SVG; cada icono se usa con <svg><use href="#i-nombre"/></svg> === -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-enviar" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-flecha" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+</svg>
+
+<!-- Menú: el servidor puede reemplazar este JSON con menu.yaml; si no, se pide a GET /menu. -->
+<!-- === MENÚ DE DEMOSTRACIÓN (solo al abrir el archivo sin servidor; con servidor manda GET /menu) === -->
+<script type="application/json" id="datos-menu">
+[
+ {"id":"tasajo-con-arroz","nombre":"Tasajo con arroz, ensalada y patacones","precio":7.00,"categoria":"platos","disponible":true},
+ {"id":"sancocho","nombre":"Sancocho de gallina","precio":5.00,"categoria":"platos","disponible":true},
+ {"id":"arroz-con-guandu","nombre":"Arroz con guandú y cerdo","precio":5.50,"categoria":"platos","disponible":true},
+ {"id":"tortilla-con-queso","nombre":"Tortilla de maíz con queso (2 u.)","precio":2.50,"categoria":"entradas","disponible":true},
+ {"id":"bollo","nombre":"Bollo de maíz envuelto en hoja","precio":1.50,"categoria":"entradas","disponible":true},
+ {"id":"empanadas","nombre":"Empanadas de carne o pollo (3 u.)","precio":3.00,"categoria":"entradas","disponible":true,"opciones":["carne","pollo"]},
+ {"id":"chicheme","nombre":"Chicheme (bebida de maíz con leche)","precio":1.75,"categoria":"bebidas","disponible":true},
+ {"id":"chicha-de-saril","nombre":"Chicha de saril","precio":1.50,"categoria":"bebidas","disponible":true},
+ {"id":"soda","nombre":"Soda en lata","precio":1.25,"categoria":"bebidas","disponible":true},
+ {"id":"tres-leches","nombre":"Tres leches","precio":3.50,"categoria":"postres","disponible":false}
+]
+</script>
+
+<!-- ============ App: menú a la vista desde el principio; nombre y teléfono solo al pedir ============ -->
+<!-- === APLICACIÓN: barra de arriba + pestañas (Menú, Chat, Mi pedido) === -->
+<div id="app">
+<!-- === BARRA SUPERIOR: logo/inicial, nombre (DeliFood) y estado abierto/cerrado === -->
+  <header class="barra">
+    <span class="logo" aria-hidden="true" data-inicial></span>
+    <h1>DeliFood<small id="hola"></small></h1>
+    <span class="abierto" id="abierto" role="status" hidden></span>
+    <a class="llamar" id="llamar" hidden>Llamar</a>
+    <span class="demo" id="modo-demo" hidden>Demo</span>
+  </header>
+  <p class="anuncio" id="anuncio" role="status" hidden></p>
+  <p class="info" id="info" hidden><svg class="i" aria-hidden="true"><use href="#i-moto"/></svg><span id="info-txt"></span></p>
+<!-- === CONTENIDO: catálogo, chat con el asistente, formulario de entrada y seguimiento del pedido === -->
+  <div class="contenido">
+    <section id="menu" class="panel" aria-label="Menú" hidden>
+      <div class="herramientas">
+        <label class="buscar"><span class="sr">Buscar en el menú</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-menu" placeholder="Buscar un plato" autocomplete="off" enterkeyhint="search"></label>
+        <div class="cats" id="cats" role="group" aria-label="Categorías"></div>
+      </div>
+      <div id="lista-menu"></div>
+      <div class="carro" id="carro" hidden><p role="status" aria-live="polite" aria-atomic="true"><span id="carro-n"></span><b id="carro-total"></b></p><button type="button" class="btn" id="carro-enviar">Pedir</button></div>
+    </section>
+
+    <div class="lateral">
+    <nav class="pestanas" role="tablist" aria-label="Secciones">
+      <button role="tab" id="tab-menu" aria-controls="menu" aria-selected="false" tabindex="-1">Menú</button>
+      <button role="tab" id="tab-chat" aria-controls="chat" aria-selected="true">Pedir</button>
+      <button role="tab" id="tab-estado" aria-controls="estado" aria-selected="false" tabindex="-1">Mi pedido<span class="punto" id="punto" hidden></span><span class="sr" id="punto-sr"></span></button>
+    </nav>
+    <section id="entrada" class="panel" role="tabpanel" aria-labelledby="tab-chat">
+      <h2>¿A nombre de quién?</h2>
+      <p class="lema" id="lema">Solo esto y pides por chat: te decimos el total y pagas con Yappy o transferencia.</p>
+      <form class="datos" novalidate>
+        <label class="campo">Tu nombre
+          <input type="text" name="nombre" autocomplete="given-name" required maxlength="60" aria-describedby="e-nombre">
+          <span class="error" id="e-nombre" aria-live="polite"></span>
+        </label>
+        <label class="campo">Teléfono celular
+          <span class="ayuda">Para avisarte del estado de tu pedido.</span>
+          <span class="entrada-tel"><span aria-hidden="true">+507</span>
+            <input type="tel" name="telefono" inputmode="numeric" autocomplete="tel-national" placeholder="6123 4567" required aria-describedby="e-tel"></span>
+          <span class="error" id="e-tel" aria-live="polite"></span>
+        </label>
+        <div>
+          <label class="privacidad">
+            <input type="checkbox" name="privacidad" required aria-describedby="e-priv">
+            <span>Acepto que DeliFood use mi nombre, teléfono y esta conversación para tomar y entregar mi pedido. Un asistente de IA me atiende.</span>
+          </label>
+          <details id="det-privacidad">
+            <summary>Ver aviso de privacidad</summary>
+            <!-- Con servidor, GET /aviso sustituye este bloque (textContent). Fijo = solo modo demo: borrador de legal-datos. -->
+            <div id="privacidad-texto">
+            <p><b>Responsable:</b> DeliFood, RUC [RUC], [dirección], Panamá.</p>
+            <p><b>Datos que pedimos:</b> nombre, teléfono, dirección de entrega (si pides a domicilio), tu pedido y los mensajes que escribes en el chat.</p>
+            <p><b>Para qué:</b> tomar, preparar, cobrar y entregar tu pedido, y contactarte sobre él. No los usamos para publicidad sin un permiso aparte.</p>
+            <p><b>Asistente de IA:</b> un sistema de inteligencia artificial lee tus mensajes para responderte. Ese servicio lo presta un proveedor tecnológico que puede estar fuera de Panamá ([proveedor], [país]); solo recibe lo necesario para contestarte y no puede usarlo para otros fines. Si quieres, pide hablar con una persona del restaurante.</p>
+            <p><b>Cuánto tiempo:</b> borramos la conversación a los 90 días y los datos del pedido a los [plazo], salvo lo que la ley obligue a conservar (facturación).</p>
+            <p><b>Tus derechos:</b> puedes pedir ver, corregir, borrar u oponerte al uso de tus datos, o recibir una copia. Escríbenos a [correo / WhatsApp]. Responderemos en el plazo legal. Si no quedas conforme, puedes acudir a la ANTAI.</p>
+            <p><b>Compartimos tus datos solo con:</b> el proveedor del sistema de pedidos, el proveedor de IA y, si aplica, el repartidor (nombre, teléfono y dirección para la entrega).</p>
+            <p>Última actualización: [fecha].</p>
+            </div>
+          </details>
+          <span class="error" id="e-priv" aria-live="polite"></span>
+        </div>
+        <button class="btn" type="submit">Empezar a pedir</button>
+      </form>
+      <p class="horario" id="horario-txt"></p>
+    </section>
+    <section id="chat" class="panel" role="tabpanel" aria-labelledby="tab-chat" hidden>
+      <div class="chat-cab"><span class="logo" aria-hidden="true" data-inicial></span><div><b>Asistente de DeliFood</b><small>Te atiende un asistente de IA</small></div></div>
+      <div class="mensajes" id="mensajes" role="log" aria-live="polite" aria-label="Conversación"></div>
+      <div class="resumen" id="resumen" hidden>
+        <button id="btn-resumen" aria-expanded="false" aria-controls="resumen-det">
+          <strong>Tu pedido <span id="r-id"></span></strong>
+          <span class="chip" id="r-estado"></span>
+          <span class="total num" id="r-total"></span>
+          <svg class="i"><use href="#i-flecha"/></svg>
+        </button>
+        <div class="det" id="resumen-det" hidden></div>
+        <button class="btn btn-sec cta" id="r-ubic" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Compartir mi ubicación</button>
+        <p class="ubic-ok" id="r-ubic-ok" hidden><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Ubicación recibida</p>
+        <button class="btn cta" id="r-pagar" hidden><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Enviar comprobante de pago</button>
+      </div>
+      <div class="sugerencias" id="sugerencias" aria-label="Sugerencias rápidas">
+        <button type="button" class="sug">¿Qué tienen hoy?</button><button type="button" class="sug">Quiero recoger</button><button type="button" class="sug">Es para entrega</button><button type="button" class="sug">Quiero pagar</button>
+      </div>
+      <form class="componer" id="componer">
+        <label class="sr" for="texto">Escribe tu mensaje</label>
+        <textarea id="texto" rows="1" placeholder="Escribe tu pedido o una pregunta" maxlength="1000"></textarea>
+        <button class="enviar" type="submit" aria-label="Enviar"><svg class="i"><use href="#i-enviar"/></svg></button>
+      </form>
+    </section>
+
+    <section id="estado" class="panel" role="tabpanel" aria-labelledby="tab-estado" hidden>
+      <h2>Mi pedido</h2>
+      <p class="vacio" id="estado-vacio">Aún no tienes un pedido confirmado. Elige del menú o escribe en el chat lo que quieres comer.</p>
+      <div id="estado-lleno" hidden>
+        <p id="estado-meta"></p>
+        <div class="tarjeta" id="tarjeta-pago" hidden>
+          <h3 id="pago-titulo">Paga y envía tu comprobante</h3>
+          <div id="pago-datos"></div>
+          <div id="efectivo-caja" hidden>
+            <p class="t-sub" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
+            <button class="btn btn-sec btn-ancho" id="efectivo-boton" type="button">Pagar en efectivo al recibir</button>
+            <p class="error" id="efectivo-error" role="alert"></p>
+          </div>
+          <div class="comprobante">
+            <input type="file" id="cp-archivo" accept="image/*" hidden>
+            <div id="cp-elegir">
+              <button class="btn btn-ancho" id="cp-boton" aria-describedby="cp-privacidad"><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Enviar comprobante</button>
+            </div>
+            <div id="cp-previa" hidden>
+              <div class="previa">
+                <img id="cp-img" alt="Vista previa de tu comprobante">
+                <div><b>Revisa que se lean el monto y la referencia.</b><br>
+                  <button class="enlace" id="cp-cambiar">Elegir otra foto</button></div>
+              </div>
+              <label class="campo">Número de referencia <span class="ayuda">Opcional. Ayuda a verificar más rápido.</span>
+                <input type="text" id="cp-ref" maxlength="40" autocomplete="off"></label>
+              <progress id="cp-progreso" hidden aria-label="Enviando comprobante"></progress>
+              <div class="fila-btn"><button class="btn" id="cp-enviar">Enviar</button></div>
+            </div>
+            <p class="error" id="cp-error" role="alert"></p>
+            <div class="recibido" id="cp-ok" hidden tabindex="-1">
+              <svg class="i" aria-hidden="true"><use href="#i-reloj"/></svg>
+              <div><p><b id="cp-ok-titulo">Comprobante recibido</b></p>
+                <p>Pendiente de verificación por el restaurante. Te avisamos aquí en cuanto esté pagado.</p>
+                <button class="enlace" id="cp-otra">Enviar otra foto</button></div>
+            </div>
+            <p class="ayuda" id="cp-privacidad">Comprobante de Yappy: solo lo usa el personal del restaurante para confirmar tu pago. No se envía al asistente de IA y se borra a los 7 días de confirmar o rechazar el pago.</p>
+          </div>
+        </div>
+        <ol class="pasos" id="pasos"></ol>
+        <div class="tarjeta" id="tarjeta-mapa" hidden>
+          <h3>Tu repartidor</h3>
+          <p id="mapa-cli-txt" role="status" aria-live="polite"></p>
+          <div id="mapa-cli" role="img" aria-label="Mapa con la posición actual de tu repartidor" hidden></div>
+          <p class="ayuda" id="mapa-cli-aviso" hidden>No se pudo cargar el mapa. Te seguimos avisando por aquí.</p>
+        </div>
+        <div class="tarjeta" id="tarjeta-ubic" hidden>
+          <h3>Entrega a domicilio</h3>
+          <p class="ayuda" id="ubic-estado"></p>
+          <button class="btn btn-sec btn-ancho" id="e-ubic"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg><span>Compartir mi ubicación</span></button>
+        </div>
+        <div class="tarjeta"><h3>Detalle</h3><div id="estado-items"></div></div>
+      </div>
+    </section>
+    </div>
+  </div>
+</div>
+
+<!-- === HOJA «Compartir mi ubicación» (POST /ubicacion) === -->
+<dialog class="hoja" id="dlg-ubic" aria-labelledby="ubic-titulo">
+  <button class="icono cerrar" id="ubic-cerrar" aria-label="Cerrar"><svg class="i" aria-hidden="true"><use href="#i-cerrar"/></svg></button>
+  <h2 id="ubic-titulo">¿Dónde te lo llevamos?</h2>
+  <p class="ayuda">Es opcional: también puedes escribir la dirección en el chat.</p>
+  <button class="btn btn-ancho" id="ubic-gps"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg><span>Compartir mi ubicación</span></button>
+  <details id="ubic-pegar">
+    <summary>Pegar un enlace de Google Maps</summary>
+    <p class="ayuda">En Google Maps, mantén presionado el lugar de entrega, toca Compartir y luego Copiar. Pégalo aquí.</p>
+    <label class="sr" for="ubic-enlace">Enlace de Google Maps</label>
+    <input type="text" id="ubic-enlace" inputmode="url" autocomplete="off" placeholder="maps.app.goo.gl/…">
+    <button class="btn btn-sec btn-ancho" id="ubic-enviar">Enviar enlace</button>
+  </details>
+  <p class="error" id="ubic-error" role="alert"></p>
+  <p class="ayuda">Solo para que el repartidor te encuentre. Se borra al entregar el pedido. <button class="enlace" id="ubic-ver-aviso" aria-expanded="false" aria-controls="ubic-aviso-texto">Ver aviso de privacidad</button></p>
+  <div id="ubic-aviso-texto" hidden></div>
+</dialog>
+
+<!-- === AVISO flotante (mensajes del restaurante: GET /avisos) === -->
+<div class="aviso" id="aviso" role="status" aria-live="assertive">
+  <svg class="i" aria-hidden="true"><use href="#i-campana"/></svg><p id="aviso-texto"></p>
+  <button id="aviso-ver">Ver</button>
+</div>
+
+<!-- === LÓGICA: estado, llamadas a la API (función api()), pintado de menú, chat, pedido, ubicación, comprobante === -->
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const MENU = JSON.parse($("#datos-menu").textContent);
+const MARCA = document.body.dataset.marca || "Restaurante"; // el servidor escribe aquí `marca:` de servicio.yaml
+document.querySelectorAll("[data-inicial]").forEach(e => e.textContent = MARCA.trim().charAt(0).toUpperCase());
+const PASOS = [
+  ["confirmado", "Confirmado", "Recibimos tu pedido. Falta el pago."],
+  ["pago_reportado", "Pago reportado", "Estamos verificando tu pago."],
+  ["pagado", "Pagado", "Pago verificado. Pasa a cocina."],
+  ["en_preparacion", "En preparación", "Tu comida se está cocinando."],
+  ["listo", "Listo", "Puedes recogerlo o va en camino."]
+];
+const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado", caducado:"Caducó, pide de nuevo"};
+PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
+ETIQUETA.en_camino = "En camino";
+const PASOS_ENTREGA = [...PASOS.slice(0, 4), ["listo", "Listo", "Sale enseguida con el repartidor."], ["en_camino", "En camino", "El repartidor va hacia ti."]];
+const AVISO = {
+  pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
+  en_preparacion:"Tu pedido está en preparación.",
+  listo:"¡Tu pedido está listo!",
+  en_camino:"¡Tu pedido va en camino!",
+  entregado:"Pedido entregado. ¡Buen provecho!",
+  cancelado:"Tu pedido fue cancelado."
+};
+const num = x => typeof x === "string" ? parseFloat(((x.match(/-?\d+(?:[.,]\d+)?/) || ["0"])[0]).replace(",", ".")) : Number(x); // "B/. 7.00" → 7
+const dinero = n => { const v = num(n); return "B/. " + (isFinite(v) ? v : 0).toFixed(2); }; // siempre B/. 0.00
+const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "file:", ocupado:false, sondeo:0, dentro:false};
+const guardar = () => { try { localStorage.setItem("cliente", JSON.stringify({nombre:st.nombre, telefono:st.telefono.replace(/^507/, "")})); } catch (e) {} }; // sin prefijo: el campo ya muestra +507
+
+/* ---------- Datos del restaurante: GET /config (salen de servicio.yaml). Lo fijo de aquí es solo para la demostración sin servidor. ---------- */
+const DEMO_CFG = {efectivo:true, horario:{dias:["mar", "mie", "jue", "vie", "sab", "dom"], turnos:[["11:00", "15:00"], ["18:00", "22:00"]]}, impuesto_pct:7,
+  envio:{"Chitré":2, "La Villa de Los Santos":3}, pago:{yappy:"@delifood (ejemplo)", transferencia:"Banco General · Ahorros 03-00-00-000000-0 (ejemplo)"}};
+let CFG = st.demo ? DEMO_CFG : {};
+const ORDEN_DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
+const NOMBRE_DIA = {lun:"lunes", mar:"martes", mie:"miércoles", jue:"jueves", vie:"viernes", sab:"sábado", dom:"domingo"};
+const NOMBRE_PAGO = {yappy:"Yappy", transferencia:"Transferencia"};
+const mayus = t => t.charAt(0).toUpperCase() + t.slice(1);
+const turnosDe = h => h.turnos || (h.desde && h.hasta ? [[h.desde, h.hasta]] : []);
+// {dia: [[desde, hasta], ...]}: el panel guarda un horario por día (por_dia); servicio.yaml trae dias + turnos
+const porDia = h => Object.fromEntries(ORDEN_DIAS.map(d => [d, h.por_dia ? h.por_dia[d] || [] : (h.dias || []).includes(d) ? turnosDe(h) : []]));
+function textoHorario(h) { // "Martes a viernes · 11:00–15:00 y 18:00–22:00" y, si otros días tienen otras horas, una línea más por cada grupo
+  const pd = porDia(h), grupos = new Map();
+  for (const d of ORDEN_DIAS) { const t = pd[d].map(([a, b]) => `${a}–${b}`).join(" y "); if (t) grupos.set(t, [...(grupos.get(t) || []), d]); }
+  return [...grupos].map(([t, ds]) => {
+    const seguidos = ds.every((d, i) => !i || ORDEN_DIAS.indexOf(d) === ORDEN_DIAS.indexOf(ds[i - 1]) + 1);
+    const dias = ds.length === 7 ? "Todos los días" : seguidos && ds.length > 2 ? `${mayus(NOMBRE_DIA[ds[0]])} a ${NOMBRE_DIA[ds[ds.length - 1]]}` : mayus(ds.map(d => NOMBRE_DIA[d]).join(", "));
+    return dias + " · " + t;
+  }).join("\n");
+}
+function pintarConfig() {
+  const envio = Object.entries(CFG.envio || {}).map(([z, p]) => `${z} ${dinero(p)}`.trim()).join(" · "); // zona "" = costo fijo
+  const info = [envio && "Entrega: " + envio, num(CFG.impuesto_pct) ? `Precios sin ITBMS (${CFG.impuesto_pct} %)` : ""].filter(Boolean).join(" · ");
+  $("#info-txt").textContent = info; $("#info").hidden = !info;
+  $("#horario-txt").textContent = [textoHorario(CFG.horario || {}), envio && "Entrega: " + envio].filter(Boolean).join("\n");
+  const tel = String(CFG.telefono || ""), dig = tel.replace(/\D/g, ""), ll = $("#llamar"); // teléfono del restaurante: lo pone el dueño en el panel
+  ll.hidden = !dig; if (dig) { ll.href = "tel:" + (dig.length === 8 ? "+507" : tel.trim().startsWith("+") ? "+" : "") + dig; ll.setAttribute("aria-label", "Llamar al restaurante: " + tel); }
+  const an = $("#anuncio"), texto = CFG.cerrado ? "Ahora no estamos recibiendo pedidos." + (dig ? " Si necesitas algo, llámanos al " + tel + "." : "") : CFG.anuncio || "";
+  an.textContent = texto; an.hidden = !texto; an.classList.toggle("cerrado", !!CFG.cerrado);
+  $("#pago-datos").replaceChildren(...Object.entries(CFG.pago || {}).map(([k, v]) => {
+    const fila = document.createElement("div"), s = document.createElement("span"), b = document.createElement("b"), c = document.createElement("button");
+    fila.className = "pago"; b.textContent = NOMBRE_PAGO[k] || k; s.append(b, document.createElement("br"), String(v));
+    c.className = "copiar"; c.type = "button"; c.dataset.copiar = String(v); c.textContent = "Copiar";
+    fila.append(s, c); return fila;
+  }));
+  pintarAbierto();
+}
+async function cargarConfig() { // sin sesión no trae los datos de pago; se vuelve a pedir al entrar
+  if (!st.demo) try { CFG = await api("GET", "/config"); } catch (e) { return; }
+  pintarConfig();
+}
+
+/* ---------- Entrada ---------- */
+const form = $("form.datos");
+try { const g = JSON.parse(localStorage.getItem("cliente") || "null"); if (g) { form.nombre.value = g.nombre; form.telefono.value = g.telefono; } } catch (e) {}
+form.addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const nombre = form.nombre.value.trim();
+  const tel = form.telefono.value.replace(/\D/g, "").replace(/^507/, "");
+  const errores = [
+    [form.nombre, "#e-nombre", nombre ? "" : "Escribe tu nombre."],
+    [form.telefono, "#e-tel", /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
+    [form.privacidad, "#e-priv", form.privacidad.checked ? "" : "Necesitamos tu permiso para tomar el pedido."]
+  ];
+  let primero = null;
+  for (const [el, id, msg] of errores) {
+    $(id).textContent = msg;
+    el.setAttribute("aria-invalid", msg ? "true" : "false");
+    if (msg && !primero) primero = el;
+  }
+  if (primero) return primero.focus();
+  st.nombre = nombre; st.telefono = "507" + tel; guardar();
+  const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
+  if (!st.demo) {
+    try {
+      if (!st.aviso) await cargarAviso();
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version})});
+      if (res.status === 400) {
+        const err = (await res.json()).error || "Revisa tus datos.";
+        btn.disabled = false; btn.textContent = "Empezar a pedir";
+        if (/aviso/i.test(err)) { // el aviso cambió: mostrar el nuevo y pedir aceptarlo otra vez
+          await cargarAviso(); form.privacidad.checked = false; $("#det-privacidad").open = true;
+          $("#e-priv").textContent = "Actualizamos el aviso de privacidad. Léelo y vuelve a marcar la casilla.";
+          return form.privacidad.focus();
+        }
+        $("#e-tel").textContent = err; return;
+      }
+      if (!res.ok) throw new Error(res.status);
+    } catch (e) { st.demo = true; $("#modo-demo").hidden = false; if (!CFG.horario) CFG = DEMO_CFG; }
+  }
+  btn.disabled = false; btn.textContent = "Empezar a pedir";
+  st.dentro = true; pestana("chat");
+  $("#hola").textContent = "Hola, " + nombre;
+  if (!$("#mensajes").children.length) burbuja("bot", `¡Hola, ${nombre}! ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres y si es para recoger o para entrega.`);
+  cargarConfig(); // ahora sí con los datos de pago
+  clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
+  if ($("#texto").value.trim()) $("#componer").requestSubmit(); else $("#texto").focus(); // venía con el pedido armado desde el menú: se envía solo
+});
+async function cargarAviso() { // GET /aviso → {version, texto}; texto con textContent
+  st.aviso = await api("GET", "/aviso");
+  const caja = $("#privacidad-texto"); caja.textContent = st.aviso.texto; caja.style.whiteSpace = "pre-wrap";
+}
+function salir() { // cookie vencida (401): volver a la entrada
+  clearInterval(st.sondeo); st.dentro = false; pestana("chat");
+  $("#e-priv").textContent = "Tu sesión venció. Vuelve a entrar para seguir con tu pedido.";
+  form.privacidad.checked = false; form.privacidad.focus();
+}
+
+/* ---------- Pestañas y menú ---------- */
+const ancho = matchMedia("(min-width:1024px)"); // en pantalla ancha el menú va siempre a la izquierda y no es pestaña
+const TABS = ["menu", "chat", "estado"];
+st.tab = "chat";
+function pestana(cual) {
+  if (ancho.matches && cual === "menu") cual = "chat";
+  st.tab = cual;
+  for (const t of TABS) {
+    const on = t === cual;
+    $("#tab-" + t).setAttribute("aria-selected", on);
+    $("#tab-" + t).tabIndex = on ? 0 : -1;
+  }
+  $("#menu").hidden = cual !== "menu" && !ancho.matches;
+  $("#entrada").hidden = !(cual === "chat" && !st.dentro);
+  $("#chat").hidden = !(cual === "chat" && st.dentro);
+  $("#estado").hidden = cual !== "estado";
+  $("#tab-chat").setAttribute("aria-controls", st.dentro ? "chat" : "entrada");
+  if (cual === "estado" && st.pedido) pintarRepartidor(st.pedido);
+  if (cual === "estado") { $("#punto").hidden = true; $("#punto-sr").textContent = ""; document.title = MARCA + " · Pedidos"; }
+}
+ancho.addEventListener("change", () => pestana(st.tab));
+for (const t of TABS) $("#tab-" + t).onclick = () => pestana(t);
+$(".pestanas").addEventListener("keydown", e => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const vis = TABS.filter(t => !(t === "menu" && ancho.matches)), i = vis.indexOf(st.tab);
+  const otra = vis[(i + (e.key === "ArrowRight" ? 1 : vis.length - 1)) % vis.length]; pestana(otra); $("#tab-" + otra).focus();
+});
+
+/* Abierto / cerrado: solo informa, calculado con la hora de Panamá y el horario de /config */
+function pintarAbierto() {
+  const e = $("#abierto"), h = CFG.horario || {}, pd = porDia(h);
+  let d, ahora;
+  try {
+    const f = new Intl.DateTimeFormat("en-US", {timeZone:"America/Panama", weekday:"short", hourCycle:"h23", hour:"numeric", minute:"numeric"}).formatToParts(new Date());
+    const g = t => f.find(x => x.type === t).value;
+    d = {Sun:"dom", Mon:"lun", Tue:"mar", Wed:"mie", Thu:"jue", Fri:"vie", Sat:"sab"}[g("weekday")]; ahora = +g("hour") * 60 + +g("minute");
+  } catch (err) { d = null; }
+  if (!d || !ORDEN_DIAS.some(x => pd[x].length)) { e.hidden = true; return; }
+  const min = t => { const [a, b] = String(t).split(":"); return +a * 60 + (+b || 0); };
+  const tramo = !CFG.cerrado && pd[d].find(([a, b]) => ahora >= min(a) && ahora < min(b)); // cerrado a mano desde el panel: cerrado aunque toque abrir
+  e.hidden = false; e.classList.toggle("cerrado", !tramo);
+  e.textContent = tramo ? "Abierto" : "Cerrado";
+  if (tramo) { const hasta = document.createElement("span"); hasta.className = "hasta"; hasta.textContent = ` · hasta ${tramo[1]}`; e.append(hasta); }
+}
+pintarAbierto(); setInterval(() => st.demo ? pintarAbierto() : cargarConfig(), 60000); // cada minuto: si el restaurante cierra o cambia el horario, se ve sin recargar
+
+const carro = new Map(); // id del plato → cantidad (solo en este teléfono; el bot sigue confirmando el pedido)
+const sinParentesis = n => n.replace(/ \(.*\)$/, "").toLowerCase();
+// Nombre corto para la frase al bot; si dos platos solo difieren en el paréntesis, se usa el nombre completo para no confundirlos.
+const frase = m => MENU.filter(x => sinParentesis(x.nombre) === sinParentesis(m.nombre)).length > 1 ? m.nombre.toLowerCase() : sinParentesis(m.nombre);
+function pintarCarro() {
+  let n = 0, total = 0;
+  for (const [id, q] of carro) { const m = MENU.find(x => x.id === id); if (m) { n += q; total += q * Math.round(num(m.precio) * 100); } } // en centavos: sin errores de decimales
+  $("#carro").hidden = !n;
+  $("#carro-n").textContent = `Tu pedido: ${n} ${n === 1 ? "plato" : "platos"}`;
+  $("#carro-total").textContent = dinero(total / 100);
+}
+function fotoDe(m) { // sin foto no se pinta nada: la tarjeta queda solo con texto
+  if (!m.foto) return null;
+  const i = document.createElement("img"); i.className = "foto"; i.alt = ""; i.loading = "lazy"; i.decoding = "async"; i.width = 104; i.height = 104; i.src = m.foto2x || m.foto; // la de 320 se ve nítida en pantallas densas
+  i.classList.add("carga"); i.onload = () => i.classList.remove("carga"); i.onerror = () => i.remove(); // foto rota: fuera
+  return i;
+}
+const catDe = m => m.categoria || "otros";
+const esPromo = m => catDe(m).toLowerCase() === "promociones";
+const visibles = () => MENU.filter(m => !esPromo(m) || m.disponible); // una promoción apagada no se enseña
+const categorias = () => [...new Set(visibles().map(catDe))].sort((a, b) => (b.toLowerCase() === "promociones") - (a.toLowerCase() === "promociones")); // las del menú, en su orden (promociones arriba): una categoría nueva del panel aparece sola
+const plano = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); // sin tildes ni mayúsculas, para buscar
+const filtro = {cat:"todos", q:""};
+function pintarCategorias() {
+  const caja = $("#cats"); caja.textContent = "";
+  if (!categorias().includes(filtro.cat)) filtro.cat = "todos";
+  for (const c of ["todos", ...categorias()]) {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = c === "todos" ? "Todo" : c; b.setAttribute("aria-pressed", filtro.cat === c);
+    b.onclick = () => { filtro.cat = c; pintarCategorias(); pintarMenu(); };
+    caja.append(b);
+  }
+}
+function pintarMenu(escribiendo) { // al teclear en el buscador no se repite la entrada escalonada
+  const caja = $("#lista-menu"); caja.textContent = ""; caja.classList.toggle("quieto", !!escribiendo);
+  const q = plano(filtro.q.trim()); let hubo = false;
+  for (const cat of categorias()) {
+    if (filtro.cat !== "todos" && filtro.cat !== cat) continue;
+    const items = visibles().filter(m => catDe(m) === cat && (!q || plano(m.nombre + " " + (m.descripcion || "")).includes(q))); if (!items.length) continue;
+    hubo = true;
+    const h = document.createElement("h2"); h.textContent = cat; if (cat.toLowerCase() === "promociones") h.className = "promo-cat"; caja.append(h);
+    const rej = document.createElement("div"); rej.className = "rejilla"; caja.append(rej);
+    for (const m of items) {
+      const fila = document.createElement("article"); fila.className = "plato" + (m.disponible ? "" : " agotado");
+      const txt = document.createElement("div"), nom = document.createElement("h3"), pre = document.createElement("span"), acc = document.createElement("div");
+      nom.textContent = m.nombre; pre.className = "precio num"; pre.textContent = dinero(m.precio); acc.className = "acc";
+      txt.append(nom, pre, acc); fila.append(txt);
+      if (m.descripcion) { const ds = document.createElement("span"); ds.className = "desc"; ds.textContent = m.descripcion; nom.after(ds); }
+      const foto = fotoDe(m); if (foto) fila.append(foto);
+      if (!m.disponible) { const ins = document.createElement("span"); ins.className = "insignia"; ins.textContent = "Agotado hoy"; acc.append(ins); }
+      else {
+        const agregar = document.createElement("button"); agregar.type = "button"; agregar.className = "pedir"; agregar.textContent = "Agregar"; agregar.setAttribute("aria-label", "Agregar al pedido: " + m.nombre);
+        const paso = document.createElement("span"); paso.className = "paso"; paso.setAttribute("role", "group"); paso.setAttribute("aria-label", "Cantidad de " + m.nombre);
+        const menos = document.createElement("button"), mas = document.createElement("button"), cant = document.createElement("output");
+        menos.type = mas.type = "button"; menos.textContent = "−"; mas.textContent = "+"; menos.setAttribute("aria-label", "Quitar uno: " + m.nombre); mas.setAttribute("aria-label", "Agregar uno: " + m.nombre);
+        paso.append(menos, cant, mas);
+        const ver = (foco) => { const q = carro.get(m.id) || 0; agregar.hidden = q > 0; paso.hidden = q === 0; cant.textContent = q; if (foco) (q ? mas : agregar).focus(); };
+        const poner = d => { const q = Math.max(0, Math.min(20, (carro.get(m.id) || 0) + d)); q ? carro.set(m.id, q) : carro.delete(m.id); ver(true); pintarCarro(); try { navigator.vibrate && navigator.vibrate(10); } catch (e) {} };
+        agregar.onclick = () => poner(1); mas.onclick = () => poner(1); menos.onclick = () => poner(-1);
+        ver(false); acc.append(agregar, paso);
+      }
+      rej.append(fila);
+    }
+  }
+  if (!hubo) { const v = document.createElement("p"); v.className = "vacio-busca"; v.textContent = "No encontramos ese plato. Prueba con otra palabra o escríbele al asistente."; caja.append(v); }
+  pintarCarro();
+}
+$("#buscar-menu").addEventListener("input", e => { filtro.q = e.target.value; pintarMenu(true); });
+$("#sugerencias").addEventListener("click", e => {
+  const b = e.target.closest(".sug"); if (!b || st.ocupado) return;
+  $("#texto").value = b.textContent; $("#componer").requestSubmit();
+});
+$("#carro-enviar").onclick = () => {
+  const lineas = [...carro].map(([id, q]) => { const m = MENU.find(x => x.id === id); return m && `${q} ${frase(m)}`; }).filter(Boolean);
+  if (!lineas.length) return;
+  const t = $("#texto"), base = t.value.trim();
+  t.value = (base ? base + "; " : "Quiero ") + lineas.join("; ");
+  carro.clear(); pintarMenu();
+  pestana("chat");
+  if (!st.dentro) { // aún no sabemos quién pide: el pedido queda escrito y se envía solo al entrar
+    $("#lema").textContent = "Tu pedido ya está armado. Dinos tu nombre y teléfono y lo enviamos.";
+    return (form.nombre.value.trim() ? form.telefono.value.trim() ? form.privacidad : form.telefono : form.nombre).focus();
+  }
+  t.dispatchEvent(new Event("input")); // reajusta la altura de la caja (ya visible)
+  t.focus();
+};
+
+/* ---------- Chat ---------- */
+/* formato-bot: **negrita**, *negrita* y _cursiva_ del bot, solo con nodos DOM (nunca se interpreta HTML). Un * suelto ("2 * 3", "2*3*4") queda como texto. */
+function formato(texto) {
+  const f = document.createDocumentFragment(), re = /\*\*([^\s*](?:[^*\n]*[^\s*])?)\*\*|\*([^\s*](?:[^*\n]*[^\s*])?)\*|_([^\s_](?:[^_\n]*[^\s_])?)_/g, palabra = c => !!c && /\w/.test(c);
+  let pos = 0, m;
+  while ((m = re.exec(texto))) {
+    const simple = m[1] === undefined, antes = texto[m.index - 1], despues = texto[m.index + m[0].length];
+    if (simple && (palabra(antes) || palabra(despues) || antes === "*" || despues === "*")) { re.lastIndex = m.index + 1; continue; } // no es formato: sigue buscando
+    if (m.index > pos) f.append(document.createTextNode(texto.slice(pos, m.index)));
+    const e = document.createElement(m[3] !== undefined ? "em" : "strong"); e.textContent = m[1] ?? m[2] ?? m[3]; f.append(e);
+    pos = re.lastIndex;
+  }
+  if (pos < texto.length) f.append(document.createTextNode(texto.slice(pos)));
+  return f;
+}
+function burbuja(quien, texto) {
+  const d = document.createElement("div"); d.className = "burbuja " + quien;
+  if (quien === "bot") d.append(formato(String(texto))); else d.textContent = texto;
+  if (quien === "sistema") d.className = "sistema";
+  let fila = d;
+  if (quien === "bot") { // el bot lleva avatar a la izquierda
+    const av = document.createElement("span"); av.className = "avatar"; av.setAttribute("aria-hidden", "true"); av.textContent = MARCA.trim().charAt(0).toUpperCase();
+    fila = document.createElement("div"); fila.className = "fila-bot"; fila.append(av, d);
+  }
+  $("#mensajes").append(fila); fila.scrollIntoView({block:"end", behavior:"smooth"});
+}
+$("#texto").addEventListener("input", e => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+$("#texto").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#componer").requestSubmit(); } });
+$("#componer").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const t = $("#texto"), texto = t.value.trim();
+  if (!texto || st.ocupado) return;
+  t.value = ""; t.style.height = "auto"; burbuja("yo", texto);
+  st.ocupado = true; $(".enviar").disabled = true;
+  const esc = document.createElement("div"); esc.className = "escribiendo"; esc.setAttribute("role", "status"); esc.textContent = "Escribiendo"; const pt = document.createElement("span"); pt.className = "puntos"; pt.setAttribute("aria-hidden", "true"); pt.append(...[0,1,2].map(() => document.createElement("i"))); esc.append(pt); $("#mensajes").append(esc);
+  const tEspera = setTimeout(() => { const e = document.createElement("span"); e.className = "espera"; e.textContent = "Es una demostración: la respuesta puede tardar unos 30 s."; esc.append(e); }, 3000);
+  let r;
+  try { r = st.demo ? demoBot(texto) : await api("POST", "/chat", {texto}); }
+  catch (e) { if (e.message === "401") { esc.remove(); st.ocupado = false; $(".enviar").disabled = false; $("#texto").value = texto; return salir(); } }
+  if (st.demo) await new Promise(ok => setTimeout(ok, 700));
+  clearTimeout(tEspera); esc.remove(); st.ocupado = false; $(".enviar").disabled = false;
+  if (!r) return burbuja("sistema", "No pudimos enviar tu mensaje. Revisa tu conexión e inténtalo otra vez.");
+  burbuja("bot", r.respuesta);
+  if (r.pedido) ponerPedido(r.pedido);
+});
+
+async function api(metodo, ruta, cuerpo) {
+  const res = await fetch(ruta, {method:metodo, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+/* ---------- Pedido: resumen y estado ---------- */
+function tablaItems(caja, p) { // solo textContent: los nombres vienen del servidor
+  const tabla = document.createElement("table"); tabla.className = "items";
+  const fila = (a, b, cl) => { const tr = tabla.insertRow(); if (cl) tr.className = cl; tr.insertCell().textContent = a; const c = tr.insertCell(); c.className = "num"; c.textContent = b; };
+  p.items.forEach(i => fila(`${i.cantidad} × ${i.nombre}`, dinero(num(i.precio) * i.cantidad)));
+  fila("Subtotal", dinero(p.subtotal), "sum");
+  if (num(p.impuesto)) fila(`ITBMS${num(CFG.impuesto_pct) ? " " + CFG.impuesto_pct + " %" : ""}`, dinero(p.impuesto));
+  if (num(p.envio)) fila("Envío", dinero(p.envio));
+  fila("Total", dinero(p.total), "tot");
+  caja.replaceChildren(tabla);
+}
+
+/* ---------- Dónde va tu repartidor (solo con el pedido en camino; punto actual, sin estela; Leaflet se carga solo si hace falta) ---------- */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+const pinEl = t => { const e = document.createElement("span"); e.textContent = t; return e; };
+const MC = {mapa:null, marca:null, yo:null, id:0};
+const kmTexto = m => m < 950 ? `a ${Math.round(m / 10) * 10} m de ti` : `a ${(m / 1000).toFixed(1)} km de ti`;
+function distM(a, b) { const R = 6371000, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon), q = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(q)); }
+function quitarMapaCli() { if (MC.mapa) { MC.mapa.remove(); MC.mapa = MC.marca = MC.yo = null; } $("#mapa-cli").hidden = true; }
+async function pintarRepartidor(p) {
+  const card = $("#tarjeta-mapa"), en = !!p && p.estado === "en_camino";
+  card.hidden = !en;
+  if (!en) return quitarMapaCli();
+  const pos = p.repartidor_pos, nombre = p.repartidor || "Tu repartidor";
+  let txt;
+  if (!pos) txt = p.mensaje || `${nombre} va en camino.`;
+  else {
+    txt = pos.viejo ? `${nombre} va en camino · última ubicación hace ${Math.max(1, Math.round(pos.edad_s / 60))} min.` : `${nombre} va en camino · ubicación actualizada hace ${pos.edad_s} s.`;
+    if (st.miUbic) txt += " Está " + kmTexto(distM(pos, st.miUbic)).replace("a ", "a ") + " (en línea recta).";
+  }
+  if (p.parada) txt += p.parada === 1 ? (p.eta_min != null ? ` Tu pedido es la parada 1: va hacia ti, llega en unos ${Math.max(1, Math.round(p.eta_min))} min.` : " Tu pedido es la parada 1: va hacia ti.")
+    : ` Tu pedido es la parada ${p.parada}${p.eta_min != null ? " · llega en unos " + Math.max(1, Math.round(p.eta_min)) + " min" : ""}.`;
+  $("#mapa-cli-txt").textContent = txt;
+  if (!pos || $("#estado").hidden || st.demo) { if (!pos) quitarMapaCli(); return; } // el mapa solo se arma con la pestaña a la vista
+  const id = ++MC.id;
+  try {
+    const L = await cargarLeaflet(); if (id !== MC.id) return;
+    $("#mapa-cli").hidden = false; $("#mapa-cli-aviso").hidden = true;
+    if (!MC.mapa) {
+      MC.mapa = L.map("mapa-cli", {zoomControl:true}).setView([pos.lat, pos.lon], 16); MC.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(MC.mapa);
+    }
+    if (!MC.marca) MC.marca = L.marker([pos.lat, pos.lon], {title:nombre, icon:L.divIcon({className:"pin-rep", html:pinEl(String(nombre)[0].toUpperCase()), iconSize:[34, 34]})}).addTo(MC.mapa);
+    MC.marca.setLatLng([pos.lat, pos.lon]); MC.marca.getElement().classList.toggle("viejo", !!pos.viejo);
+    if (st.miUbic) {
+      if (!MC.yo) MC.yo = L.marker([st.miUbic.lat, st.miUbic.lon], {title:"Tú", icon:L.divIcon({className:"pin-yo", html:pinEl("Tú"), iconSize:[34, 34]})}).addTo(MC.mapa);
+      MC.mapa.fitBounds([[pos.lat, pos.lon], [st.miUbic.lat, st.miUbic.lon]], {padding:[40, 40], maxZoom:17});
+    } else MC.mapa.panTo([pos.lat, pos.lon]);
+    setTimeout(() => MC.mapa && MC.mapa.invalidateSize(), 50);
+  } catch (e) { $("#mapa-cli").hidden = true; $("#mapa-cli-aviso").hidden = false; }
+}
+
+function ponerPedido(p) {
+  if (st.pedido && st.pedido.id !== p.id) st.comprobante = false;
+  const antes = st.pedido && st.pedido.estado;
+  st.pedido = p;
+  $("#resumen").hidden = false;
+  $("#r-id").textContent = "#" + p.id;
+  $("#r-estado").textContent = ETIQUETA[p.estado] || p.estado;
+  $("#r-estado").className = "chip" + (["pagado","en_preparacion","listo","en_camino","entregado"].includes(p.estado) ? " ok" : "");
+  $("#r-total").textContent = dinero(p.total);
+  tablaItems($("#resumen-det"), p);
+
+  const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
+  $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
+  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
+  pintarRepartidor(p);
+  const pasos = p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
+  const idx = pasos.findIndex(([k]) => k === p.estado);
+  const fin = p.estado === "entregado";
+  $("#pasos").innerHTML = pasos.map(([k, t, d], i) => {
+    if (k === "pagado" && p.por_cobrar) { t = "Pago al recibir"; d = "Pagas en efectivo al repartidor. Pasa a cocina."; }
+    const cl = fin || i < idx ? "hecho" : i === idx ? "actual" : "pendiente";
+    const marca = cl === "hecho" ? `<svg class="i" aria-hidden="true"><use href="#i-check"/></svg>` : i + 1;
+    return `<li class="${cl}"${cl === "actual" ? ' aria-current="step"' : ""}><span class="marca-paso">${marca}</span><b>${t}<span class="sr"> (${cl === "hecho" ? "hecho" : cl === "actual" ? "ahora" : "pendiente"})</span></b><small>${cl === "actual" ? d : ""}</small></li>`;
+  }).join("");
+  const reportado = p.estado === "pago_reportado";
+  $("#tarjeta-pago").hidden = !(p.estado === "confirmado" || reportado);
+  $("#pago-datos").hidden = reportado;
+  $("#pago-titulo").textContent = reportado ? "Tu pago" : "Paga y envía tu comprobante";
+  $("#cp-ok-titulo").textContent = st.comprobante ? "Comprobante recibido" : "Pago reportado";
+  $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
+  if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
+  $("#r-pagar").hidden = p.estado !== "confirmado";
+  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && p.modalidad === "entrega" && CFG.efectivo); $("#efectivo-monto").textContent = dinero(p.total);
+  const pide = p.modalidad === "entrega" && !["entregado", "cancelado", "caducado"].includes(p.estado);
+  const ub = !!(p.ubicacion || p.tiene_ubicacion);
+  $("#r-ubic").hidden = !pide || ub; $("#r-ubic-ok").hidden = !pide || !ub;
+  $("#tarjeta-ubic").hidden = !pide;
+  $("#ubic-estado").textContent = ub ? "Ubicación recibida. El repartidor la usará para llegar." : "Comparte tu ubicación para que el repartidor llegue directo. Es opcional.";
+  $("#e-ubic span").textContent = ub ? "Cambiar ubicación" : "Compartir mi ubicación";
+  tablaItems($("#estado-items"), p);
+
+  if (antes && antes !== p.estado && AVISO[p.estado] && !(p.por_cobrar && p.estado === "pagado")) avisar(AVISO[p.estado]); // confirmado y pago reportado ya los dice el bot
+}
+$("#btn-resumen").onclick = () => { const d = $("#resumen-det"); d.hidden = !d.hidden; $("#btn-resumen").setAttribute("aria-expanded", !d.hidden); };
+
+let tAviso;
+function avisar(texto) {
+  $("#aviso-texto").textContent = texto; $("#aviso").classList.add("ver");
+  burbuja("sistema", texto);
+  if ($("#estado").hidden) { $("#punto").hidden = false; $("#punto-sr").textContent = " (novedad)"; document.title = "(1) " + texto; }
+  try { navigator.vibrate && navigator.vibrate(120); } catch (e) {}
+  clearTimeout(tAviso); tAviso = setTimeout(() => $("#aviso").classList.remove("ver"), 7000);
+}
+$("#aviso-ver").onclick = () => { $("#aviso").classList.remove("ver"); pestana("estado"); };
+
+async function sondear() {
+  if (st.demo) return;
+  try {
+    const [ped, av] = await Promise.all([api("GET", "/pedidos"), api("GET", "/avisos")]);
+    const p = ped.pedidos[0];
+    if (p && (!st.pedido || p.id !== st.pedido.id || p.estado !== st.pedido.estado || p.total !== st.pedido.total || !!p.ubicacion !== !!st.pedido.ubicacion)) ponerPedido(p);
+    for (const m of av.mensajes) burbuja("bot", m);
+  } catch (e) { if (e.message === "401") salir(); /* sin conexión: se reintenta en 5 s */ }
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-copiar]"); if (!b) return;
+  navigator.clipboard?.writeText(b.dataset.copiar).then(() => { b.textContent = "Copiado"; setTimeout(() => b.textContent = "Copiar", 1500); });
+});
+
+/* ---------- Ubicación de entrega (opcional) ---------- */
+const dlgUbic = $("#dlg-ubic");
+function abrirUbic() {
+  $("#ubic-error").textContent = ""; $("#ubic-enlace").value = "";
+  const gps = !!navigator.geolocation && window.isSecureContext !== false;
+  $("#ubic-gps").hidden = !gps; $("#ubic-pegar").open = !gps;
+  if (!gps) $("#ubic-error").textContent = "Aquí el navegador no deja compartir la ubicación. Pega un enlace de Google Maps.";
+  dlgUbic.showModal(); (gps ? $("#ubic-gps") : $("#ubic-enlace")).focus();
+}
+$("#r-ubic").onclick = $("#e-ubic").onclick = abrirUbic;
+$("#ubic-cerrar").onclick = () => dlgUbic.close();
+dlgUbic.addEventListener("click", e => { if (e.target === dlgUbic) dlgUbic.close(); });
+$("#ubic-ver-aviso").onclick = () => {
+  const t = $("#ubic-aviso-texto"), ver = t.hidden;
+  t.textContent = $("#privacidad-texto").textContent.trim(); t.hidden = !ver; $("#ubic-ver-aviso").setAttribute("aria-expanded", ver);
+};
+function ocupado(b, on, texto) { b.disabled = on; b.setAttribute("aria-busy", on); b.querySelector("span") ? b.querySelector("span").textContent = texto : b.textContent = texto; }
+$("#ubic-gps").onclick = () => {
+  const b = $("#ubic-gps"); $("#ubic-error").textContent = "";
+  ocupado(b, true, "Buscando tu ubicación…");
+  navigator.geolocation.getCurrentPosition(
+    pos => { st.miUbic = {lat:+pos.coords.latitude.toFixed(6), lon:+pos.coords.longitude.toFixed(6)}; enviarUbic(st.miUbic, b, "Compartir mi ubicación"); }, // solo en memoria de esta pestaña, para calcular la distancia
+    err => {
+      ocupado(b, false, "Compartir mi ubicación");
+      $("#ubic-error").textContent = err.code === 1 ? "No diste permiso para usar tu ubicación. Puedes pegar un enlace de Google Maps." : "No pudimos encontrar tu ubicación. Prueba otra vez o pega un enlace de Google Maps.";
+      $("#ubic-pegar").open = true;
+    }, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+};
+$("#ubic-enviar").onclick = () => {
+  const v = $("#ubic-enlace").value.trim();
+  if (!/goo\.gl|google\.|maps\.|^-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+$/i.test(v)) { $("#ubic-error").textContent = "Pega el enlace que copiaste de Google Maps."; return $("#ubic-enlace").focus(); }
+  enviarUbic({enlace:v}, $("#ubic-enviar"), "Enviar enlace");
+};
+async function enviarUbic(cuerpo, b, texto) {
+  ocupado(b, true, "Enviando…"); $("#ubic-error").textContent = "";
+  let err = "";
+  try {
+    if (st.demo) await new Promise(ok => setTimeout(ok, 700));
+    else {
+      const r = await fetch("/ubicacion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(cuerpo)});
+      if (r.status === 401) { ocupado(b, false, texto); dlgUbic.close(); return salir(); }
+      if (!r.ok) err = (await r.json().catch(() => ({}))).error || "No pudimos guardar tu ubicación. Inténtalo otra vez.";
+    }
+  } catch (e) { err = "Sin conexión. Revisa tu internet e inténtalo otra vez."; }
+  ocupado(b, false, texto);
+  if (err) { $("#ubic-error").textContent = err; return; }
+  dlgUbic.close();
+  burbuja("sistema", "Ubicación recibida. El repartidor la usará para llegar.");
+  if (st.pedido) ponerPedido({...st.pedido, ubicacion:true});
+}
+
+/* ---------- Comprobante de pago ---------- */
+const archivo = $("#cp-archivo");
+const elegirFoto = () => { $("#cp-error").textContent = ""; archivo.value = ""; archivo.click(); };
+$("#cp-boton").onclick = $("#cp-cambiar").onclick = $("#cp-otra").onclick = elegirFoto;
+$("#efectivo-boton").onclick = async () => {
+  const b = $("#efectivo-boton"), e = $("#efectivo-error"); e.textContent = ""; b.disabled = true;
+  try {
+    let res;
+    if (st.demo) { await new Promise(ok => setTimeout(ok, 700)); res = {pedido:{...st.pedido, estado:"pagado", por_cobrar:true}}; }
+    else {
+      const r = await fetch("/efectivo", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pedido:st.pedido.id})});
+      if (r.status === 401) return salir();
+      res = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(res.error || "No pudimos registrar el pago en efectivo. Inténtalo otra vez.");
+    }
+    ponerPedido(res.pedido);
+    burbuja("sistema", `Listo: pagas ${dinero(res.pedido.total)} en efectivo al repartidor cuando llegue. Tu pedido ya pasa a cocina.`);
+  } catch (x) { e.textContent = x.message || "Sin conexión. Inténtalo otra vez."; }
+  b.disabled = false;
+};
+$("#r-pagar").onclick = () => { pestana("estado"); $("#cp-boton").focus(); $("#tarjeta-pago").scrollIntoView({block:"start", behavior:"smooth"}); };
+async function reducir(f) { // siempre JPEG ≤1600 px: pesa poco en datos móviles; el servidor quita metadatos
+  if (!f.type.startsWith("image/")) throw new Error("Elige una imagen: una foto o captura de pantalla del pago.");
+  if (f.size > 20e6) throw new Error("La foto es demasiado grande. Prueba con una captura de pantalla.");
+  let img;
+  try { img = await createImageBitmap(f); } catch (e) { throw new Error("No pudimos abrir esa imagen. Prueba con una captura de pantalla."); }
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok, mal) => c.toBlob(b => b ? ok(b) : mal(new Error("No pudimos preparar la foto.")), "image/jpeg", 0.85));
+}
+archivo.addEventListener("change", async () => {
+  const f = archivo.files[0]; if (!f) return;
+  $("#cp-error").textContent = "";
+  try { st.cpBlob = await reducir(f); }
+  catch (e) { $("#cp-error").textContent = e.message; return; }
+  if (st.cpUrl) URL.revokeObjectURL(st.cpUrl);
+  st.cpUrl = URL.createObjectURL(st.cpBlob); $("#cp-img").src = st.cpUrl;
+  $("#cp-elegir").hidden = $("#cp-ok").hidden = true; $("#cp-previa").hidden = false; $("#cp-enviar").focus();
+});
+$("#cp-enviar").onclick = async () => {
+  const b = $("#cp-enviar"), ref = $("#cp-ref").value.trim();
+  b.disabled = true; b.textContent = "Enviando…"; $("#cp-progreso").hidden = false; $("#cp-error").textContent = "";
+  let res = null, err = "";
+  try {
+    if (st.demo) { await new Promise(ok => setTimeout(ok, 1200)); res = {pedido:{...st.pedido, estado:"pago_reportado"}}; if (st.pedido.estado === "confirmado") demoAvance(); }
+    else {
+      const r = await fetch(`/comprobante?pedido=${st.pedido.id}&referencia=${encodeURIComponent(ref)}`, {method:"POST", headers:{"Content-Type":"image/jpeg"}, body:st.cpBlob});
+      if (r.status === 401) return salir();
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) res = j; else err = j.error || (r.status === 413 ? "La foto pesa demasiado. Prueba con una captura de pantalla." : "No pudimos enviar el comprobante.");
+    }
+  } catch (e) { err = "Sin conexión. Revisa tu internet e inténtalo otra vez."; }
+  b.disabled = false; b.textContent = "Enviar"; $("#cp-progreso").hidden = true;
+  if (!res) { $("#cp-error").textContent = err; return; }
+  st.comprobante = true; st.cpBlob = null; $("#cp-ref").value = ""; $("#cp-previa").hidden = true;
+  burbuja("sistema", "Enviaste el comprobante de pago. Queda pendiente de verificación.");
+  ponerPedido(res.pedido || {...st.pedido, estado:"pago_reportado"});
+  $("#cp-ok").hidden = false; $("#cp-ok").focus();
+};
+
+/* ---------- Modo demostración (sin servidor) ---------- */
+function demoAvance() { [["pagado", 8000], ["en_preparacion", 14000], ["listo", 22000], ...(st.pedido.modalidad === "entrega" ? [["en_camino", 30000]] : [])].forEach(([e, ms]) => setTimeout(() => ponerPedido({...st.pedido, estado:e}), ms)); }
+// ponytail: bot de guion para el prototipo; con servidor, la API real responde y esto no se usa.
+const CLAVES = {"tasajo":"tasajo-con-arroz","sancocho":"sancocho","guand":"arroz-con-guandu","tortilla":"tortilla-con-queso","bollo":"bollo","empanada":"empanadas","chicheme":"chicheme","chicha":"chicha-de-saril","soda":"soda","tres leches":"tres-leches"};
+const NUM = {un:1, uno:1, una:1, dos:2, tres:3, cuatro:4, cinco:5};
+function demoBot(texto) {
+  const t = texto.toLowerCase(), p = st.pedido;
+  if (!p || p.estado === "por_confirmar" && !/^(s[ií]|dale|ok)(?![a-zñ])/.test(t)) {
+    if (t.includes("tres leches")) return {respuesta:"Hoy no tenemos tres leches, lo siento. ¿Te provoca otra cosa?"};
+    const items = [];
+    for (const [k, id] of Object.entries(CLAVES)) {
+      const pos = t.indexOf(k); if (pos < 0) continue;
+      const m = t.slice(Math.max(0, pos - 10), pos).match(/(\d+|un|uno|una|dos|tres|cuatro|cinco)\s*$/);
+      const it = MENU.find(x => x.id === id);
+      items.push({nombre:it.nombre, cantidad:m ? (+m[1] || NUM[m[1]]) : 1, precio:it.precio});
+    }
+    if (!items.length) return {respuesta:"Dime qué quieres pedir y si es para recoger o entrega. Por ejemplo: \"1 tasajo y 2 chichas para recoger\"."};
+    const entrega = /entrega|domicilio|casa|villa/.test(t);
+    const sub = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
+    const imp = Math.round(sub * 7) / 100, env = entrega ? (t.includes("villa") ? 3 : 2) : 0;
+    const ped = {id:(p && p.id) || 27, estado:"por_confirmar", modalidad:entrega ? "entrega" : "recogida", items, subtotal:sub, impuesto:imp, envio:env, total:sub + imp + env};
+    const lista = items.map(i => `• ${i.cantidad} × ${i.nombre}`).join("\n");
+    return {pedido:ped, respuesta:`Tu pedido para ${entrega ? "entrega" : "recoger"}:\n${lista}\nTotal con ITBMS${env ? " y envío" : ""}: ${dinero(ped.total)}.\n¿Lo confirmo? Responde "sí".`};
+  }
+  if (p.estado === "por_confirmar") {
+    return {pedido:{...p, estado:"confirmado"}, respuesta:`¡Listo, pedido #${p.id} confirmado! Total ${dinero(p.total)}.\nPaga por Yappy a ${(CFG.pago || {}).yappy || "nuestro Yappy"} o por transferencia. Luego toca "Enviar comprobante de pago" y sube la captura, o escríbeme el número de referencia.`};
+  }
+  if (p.estado === "confirmado" && /pag|ref|yappy|\d{4,}/.test(t)) {
+    demoAvance();
+    return {pedido:{...p, estado:"pago_reportado"}, respuesta:"Gracias. Tu pago queda pendiente de verificación por el restaurante; te aviso aquí en cuanto lo confirmemos."};
+  }
+  return {respuesta:`Tu pedido #${p.id} está: ${ETIQUETA[p.estado]}. Te aviso aquí cuando cambie.`};
+}
+
+/* ---------- Arranque ---------- */
+pintarCategorias(); pintarMenu(); pestana(ancho.matches ? "chat" : "menu"); cargarConfig();
+if (!st.demo) fetch("/menu").then(r => r.ok ? r.json() : null).then(m => { if (Array.isArray(m) && m.length) { MENU.splice(0, MENU.length, ...m); pintarCategorias(); pintarMenu(); } }).catch(() => {});
+if (st.demo) $("#modo-demo").hidden = false; else cargarAviso().catch(() => {});
+</script>
+</body>
+</html>

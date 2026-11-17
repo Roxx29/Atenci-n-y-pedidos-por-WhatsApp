@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import clientes, panel_web, temas, ubicacion
+from . import clientes, paginas, panel_web, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -68,8 +68,10 @@ def _componer(f, css, tema_id, marca):
 
 def armar_pagina(sv, f):
     """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico), las reglas
-    estructurales de su tema (temas.estilo), al final el personalizado.css de ESE cliente si lo tiene, y nombre de marca."""
-    if not f.is_file():
+    estructurales de su tema (temas.estilo), al final el personalizado.css de ESE cliente si lo tiene, y nombre de marca.
+    Si el cliente tiene página propia (servicios/<slug>/web/), sale esa."""
+    propia = paginas.propia(sv.dir, f)
+    if propia is None and not f.is_file():
         return b""
     tema = sv.dir / "tema.css"
     css = (tema if tema.is_file() else ESTATICO / "tema.css").read_bytes()
@@ -80,6 +82,8 @@ def armar_pagina(sv, f):
         css += b"\n" + temas.sanear_css((sv.dir / "personalizado.css").read_text(encoding="utf-8")).encode()
     except (OSError, ValueError):  # sin archivo, ilegible o fuera de la lista: la página sale con su tema
         pass
+    if propia is not None:
+        return paginas.sustituir(propia, css, html.escape(marca_de(sv)).encode())
     return _componer(f, css, tema_id, marca_de(sv))
 
 
@@ -387,7 +391,7 @@ def crear_manejador(sv, secreto=None, env=None):
             if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or env.get("PANEL_PUBLICO", os.environ.get("PANEL_PUBLICO")) == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
-                return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", CSP)])  # en cada visita: el nombre se cambia desde el panel
+                return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA_PANEL, CSP))])  # en cada visita: el nombre se cambia desde el panel
             if ruta == "/panel/entrar" and metodo == "POST":
                 if bloqueo.bloqueada(ip):
                     return self._err(429, "Demasiados intentos; espere 5 minutos")
@@ -569,7 +573,7 @@ def crear_manejador(sv, secreto=None, env=None):
             if not acc_rep.activo:
                 return self._err(404, "No encontrado")
             if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
-                return self._enviar(200, armar_pagina(sv, PAGINA_REP), "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, armar_pagina(sv, PAGINA_REP), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA_REP, CSP))])
             if ruta == "/repartidor/manifest.webmanifest" and metodo == "GET":
                 return self._enviar(200, MANIFEST_REP, "application/manifest+json")
             if ruta == "/repartidor/sw.js" and metodo == "GET":
@@ -666,10 +670,12 @@ def crear_manejador(sv, secreto=None, env=None):
                     return self._enviar(503, {"ok": False})
             if ruta.startswith("/menu/foto/"):  # límite propio: un menú con fotos son decenas de GET de una vez
                 return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else self._foto(ruta)
+            if ruta.startswith("/web/"):  # archivos de la página propia del cliente (motor/paginas.py)
+                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else paginas.servir(self, sv.dir / "web", ruta)
             if limite.excede(("ip", self._ip()), 60):
                 return self._err(429, "Demasiadas peticiones")
             if ruta == "/":
-                return self._enviar(200, armar_pagina(sv, PAGINA), "text/html", [("Content-Security-Policy", CSP)])
+                return self._enviar(200, armar_pagina(sv, PAGINA), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA, CSP))])
             if ruta == "/menu":
                 return self._enviar(200, panel_web.menu_json(sv))
             if ruta == "/config":

@@ -26,7 +26,7 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 # "WHATSAPP_PHONE_ID" no está: WhatsApp multi-cliente (F3) enrutará por phone_number_id.
 
 
-MODULOS = ("estadisticas",)  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
+MODULOS = ("estadisticas", "mesas")  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
 CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta", "archivado"}
 TOPE_IA_PRUEBA = 300  # turnos de IA al día de un cliente en prueba si nadie dice otra cosa (TOPE_IA_DIA lo cambia)
 

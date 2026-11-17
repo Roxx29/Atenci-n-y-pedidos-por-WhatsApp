@@ -491,6 +491,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
     <button type="button" data-vista="promos"><svg class="i" aria-hidden="true"><use href="#i-promo"/></svg>Promos</button>
     <button type="button" data-vista="stats" id="nav-stats" hidden><svg class="i" aria-hidden="true"><use href="#i-grafica"/></svg>Estadíst.</button>
+    <button type="button" id="nav-qr" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>QR</button>
     <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
     <button type="button" data-vista="config" id="nav-config" hidden><svg class="i" aria-hidden="true"><use href="#i-ajustes"/></svg>Config.</button>
     <span class="hueco"></span>
@@ -518,7 +519,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
           <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
         </div>
         <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
-          <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button>
+          <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button><button type="button" aria-pressed="false" data-f="mesa">Mesa</button>
         </div>
         <span id="tienda-caja"></span>
         <button class="btn suave" id="btn-cerrados" type="button" aria-pressed="false">Cancelados</button>
@@ -688,10 +689,12 @@ const COLS = [
   {titulo:"Cancelados", estados:["cancelado", "caducado"], estrecha:true, filtro:true}
 ];
 const SIGUIENTE = {pagado:["en_preparacion", "A cocina"], en_preparacion:["listo", "Listo"], listo:["entregado", "Entregado"]};
+const lugarDe = p => p.modalidad === "mesa" ? "Mesa " + p.mesa : p.modalidad === "entrega" ? "Entrega" : "Recoger";
 const repNombre = x => x ? (typeof x === "string" ? x : x.nombre || "") : ""; // el servidor puede mandar nombre o {id, nombre}
 const ASIGNABLE = new Set(["pagado", "en_preparacion", "listo"]);
 function siguiente(p) { // acción principal: en una entrega lista, sale con el repartidor
-  const s = p.estado === "listo" && p.modalidad === "entrega" && permite(p, "en_camino") ? ["en_camino", "Salió con el repartidor"]
+  const s = p.estado === "listo" && p.modalidad === "mesa" ? ["entregado", "Servido en la mesa"]
+          : p.estado === "listo" && p.modalidad === "entrega" && permite(p, "en_camino") ? ["en_camino", "Salió con el repartidor"]
           : p.estado === "en_camino" ? ["entregado", "Entregado"] : SIGUIENTE[p.estado];
   return s && permite(p, s[0]) ? s : null;
 }
@@ -824,7 +827,7 @@ function recibir(d) {
 /* Filtros de la barra de mando: tipo de pedido y búsqueda por número o nombre */
 st.tipo = "todos"; st.q = "";
 const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-const coincide = p => (st.tipo === "todos" || (st.tipo === "entrega") === (p.modalidad === "entrega")) &&
+const coincide = p => (st.tipo === "todos" || (st.tipo === "mesa" ? p.modalidad === "mesa" : st.tipo === "entrega" ? p.modalidad === "entrega" : p.modalidad === "recogida")) &&
   (!st.q || String(p.id).includes(st.q.replace(/^#/, "")) || plano(p.nombre).includes(plano(st.q)));
 $("#filtro-tipo").addEventListener("click", e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -897,7 +900,7 @@ function tarjeta(p, col) {
     h("span", {class:"t-num num", id:"tn-" + p.id}, "#" + p.id), h("span", {class:"t-nombre"}, p.nombre));
   if (col.estrecha) return h("article", {class:"tarjeta compacta", "aria-labelledby":"tn-" + p.id},
     h("div", {class:"t-cab"}, abrir, h("span", {class:"chip num"}, p.estado === "caducado" ? "Caducó" : p.estado === "cancelado" ? "Cancelado" : hora(p.estado_at || p.creado_at))),
-    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, p.modalidad === "entrega" ? "Entrega" : "Recoger"), h("span", {class:"t-total num", style:"font-size:1rem"}, dinero(p.total))));
+    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, lugarDe(p)), h("span", {class:"t-total num", style:"font-size:1rem"}, dinero(p.total))));
 
   const entrega = p.modalidad === "entrega";
   const lugar = entrega ? p.zona || "" : ""; // en la lista solo la zona; la dirección completa está en el detalle
@@ -908,7 +911,7 @@ function tarjeta(p, col) {
             : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m) + (col.destacada ? " / meta " + col.tarde : ""))),
     col.tarde && h("div", {class:"t-urg " + (tarde ? "tarde" : m >= col.tarde * .6 ? "atento" : "ok"), "aria-hidden":"true", style:"--p:" + Math.min(1, m / col.tarde).toFixed(2)}, h("i")),
     h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
-      h("div", {}, h("b", {}, entrega ? "Entrega" : "Recoger"), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
+      h("div", {}, h("b", {}, lugarDe(p)), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
     entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, repNombre(p.repartidor) ? h("span", {class:"ini-rep", "aria-hidden":"true"}, repNombre(p.repartidor).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()) : icono("persona"),
       repNombre(p.repartidor) || "Sin repartidor",
       // con pocos repartidores se asigna desde la tarjeta, sin abrir el detalle
@@ -922,6 +925,8 @@ function tarjeta(p, col) {
 }
 function estadoCorto(p) {
   if (p.estado === "en_camino") return "En camino" + (repNombre(p.repartidor) ? " con " + repNombre(p.repartidor) : "");
+  if (p.modalidad === "mesa" && p.espera_personal) return "Acepta el pedido: pagará en la mesa o en caja " + dinero(p.total);
+  if (p.modalidad === "mesa" && p.por_cobrar && p.estado !== "entregado") return "Cobrar en la mesa o en caja " + dinero(p.total);
   if (p.por_cobrar && p.estado !== "entregado") return "Efectivo: cobra el repartidor " + dinero(p.total);
   if (p.estado === "entregado" && p.cobrado_por) return "Efectivo cobrado por " + (repNombre(p.cobrado_por) || p.cobrado_por);
   return {por_confirmar:"El cliente aún no confirma", confirmado:"Esperando pago", pago_reportado:p.metodo ? `Pagó por ${p.metodo}` : "Dice que pagó"}[p.estado] || "";
@@ -937,7 +942,7 @@ function acciones(p) {
       permite(p, "pagado") && h("button", {class:"btn ok", "data-clave":"ok" + k, on:{click:() => marcar(p, "pagado")}}, icono("check"), "Pago correcto"),
       permite(p, "pago_rechazado") && h("button", {class:"btn sec", "data-clave":"no" + k, on:{click:() => abrirDetalle(p, true)}}, "No válido")));
   if (p.estado === "confirmado") return permite(p, "pagado") ? h("div", {class:"acciones"},
-    h("button", {class:"btn suave", "data-clave":"pc" + k, on:{click:() => marcar(p, "pagado")}}, "Ya pagó (efectivo o banco)")) : null;
+    h("button", {class:"btn suave", "data-clave":"pc" + k, on:{click:() => marcar(p, "pagado")}}, p.espera_personal ? "Aceptar pedido de mesa" : "Ya pagó (efectivo o banco)")) : null;
   const s = siguiente(p);
   return s ? h("div", {class:"acciones"}, h("button", {class:"btn", "data-clave":"sg" + k, on:{click:() => marcar(p, s[0])}}, s[1])) : null;
 }
@@ -978,7 +983,7 @@ async function abrirDetalle(p, rechazar) {
   $("#dlg-contacto").hidden = !(abierto && p.telefono);
   if (p.telefono) { const d = String(p.telefono).replace(/\D/g, ""); $("#dlg-llamar").href = "tel:+" + d; $("#dlg-wa").href = "whatsapp://send?phone=" + d; }
   const entrega = p.modalidad === "entrega";
-  $("#dlg-modo").textContent = entrega ? "Entrega" : "Recoger en el local";
+  $("#dlg-modo").textContent = p.modalidad === "mesa" ? "Mesa " + p.mesa : entrega ? "Entrega" : "Recoger en el local";
   const mapa = p.mapa || p.mapa_url;
   $("#dlg-ubic-caja").hidden = !(entrega && abierto);
   const ub = !!(p.tiene_ubicacion || p.ubicacion);
@@ -1031,6 +1036,7 @@ function irA(v) {
   if (v === "config") pintarConfig();
   if (v === "stats") pintarStats();
 }
+$("#nav-qr").onclick = () => window.open("/panel/qr", "_blank", "noopener");
 document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
 
 /* Piezas comunes: interruptor de un toque y botón que pide confirmar con un segundo toque */
@@ -1165,6 +1171,7 @@ const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["ju
 /* ---------- Módulo extra: Estadísticas (el dueño lo ve solo si el restaurante lo contrató) ---------- */
 function pintarModulos(m) {
   $("#nav-stats").hidden = st.rol !== "dueno" || !m.includes("estadisticas");
+  $("#nav-qr").hidden = st.rol !== "dueno" || !m.includes("mesas"); // módulo «mesas»: códigos QR dinámicos (página aparte)
   if (st.vista === "stats" && $("#nav-stats").hidden) irA("pedidos");
 }
 const cambioTxt = c => c == null ? "" : (c > 0 ? "▲ " : c < 0 ? "▼ " : "= ") + Math.abs(c) + " % vs. periodo anterior";
@@ -1200,7 +1207,7 @@ async function pintarStats(dias) {
         h("p", {class:"t-espera"}, `Hora pico: ${pico}:00 a ${pico + 1}:00.`)),
       h("div", {class:"dos-col"},
         grupo("Lo más pedido", rank(e.platos.map(p => [p.nombre, `${p.cantidad} · ${p.ingresos}`, p.cantidad]), e.platos[0].cantidad)),
-        grupo("Cómo piden", rank(Object.entries(e.modalidad).map(([k, v]) => [k === "entrega" ? "A domicilio" : k === "recogida" ? "Para recoger" : k, String(v), v]), e.pedidos),
+        grupo("Cómo piden", rank(Object.entries(e.modalidad).map(([k, v]) => [k === "entrega" ? "A domicilio" : k === "recogida" ? "Para recoger" : k === "mesa" ? "En mesa" : k, String(v), v]), e.pedidos),
           ...(e.zonas.length ? [h("h3", {class:"grupo"}, "Zonas de entrega"), rank(e.zonas.map(z => [z.zona, String(z.pedidos), z.pedidos]), e.zonas[0].pedidos)] : []))));
   }
   $("#stats-cuerpo").replaceChildren(...cuerpo);

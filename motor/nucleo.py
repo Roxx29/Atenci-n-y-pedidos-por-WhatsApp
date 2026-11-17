@@ -86,6 +86,9 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
             "CREATE TABLE IF NOT EXISTS comprobantes(nombre TEXT PRIMARY KEY, datos BLOB NOT NULL, creado REAL NOT NULL);"  # fotos de comprobantes de Yappy (antes archivos)
             "CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL);"  # lo que el dueño cambia desde el panel; pisa esa clave de servicio.yaml
+            "CREATE TABLE IF NOT EXISTS qr_codigos(id INTEGER PRIMARY KEY, codigo TEXT UNIQUE NOT NULL, etiqueta TEXT NOT NULL, tipo TEXT NOT NULL, destino TEXT NOT NULL DEFAULT '', mesa INTEGER, activo INTEGER NOT NULL DEFAULT 1, creado TEXT NOT NULL, escaneos INTEGER NOT NULL DEFAULT 0);"  # módulo mesas: QR dinámicos (motor/mesa.py)
+            "CREATE TABLE IF NOT EXISTS qr_dias(codigo_id INTEGER NOT NULL, dia TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY(codigo_id, dia));"  # escaneos por código y día, sin datos personales
+            "CREATE TABLE IF NOT EXISTS qr_config(clave TEXT PRIMARY KEY, valor NOT NULL);"  # estilo y logo de los QR de este cliente
             "CREATE TABLE IF NOT EXISTS uso_ia(dia TEXT PRIMARY KEY, mensajes INTEGER NOT NULL);"  # turnos de cliente que llegaron al modelo, por día (la consola del operador la lee)
         )
         if "foto" not in {c[1] for c in self.db.execute("PRAGMA table_info(platos)").fetchall()}:  # migración: fotos opcionales (WebP 160 y 320 px), NULL = sin foto

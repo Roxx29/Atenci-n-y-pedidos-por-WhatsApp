@@ -15,6 +15,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from . import mesa
+
 
 def firma_valida(cuerpo, cabecera, secreto):
     esperada = "sha256=" + hmac.new(secreto.encode(), cuerpo, hashlib.sha256).hexdigest()
@@ -51,6 +53,8 @@ def enviar(telefono, texto, plantilla=None):
 def enviar_pendientes(sv, enviar=enviar):
     limite = f"{sv.ahora() - dt.timedelta(hours=6):%Y-%m-%d %H:%M}"
     for m in sv.pendientes():
+        if mesa.de_cid(m["telefono"]):  # cliente de mesa (web): sin teléfono, el aviso le llega por la propia página
+            continue
         if m["enviar_en"] < limite:  # tras una caída no mandar avisos viejos, ni reintentar para siempre
             sv.actualizar(m["id"], {"estado": "vencido"})
             continue

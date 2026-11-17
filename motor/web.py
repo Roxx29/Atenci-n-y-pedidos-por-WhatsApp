@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import clientes, paginas, panel_web, temas, ubicacion
+from . import clientes, mesa, paginas, panel_web, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -27,6 +27,7 @@ from .nucleo import Servicio
 PAGINA = Path(__file__).with_name("web_index.html")
 PAGINA_PANEL = Path(__file__).with_name("panel_web.html")
 PAGINA_REP = Path(__file__).with_name("repartidor.html")
+PAGINA_QR = Path(__file__).with_name("panel_qr.html")
 MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "/repartidor/", "scope": "/repartidor/", "display": "standalone",
                 "background_color": "#ffffff", "theme_color": "#111113", "icons": [{"src": "/repartidor/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}
 FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")
@@ -192,7 +193,8 @@ def formato_pedido(p):
     return {"id": p["id"], "estado": p["estado"], "modalidad": p["modalidad"],
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"])} for l in p["lineas"]], "ubicacion": bool(p.get("ubicacion")),
             "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
-            "por_cobrar": bool(p.get("por_cobrar"))}
+            "por_cobrar": bool(p.get("por_cobrar")),
+            **({"mesa": p["mesa"], "espera_personal": bool(p.get("espera_personal"))} if p.get("mesa") else {})}  # solo en pedidos de mesa: la API de los demás no cambia
 
 
 class Limite:
@@ -317,6 +319,14 @@ def crear_manejador(sv, secreto=None, env=None):
             d["repartidor_pos"] = ubicacion.vista_posicion(quedan[n], t)
         return d
 
+    def mesas_on():
+        return "mesas" in panel_web.modulos(sv)
+
+    def armar_qr():
+        """Página de gestión de QR del dueño: la del motor con el tema de ESTE cliente."""
+        tema = sv.dir / "tema.css"
+        return _componer(PAGINA_QR, (tema if tema.is_file() else ESTATICO / "tema.css").read_bytes(), temas.tema_de(sv.dir)["tema"], marca_de(sv))
+
     corte = {}  # cid -> id de pedido hasta el que (inclusive) ya no se muestra si está cerrado  # ponytail: en memoria; tras reiniciar reaparece el último cerrado
 
     def pedidos_de(cid):
@@ -360,6 +370,35 @@ def crear_manejador(sv, secreto=None, env=None):
 
         def _cid(self):
             return cid_de_cookie(secreto, self.headers.get("Cookie"))
+
+        def _base(self):
+            """https://dominio de esta petición (para las URL de los QR). El Host solo entra si tiene forma de nombre de host."""
+            host = (self.headers.get("Host") or "").strip().lower()
+            return ("https" if self._seguro() else "http") + "://" + (host if re.fullmatch(r"[a-z0-9.-]{1,253}(:\d{1,5})?", host) else "localhost")
+
+        def _pagina(self, codigo, titulo, texto=""):
+            """Página mínima para quien escanea un QR (móvil): sin datos del restaurante más allá de su marca."""
+            cuerpo = (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(titulo)}</title>'
+                      f'<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;font:18px/1.5 system-ui,sans-serif;text-align:center;padding:24px}}h1{{font-size:1.6rem}}</style></head>'
+                      f'<body><main><h1>{html.escape(titulo)}</h1><p>{html.escape(texto)}</p><small>{html.escape(marca_de(sv))}</small></main></body></html>').encode()
+            self._enviar(codigo, cuerpo, "text/html", [("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'")])
+
+        def _escaneo(self, codigo):
+            """GET /m/<codigo>: la URL estable que lleva el QR. Cuenta el escaneo y lleva al destino que el dueño tiene puesto AHORA (sin cachés)."""
+            f = mesa.por_codigo(sv, codigo) if mesas_on() else None
+            if limite.excede(("m", self._ip()), 30) or limite.excede(("m", codigo), 120):
+                return self._pagina(429, "Demasiados intentos", "Espere un momento e inténtelo de nuevo.")
+            if not f:
+                return self._pagina(404, "Código no válido", "Este código QR ya no está activo.")
+            mesa.contar(sv, f["id"])
+            ir = lambda url: self._enviar(302, b"", "text/plain", [("Location", url), ("Referrer-Policy", "no-referrer")])
+            if f["tipo"] == "pedir":
+                return ir("/?m=" + codigo)
+            if f["tipo"] == "menu":
+                return ir("/?solo=menu")
+            if f["tipo"] in ("promo", "resena"):
+                return ir(f["destino"]) if mesa.URL.fullmatch(f["destino"]) else self._pagina(200, "Promoción del día", f["destino"])
+            self._pagina(200, mesa.MSG_PAUSA, "Pregunte al personal.")
 
         def _json(self):
             if not self.headers.get("Content-Type", "").startswith("application/json"):
@@ -418,6 +457,8 @@ def crear_manejador(sv, secreto=None, env=None):
                 panel_web.auditar(sv, quien, "salir")
                 return self._enviar(200, {"ok": True}, extra=[("Set-Cookie", acceso.borrar_cookie(self._seguro()))])
             partes = ruta.split("/")  # ['', 'panel', 'estado'] ...
+            if partes[:3] == ["", "panel", "qr"] and metodo == "GET":  # página de QR del dueño: hoja imprimible y descarga SVG
+                return self._qr(partes, rol, renovar)
             try:
                 if ruta == "/panel/estado" and metodo == "GET":
                     desde = int((parse_qs(urlsplit(self.path).query).get("desde") or ["0"])[0])
@@ -493,9 +534,12 @@ def crear_manejador(sv, secreto=None, env=None):
                         return self._err(403, "Solo el dueño puede hacer esto")
                     if (metodo, partes[3]) == ("POST", "foto"):
                         return self._subir_foto(quien, renovar)
-                    d = self._json() if metodo == "POST" else {}
+                    if (metodo, partes[3]) == ("POST", "qr_logo") and mesas_on():
+                        return self._subir_logo(quien, renovar)
+                    d = self._json() if metodo == "POST" else {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
                     if d is None:
                         return
+                    d["_base"] = self._base()  # lo pone el servidor, pise lo que pise el cliente
                     try:
                         return self._enviar(200, panel_web.api_dueno(sv, quien, rol, metodo, partes[3], d), extra=renovar)
                     except LookupError:
@@ -505,6 +549,61 @@ def crear_manejador(sv, secreto=None, env=None):
             except ValueError:  # int() de la ruta
                 return self._err(400, "Datos inválidos")
             self._err(404, "No encontrado")
+
+        def _qr(self, partes, rol, renovar):
+            if rol != "dueno":
+                return self._err(403, "Solo el dueño puede hacer esto")
+            if not mesas_on():
+                return self._err(404, "No encontrado")
+            if partes == ["", "panel", "qr"]:
+                return self._enviar(200, armar_qr(), "text/html", [("Content-Security-Policy", CSP), *renovar])
+            est, logo, base = mesa.estilo(sv), mesa.logo_uri(sv), self._base()
+            if len(partes) == 5 and partes[3] == "svg" and partes[4].isdigit():  # un QR para descargar
+                f = next((c for c in mesa.listar(sv, base) if c["id"] == int(partes[4])), None)
+                if not f:
+                    return self._err(404, "No existe ese código")
+                return self._enviar(200, mesa.svg_de(sv, f["url"], est, logo, f["etiqueta"]).encode(), "image/svg+xml",
+                                    [("Content-Disposition", f'attachment; filename="qr-{f["id"]}.svg"'), ("Content-Security-Policy", paginas.CSP_SVG), *renovar])
+            if partes == ["", "panel", "qr", "hoja"]:  # varios en una hoja; ?plantilla=mesa|flyer|pegatina&ids=1,2 (sin ids: todos los activos)
+                q = parse_qs(urlsplit(self.path).query)
+                ids = {int(x) for x in re.findall(r"\d+", (q.get("ids") or [""])[0])}
+                plantilla = (q.get("plantilla") or ["mesa"])[0]
+                if plantilla not in mesa.PLANTILLAS:
+                    return self._err(400, "Plantilla inválida")
+                cs = [c for c in mesa.listar(sv, base) if c["activo"] and (not ids or c["id"] in ids)]
+                if not cs:
+                    return self._err(404, "No hay códigos activos")
+                return self._enviar(200, mesa.hoja(marca_de(sv), [{"etiqueta": c["etiqueta"], "svg": mesa.svg_de(sv, c["url"], est, logo, c["etiqueta"])} for c in cs], plantilla, est["color"], est),
+                                    "text/html", [("Content-Security-Policy", CSP), *renovar])
+            return self._err(404, "No encontrado")
+
+        def _subir_logo(self, quien, renovar):
+            """POST /panel/dueno/qr_logo, cuerpo = bytes crudos del logo (PNG, WebP o SVG), máx. 200 KB. Se comprueba el tipo por su contenido."""
+            if self.headers.get("Content-Type", "").split(";")[0].strip().lower() not in ("image/png", "image/webp", "image/svg+xml"):
+                return self._err(415, "Solo PNG, WebP o SVG")
+            try:
+                largo = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return self._err(400, "Cuerpo inválido")
+            if largo > mesa.MAX_LOGO:
+                return self._err(413, "El logo supera 200 KB")
+            if largo <= 0:
+                return self._err(400, "Logo no válido")
+            if limite.excede(("logo", quien), 10):
+                return self._err(429, "Demasiadas subidas, espere un minuto")
+            try:
+                self._leido = True
+                datos = self.rfile.read(largo)
+            except OSError:
+                return self._err(400, "Cuerpo incompleto")
+            if len(datos) != largo:
+                return self._err(400, "Cuerpo incompleto")
+            try:
+                mesa.guardar_logo(sv, datos)
+            except ValueError as e:
+                return self._err(415, str(e))
+            panel_web.auditar(sv, quien, "qr_logo")
+            return self._enviar(200, {"ok": True}, extra=renovar)
 
         def _subir_foto(self, quien, renovar):
             """POST /panel/dueno/foto?plato=<id>, cuerpo = bytes crudos. Exigir image/* bloquea formularios ajenos (CSRF) sin CORS."""
@@ -674,19 +773,34 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else paginas.servir(self, sv.dir / "web", ruta)
             if limite.excede(("ip", self._ip()), 60):
                 return self._err(429, "Demasiadas peticiones")
+            if ruta.startswith("/m/"):
+                return self._escaneo(ruta[3:])
             if ruta == "/":
                 return self._enviar(200, armar_pagina(sv, PAGINA), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA, CSP))])
             if ruta == "/menu":
                 return self._enviar(200, panel_web.menu_json(sv))
             if ruta == "/config":
-                return self._enviar(200, config_publica(sv, con_pago=bool(self._cid())))
+                d, cid = config_publica(sv, con_pago=bool(self._cid())), self._cid()
+                if mesas_on():  # ?m=<codigo> de un QR «pedir», o una sesión de mesa ya abierta
+                    f = mesa.por_codigo(sv, (parse_qs(urlsplit(self.path).query).get("m") or [""])[0])
+                    if f and f["tipo"] == "pedir":
+                        d.update(mesa=f["mesa"], etiqueta=f["etiqueta"])
+                    elif mesa.de_cid(cid):
+                        d["mesa"] = mesa.de_cid(cid)
+                return self._enviar(200, d)
             if ruta == "/aviso":
                 v, t = aviso_de(sv)
                 return self._enviar(200, {"version": v, "texto": t})
-            if ruta in ("/avisos", "/pedidos"):
+            if ruta in ("/avisos", "/pedidos", "/ultimo"):
                 cid = self._cid()
                 if not cid:
                     return self._err(401, "Sesión inválida")
+                if ruta == "/ultimo":  # /pedidos ya no lista el pedido entregado: aquí lo ve 30 min la persona que lo hizo (mensaje de gracias y «repetir»)
+                    ps = pedidos_de(cid)
+                    ult = ps[-1] if ps else None
+                    desde = ult and ult["estado"] == "entregado" and ult.get("estado_at")
+                    ok = bool(desde) and (sv.ahora() - dt.datetime.fromisoformat(desde)).total_seconds() < 1800
+                    return self._enviar(200, {"pedido": formato_pedido(ult) if ok else None})
                 if ruta == "/pedidos":
                     self._visita_nueva(cid)
                     mios = [p for p in reversed(pedidos_de(cid)) if p["id"] > corte.get(cid, 0) or p["estado"] in herramientas.ABIERTOS]
@@ -730,21 +844,35 @@ def crear_manejador(sv, secreto=None, env=None):
             if d is None:
                 return
             nombre, tel = d.get("nombre"), re.sub(r"[ \-+]", "", str(d.get("telefono", "")))
-            if not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 60):
-                return self._err(400, "Nombre inválido")
-            if not (tel.isascii() and tel.isdigit() and 8 <= len(tel) <= 15):
-                return self._err(400, "Teléfono inválido")
+            f = mesa.por_codigo(sv, d.get("codigo")) if mesas_on() else None
+            en_mesa = f["mesa"] if f and f["tipo"] == "pedir" and not tel else None  # QR de mesa: sin teléfono y con nombre opcional
+            if en_mesa:
+                if limite.excede(("mesa", f["id"]), 20):
+                    return self._err(429, "Demasiadas peticiones")
+                nombre = "" if nombre in (None, "") else nombre
+                if not (isinstance(nombre, str) and len(nombre.strip()) <= 60):
+                    return self._err(400, "Nombre inválido")
+            else:
+                if not (isinstance(nombre, str) and 1 <= len(nombre.strip()) <= 60):
+                    return self._err(400, "Nombre inválido")
+                if not (tel.isascii() and tel.isdigit() and 8 <= len(tel) <= 15):
+                    return self._err(400, "Teléfono inválido")
             if d.get("consentimiento") is not True and d.get("acepta_privacidad") is not True:
                 return self._err(400, "Se requiere el consentimiento")
             version = aviso_de(sv)[0]
             if d.get("version_aviso") != version:
                 return self._err(400, "El aviso cambió; vuelva a aceptarlo")
             nombre = nombre.strip()
+            vida = VIDA_S
+            if en_mesa:  # la misma sesión de esa mesa se conserva (recargar no pierde el seguimiento); si no, cid nuevo; la cookie dura una visita
+                actual = self._cid()
+                tel, vida = actual if mesa.de_cid(actual) == en_mesa else mesa.nuevo_cid(en_mesa), VISITA_S
             sv.insertar("consentimiento", {"telefono": tel, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
-            nombres[tel] = nombre
+            if nombre:
+                nombres[tel] = nombre
             self._visita_nueva(tel)
-            cookie = f"sesion={firmar(secreto, tel, int(time.time()) + VIDA_S)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={VIDA_S}{'; Secure' if self._seguro() else ''}"
-            self._enviar(200, {"ok": True, "nombre": nombre}, extra=[("Set-Cookie", cookie)])
+            cookie = f"sesion={firmar(secreto, tel, int(time.time()) + vida)}; HttpOnly; SameSite=Strict; Path=/; Max-Age={vida}{'; Secure' if self._seguro() else ''}"
+            self._enviar(200, {"ok": True, "nombre": nombre, **({"mesa": en_mesa} if en_mesa else {})}, extra=[("Set-Cookie", cookie)])
 
         def _visita_nueva(self, cid):
             """Chat limpio (historial del modelo) si el último pedido terminó o hubo >VISITA_S sin actividad. El pedido en BD no se toca."""
@@ -863,6 +991,8 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._err(401, "Sesión inválida")
             if limite.excede(("cid", cid), 30):
                 return self._err(429, "Demasiadas peticiones")
+            if mesa.de_cid(cid) and limite.excede(("mesa_chat", mesa.de_cid(cid)), 60):  # tope por mesa además del de cada cid
+                return self._err(429, "Demasiadas peticiones")
             d = self._json()
             if d is None:
                 return
@@ -872,6 +1002,8 @@ def crear_manejador(sv, secreto=None, env=None):
             self._visita_nueva(cid)
             if n := nombres.pop(cid, None):
                 t = f"[Nombre del cliente: {n}] {t}"
+            if m := mesa.de_cid(cid):
+                t = f"[Cliente en la MESA {m} (QR): usa modalidad 'mesa'; sin teléfono ni dirección; el nombre es opcional, si no lo dice usa 'Mesa {m}'] {t}"
             antes = {p["id"]: p for p in pedidos_de(cid)}
             try:
                 r = sv.responder(cid, t)

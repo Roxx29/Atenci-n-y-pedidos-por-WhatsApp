@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeliFood · Códigos QR</title>
+<link rel="stylesheet" href="estatico/tema.css">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--on-surface);font:15px/1.5 var(--texto,system-ui,sans-serif)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font:700 1.5rem var(--display,inherit);margin:0 0 4px}h2{font:700 1.15rem var(--display,inherit);margin:0 0 10px}
+.ayuda{color:var(--on-variant);font-size:.875rem;margin:0 0 12px}
+.caja{background:var(--sc-lowest);border-radius:12px;padding:16px;margin-top:16px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.cols{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:800px){.cols{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
+label{display:grid;gap:4px;font-weight:700;font-size:.85rem}
+input,select,button{font:inherit;color:inherit;min-height:44px;border-radius:8px}
+input,select{border:1.5px solid var(--outline-variant);background:var(--sc-lowest);padding:6px 10px;width:100%}
+input[type=color]{padding:2px;min-width:56px}input[type=checkbox]{width:22px;min-height:22px}
+button{cursor:pointer;border:0;background:var(--primary);color:var(--on-primary);font-weight:700;padding:0 16px}
+button.sec,a.btn{background:transparent;color:var(--primary);border:1.5px solid var(--primary)}
+a.btn{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:8px;text-decoration:none;font-weight:700}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.fila{display:flex;flex-wrap:wrap;gap:10px;align-items:end}.fila>*{flex:1 1 130px}
+.estilo{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.vista{display:grid;place-items:center;background:var(--sc-low);border-radius:12px;padding:12px;min-height:240px}.vista svg{width:100%;max-width:260px;height:auto}
+.error{color:var(--error);font-weight:700;min-height:1.4em;margin:6px 0}
+.cod{border-top:1px solid var(--sc-high);padding:12px 0;display:grid;gap:8px;grid-template-columns:72px minmax(0,1fr)}
+.cod .mini svg{width:72px;height:auto;display:block}
+.cod.off{opacity:.6}
+.cod .acc{display:flex;flex-wrap:wrap;gap:8px}.cod .acc button,.cod .acc a{flex:1 1 auto}
+.barras{display:flex;gap:2px;align-items:flex-end;height:28px}.barras i{flex:1;background:var(--primary);min-height:2px;border-radius:2px;opacity:.8}
+.num{font-variant-numeric:tabular-nums}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Códigos QR de DeliFood</h1>
+  <p class="ayuda">El QR impreso lleva una dirección fija (<b>/m/código</b>) que <b>nunca cambia</b>: aquí cambias a dónde lleva sin reimprimir. Si un código se filtra, desactívalo o regenéralo (el viejo deja de funcionar).</p>
+  <p class="error" id="error" role="alert"></p>
+
+  <div class="cols">
+    <section class="caja" aria-labelledby="t-estilo">
+      <h2 id="t-estilo">Estilo (igual para todos tus QR)</h2>
+      <form id="estilo" class="estilo">
+        <label>Módulos<select name="modulo"><option value="cuadrado">Cuadrados</option><option value="redondeado">Redondeados</option><option value="puntos">Puntos</option></select></label>
+        <label>Esquinas<select name="esquinas"><option value="cuadrada">Cuadradas</option><option value="redonda">Redondas</option></select></label>
+        <label>Color del código<input type="color" name="color"></label>
+        <label>Color de fondo<input type="color" name="fondo"></label>
+        <label>Rótulo<input type="text" name="texto" maxlength="30"></label>
+        <label><span>Marco y rótulo</span><input type="checkbox" name="marco"></label>
+        <label><span>Logo en el centro</span><input type="checkbox" name="logo"></label>
+      </form>
+      <div class="fila" style="margin-top:12px">
+        <label>Logo (PNG, WebP o SVG, máx. 200 KB)<input type="file" id="logo" accept="image/png,image/webp,image/svg+xml"></label>
+        <button type="button" class="sec" id="logo-quitar">Quitar logo</button>
+        <button type="button" id="guardar-estilo">Guardar estilo</button>
+      </div>
+      <p class="ayuda" style="margin-top:8px">El código debe ser más oscuro que el fondo (contraste mínimo 4:1). Con logo, el QR usa el nivel de corrección más alto y el logo ocupa solo el centro.</p>
+    </section>
+    <section class="caja" aria-labelledby="t-vista">
+      <h2 id="t-vista">Vista previa</h2>
+      <div class="vista" id="vista" role="img" aria-label="Vista previa del código QR"></div>
+    </section>
+  </div>
+
+  <section class="caja" aria-labelledby="t-nuevo">
+    <h2 id="t-nuevo">Crear códigos</h2>
+    <form id="generar" class="fila">
+      <label>Mesas desde<input type="number" name="desde" min="1" max="100" value="1"></label>
+      <label>hasta<input type="number" name="hasta" min="1" max="100" value="10"></label>
+      <button type="submit">Crear códigos de mesa</button>
+    </form>
+    <form id="nuevo" class="fila" style="margin-top:12px">
+      <label>Etiqueta<input type="text" name="etiqueta" maxlength="40" placeholder="Barra, Terraza, Flyer…" required></label>
+      <label>Destino<select name="tipo"></select></label>
+      <label>Mesa (si pide)<input type="number" name="mesa" min="1" max="100"></label>
+      <label>Enlace o texto<input type="text" name="destino" maxlength="300"></label>
+      <button type="submit">Añadir código</button>
+    </form>
+  </section>
+
+  <section class="caja" aria-labelledby="t-lista">
+    <h2 id="t-lista">Tus códigos</h2>
+    <div class="fila" style="margin-bottom:8px">
+      <label>Plantilla de impresión<select id="plantilla"><option value="mesa">Tarjeta de mesa</option><option value="flyer">Flyer vertical</option><option value="pegatina">Pegatina redonda</option></select></label>
+      <a class="btn" id="hoja" target="_blank" rel="noopener">Abrir hoja para imprimir</a>
+    </div>
+    <div id="lista"></div>
+  </section>
+</main>
+<script>
+"use strict";
+const $ = s => document.querySelector(s), est = $("#estilo");
+let TIPOS = {}, ESTADO = null;
+const el = (t, a = {}, ...h) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a)) k === "class" ? e.className = v : e.setAttribute(k, v); e.append(...h.filter(x => x != null && x !== false)); return e; };
+const msg = t => { $("#error").textContent = t || ""; };
+async function api(m, ruta, cuerpo) {
+  const r = await fetch("/panel/dueno/" + ruta, {method:m, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || "Error " + r.status);
+  return d;
+}
+const leerEstilo = () => ({modulo:est.modulo.value, esquinas:est.esquinas.value, color:est.color.value, fondo:est.fondo.value, texto:est.texto.value, marco:est.marco.checked, logo:est.logo.checked});
+function ponerEstilo(e) { for (const k of ["modulo", "esquinas", "color", "fondo", "texto"]) est[k].value = e[k]; est.marco.checked = e.marco; est.logo.checked = e.logo; }
+let tVista = 0;
+function vista() {
+  clearTimeout(tVista);
+  tVista = setTimeout(async () => {
+    try { const d = await api("POST", "qr_vista", {estilo:leerEstilo()}); $("#vista").innerHTML = d.svg; msg(""); } // el SVG lo genera el servidor con valores validados
+    catch (x) { msg(x.message); }
+  }, 150);
+}
+est.addEventListener("input", vista);
+async function cargar() {
+  ESTADO = await api("GET", "qr_codigos");
+  TIPOS = ESTADO.tipos; ponerEstilo(ESTADO.estilo);
+  $("#nuevo").tipo.replaceChildren(...Object.entries(TIPOS).map(([k, v]) => el("option", {value:k}, v)));
+  $("#logo-quitar").hidden = !ESTADO.logo;
+  vista(); pintar();
+}
+function pintar() {
+  $("#hoja").href = "/panel/qr/hoja?plantilla=" + $("#plantilla").value;
+  $("#lista").replaceChildren(...(ESTADO.codigos.length ? ESTADO.codigos.map(fila) : [el("p", {class:"ayuda"}, "Aún no hay códigos. Crea los de tus mesas arriba.")]));
+}
+$("#plantilla").onchange = pintar;
+function fila(c) {
+  const tipo = el("select", {"aria-label":"Destino de " + c.etiqueta}, ...Object.entries(TIPOS).map(([k, v]) => el("option", c.tipo === k ? {value:k, selected:""} : {value:k}, v)));
+  const etiqueta = el("input", {type:"text", value:c.etiqueta, maxlength:"40", "aria-label":"Etiqueta"});
+  const mesa = el("input", {type:"number", min:"1", max:String(ESTADO.maximo), value:c.mesa ?? "", "aria-label":"Mesa"});
+  const destino = el("input", {class:"dest", type:"text", value:c.destino, maxlength:"300", placeholder:"https://… o texto de la promoción", "aria-label":"Enlace o texto"});
+  const activo = el("input", {type:"checkbox", "aria-label":"Activo"}); activo.checked = c.activo;
+  const max = Math.max(1, ...c.dias7.map(d => d.n));
+  const act = async (hacer, ok) => { try { await hacer(); msg(""); await cargar(); if (ok) msg(ok); } catch (x) { msg(x.message); } };
+  const mini = el("div", {class:"mini"}); mini.innerHTML = ""; fetch("/panel/qr/svg/" + c.id).then(r => r.text()).then(t => { mini.innerHTML = t; }).catch(() => {}); // SVG del propio servidor
+  return el("div", {class:"cod" + (c.activo ? "" : " off")}, mini, el("div", {},
+    el("div", {class:"fila"}, el("label", {}, "Etiqueta", etiqueta), el("label", {}, "Destino", tipo), el("label", {}, "Mesa", mesa), el("label", {}, "Activo", activo)),
+    el("label", {style:"margin-top:8px"}, "Enlace o texto", destino),
+    el("p", {class:"ayuda num"}, `Escaneos: hoy ${c.hoy} · 7 días ${c.dias7.reduce((a, d) => a + d.n, 0)} · total ${c.escaneos} · ${location.origin}/m/${c.codigo}`),
+    el("div", {class:"barras", role:"img", "aria-label":"Escaneos de los últimos 7 días"}, ...c.dias7.map(d => { const i = el("i", {title:d.dia + ": " + d.n}); i.style.height = Math.round(d.n / max * 100) + "%"; return i; })),
+    el("div", {class:"acc"},
+      el("button", {type:"button",}, "Guardar"),
+      el("button", {type:"button", class:"sec"}, "Regenerar código"),
+      el("a", {class:"btn", href:"/panel/qr/svg/" + c.id, download:""}, "Descargar SVG"),
+      el("button", {type:"button", class:"sec"}, "Borrar"))));
+}
+$("#lista").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b || b.type !== "button") return;
+  const f = b.closest(".cod"), i = [...$("#lista").children].indexOf(f), c = ESTADO.codigos[i], [etq, tip, mes, act] = f.querySelectorAll(".fila input, .fila select"), dest = f.querySelector(".dest");
+  const hacer = async (fn, ok) => { try { await fn(); await cargar(); msg(ok || ""); } catch (x) { msg(x.message); } };
+  if (b.textContent === "Guardar") hacer(() => api("POST", "qr_codigo", {id:c.id, etiqueta:etq.value, tipo:tip.value, mesa:mes.value ? Number(mes.value) : null, destino:dest.value, activo:act.checked}), "Guardado. El QR impreso sigue igual.");
+  else if (b.textContent === "Regenerar código") { if (confirm("El código viejo dejará de funcionar y tendrás que reimprimir este QR. ¿Seguir?")) hacer(() => api("POST", "qr_regenerar", {id:c.id}), "Código nuevo creado."); }
+  else if (b.textContent === "Borrar") { if (confirm("¿Borrar este código y sus estadísticas?")) hacer(() => api("POST", "qr_borrar", {id:c.id})); }
+});
+$("#guardar-estilo").onclick = async () => { try { await api("POST", "qr_estilo", {estilo:leerEstilo()}); msg(""); await cargar(); msg("Estilo guardado."); } catch (x) { msg(x.message); } };
+$("#generar").onsubmit = async e => { e.preventDefault(); try { const d = await api("POST", "qr_generar", {desde:Number(e.target.desde.value), hasta:Number(e.target.hasta.value)}); await cargar(); msg(d.creados + " códigos creados."); } catch (x) { msg(x.message); } };
+$("#nuevo").onsubmit = async e => { e.preventDefault(); const f = e.target; try { await api("POST", "qr_codigo", {etiqueta:f.etiqueta.value, tipo:f.tipo.value, destino:f.destino.value, mesa:f.mesa.value ? Number(f.mesa.value) : null}); f.reset(); await cargar(); } catch (x) { msg(x.message); } };
+$("#logo").onchange = async e => {
+  const a = e.target.files[0]; if (!a) return;
+  try {
+    const r = await fetch("/panel/dueno/qr_logo", {method:"POST", headers:{"Content-Type":a.type}, body:a});
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "No se pudo subir el logo");
+    est.logo.checked = true; await cargar(); msg("Logo guardado. Pulsa «Guardar estilo» para usarlo.");
+  } catch (x) { msg(x.message); }
+  e.target.value = "";
+};
+$("#logo-quitar").onclick = async () => { try { await api("POST", "qr_logo_borrar", {}); await cargar(); } catch (x) { msg(x.message); } };
+cargar().catch(x => msg(x.message));
+</script>
+</body>
+</html>

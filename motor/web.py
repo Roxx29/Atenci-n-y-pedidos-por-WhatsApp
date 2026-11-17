@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import clientes, panel_web, ubicacion
+from . import clientes, panel_web, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -56,11 +56,16 @@ def marca_de(sv):
 
 
 def armar_pagina(sv, f):
-    """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico) y nombre de marca."""
+    """Página lista para servir: tema incrustado (servicios/<slug>/tema.css si existe; si no, el de motor/estatico), al final el
+    personalizado.css de ESE cliente si lo tiene, y nombre de marca."""
     if not f.is_file():
         return b""
     tema = sv.dir / "tema.css"
     css = (tema if tema.is_file() else ESTATICO / "tema.css").read_bytes()
+    try:  # se sanea también al servir: un archivo puesto a mano tampoco puede cerrar el <style>
+        css += b"\n" + temas.sanear_css((sv.dir / "personalizado.css").read_text(encoding="utf-8")).encode()
+    except (OSError, ValueError):  # sin archivo, ilegible o fuera de la lista: la página sale con su tema
+        pass
     return f.read_bytes().replace(ENLACE_TEMA, b"<style>" + css + b"</style>").replace(MARCA.encode(), html.escape(marca_de(sv)).encode())
 
 

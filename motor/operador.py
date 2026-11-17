@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 
-from . import clientes, panel_web
+from . import clientes, panel_web, temas
 from .nucleo import Servicio
 
 SLUG = re.compile(r"[a-z0-9-]{1,40}")
@@ -30,11 +30,11 @@ SESION = 8 * 3600
 MAX_FALLOS, BLOQUEO = 5, 300
 CATALOGO = ("estadisticas",)  # módulos que el operador puede activar; añade aquí los nuevos
 AVISO_DIAS = 5
-COLOR = re.compile(r"#[0-9a-fA-F]{6}")
+COLOR = temas.COLOR
 MARCADOR = re.compile(r"\{(nombre|marca|slug)\}")  # los que rellena el alta en la plantilla
-TEMA = Path(__file__).with_name("estatico") / "tema.css"
 TOPE_PRUEBA = 300 # tope IA diario por defecto en prueba (el contrato lo aplica clientes.py)
 CLAVE_MIN = 12
+MAX_CUERPO_CSS = 48_000  # cuerpo JSON de …/personalizado: 20 KB de CSS ya escapado (las demás rutas, 4 KB)
 MAX_REGISTRO = 1_000_000  # bytes de registro.jsonl antes de rotarlo a registro.jsonl.1 (se guarda una sola generación)
 
 
@@ -260,7 +260,8 @@ class Operador:
                         "prueba_hasta": ph.isoformat() if ph else None, "prueba_dias": pd, "etiqueta_prueba": pet,
                         "uso_ia": self._uso(Path(c.carpeta)), "tope_ia": tope,
                         "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, []),
-                        "archivado": c.archivado.isoformat() if c.archivado else None})
+                        "archivado": c.archivado.isoformat() if c.archivado else None,
+                        **self._tema_de(Path(c.carpeta)), "personalizado": (Path(c.carpeta) / "personalizado.css").is_file()})
         vivos = [c for c in out if not c["archivado"]]  # los archivados se cuentan aparte: ni ingresos ni vencidos ni pruebas
         resumen = {"activos": sum(c["activo"] for c in vivos),
                    "ingresos": sum(c["precio"] or 0 for c in vivos if c["estado_pago"] in ("al_dia", "por_vencer")),
@@ -337,8 +338,9 @@ class Operador:
     # --- acciones ---
     @staticmethod
     def _validar_alta(d):
-        """-> (nombre, slug, dominio, pin, color, días) ya limpios. ValueError en español; el PIN nunca va en el mensaje."""
+        """-> (nombre, slug, dominio, pin, color, días, tema) ya limpios. ValueError en español; el PIN nunca va en el mensaje."""
         nombre, slug, dominio, pin, color, dias = (d.get(k) for k in ("nombre", "slug", "dominio", "pin", "color", "prueba_dias"))
+        tema = d.get("tema", "clasico")
         if not (isinstance(slug, str) and SLUG.fullmatch(slug)):
             raise ValueError("slug inválido: usa a-z, 0-9 y guiones")
         nombre, dominio, color = Operador._nombre(nombre), Operador._dominio(dominio), Operador._color(color)
@@ -346,7 +348,8 @@ class Operador:
             dias = 0
         if type(dias) is not int or dias not in (0, 7, 15, 30):
             raise ValueError("días de prueba: 0, 7, 15 o 30")
-        return nombre, slug, dominio, Operador._pin(pin), color, dias
+        temas.generar_tema(tema, color)  # ValueError si el tema no está en el catálogo
+        return nombre, slug, dominio, Operador._pin(pin), color, dias, tema
 
     @staticmethod
     def _nombre(nombre):
@@ -379,11 +382,69 @@ class Operador:
         return pin
 
     @staticmethod
-    def _tema(destino, color):
-        # ponytail: copia del tema del motor + el color; no sigue los cambios futuros de motor/estatico/tema.css (regenerar si hace falta)
-        (destino / "tema.css").write_text(TEMA.read_text(encoding="utf-8") + f"\n:root{{--primary:{color};--primary-container:{color}}}\n", encoding="utf-8")
+    def _poner(f, texto):
+        """Escritura atómica: o queda el archivo entero o queda el de antes."""
+        tmp = f.with_name(f.name + ".tmp")
+        try:
+            tmp.write_bytes(texto.encode())  # bytes: en Windows write_text cambiaría los saltos de línea
+            os.replace(tmp, f)
+        finally:
+            tmp.unlink(missing_ok=True)
 
-    def _rellenar(self, destino, nombre, slug, color):
+    @staticmethod
+    def _foto(*archivos):
+        return [(f, f.read_bytes() if f.exists() else None) for f in archivos]
+
+    @staticmethod
+    def _volver(antes):
+        for f, b in antes:
+            f.write_bytes(b) if b is not None else f.unlink(missing_ok=True)
+
+    @staticmethod
+    def _tema(destino, tema, color):
+        # ponytail: tema.css es una copia generada (motor + tokens + color); no sigue los cambios futuros del motor hasta volver a aplicar el tema
+        Operador._poner(destino / "tema.css", temas.generar_tema(tema, color))
+        Operador._poner(destino / "tema.json", json.dumps({"tema": tema, "color": color}))
+
+    @staticmethod
+    def _tema_de(carpeta):
+        """-> {tema, color} del tema.json del cliente; sin archivo (o roto): el clásico sin color."""
+        try:
+            d = json.loads((carpeta / "tema.json").read_text(encoding="utf-8"))
+            tema, color = d["tema"], d.get("color")
+            temas.generar_tema(tema, color)
+            return {"tema": tema, "color": color}
+        except (OSError, ValueError, KeyError, TypeError):
+            return {"tema": "clasico", "color": None}
+
+    def tema(self, slug, d):
+        """Aplica un tema del catálogo (y, opcional, un color primario) SOLO a ese cliente: regenera su tema.css y anota el tema en su tema.json.
+        Sin `color` quedan los colores del tema. Si falla a mitad, los dos archivos vuelven a como estaban."""
+        carpeta = self._carpeta(slug)
+        if set(d) - {"tema", "color"}:
+            raise ValueError("tema: indica tema y, si quieres, color")
+        tema, color = d.get("tema"), self._color(d.get("color"))
+        temas.generar_tema(tema, color)  # valida antes de tocar el disco
+        antes = self._foto(carpeta / "tema.css", carpeta / "tema.json")
+        try:
+            self._tema(carpeta, tema, color)
+        except Exception:
+            self._volver(antes)
+            raise
+        return {"tema": tema, "color": color}
+
+    def personalizado(self, slug, d):
+        """CSS propio de un cliente (personalizado.css; web.armar_pagina lo pone al final de su tema). Vacío = lo borra."""
+        f = self._carpeta(slug) / "personalizado.css"
+        css = temas.sanear_css(d.get("css"))
+        self._poner(f, css) if css else f.unlink(missing_ok=True)
+        return {"bytes": len(css.encode())}
+
+    def personalizado_actual(self, slug):
+        f = self._carpeta(slug) / "personalizado.css"
+        return {"css": f.read_text(encoding="utf-8") if f.is_file() else ""}
+
+    def _rellenar(self, destino, nombre, slug, color, tema="clasico"):
         """Pone nombre, marca y slug en la copia de la plantilla. En YAML el nombre entra como escalar entre comillas de safe_dump (nunca texto pegado)."""
         y = lambda v: yaml.safe_dump(v, default_style='"', allow_unicode=True, width=float("inf")).strip()
         for f, v in (("servicio.yaml", {"nombre": y(nombre), "marca": y(nombre[:40].strip()), "slug": slug}),  # marca: 40 es el tope del panel
@@ -391,13 +452,13 @@ class Operador:
             if (destino / f).is_file():
                 t = (destino / f).read_text(encoding="utf-8")
                 (destino / f).write_text(MARCADOR.sub(lambda m: v.get(m[1], m[0]), t), encoding="utf-8")  # una pasada: un «{slug}» escrito en el nombre queda literal
-        if color:
-            self._tema(destino, color)
+        if color or tema != "clasico":  # el clásico sin color no necesita archivo: se sirve el del motor
+            self._tema(destino, tema, color)
 
     def nuevo(self, d):
         """Alta completa: carpeta desde la plantilla, usuario Dueno (solo el hash del PIN) en la BD del cliente y entrada en clientes.yaml.
         Valida todo antes de tocar el disco; si algo falla a mitad, deshace carpeta, usuario y YAML. El PIN en claro solo sale en lo que devuelve."""
-        nombre, slug, dominio, pin, color, dias = self._validar_alta(d)
+        nombre, slug, dominio, pin, color, dias, tema = self._validar_alta(d)
         y = self._yaml()
         destino = self.raiz / "servicios" / slug
         if slug in y["clientes"] or destino.exists():
@@ -410,7 +471,7 @@ class Operador:
         sv = sembrado = None
         try:
             shutil.copytree(self.plantilla, destino)
-            self._rellenar(destino, nombre, slug, color)
+            self._rellenar(destino, nombre, slug, color, tema)
             sv = Servicio(destino, env=clientes.entorno(slug))  # crea su BD (SQLite en la carpeta, o su Turso si tiene variables propias)
             if panel_web._todos(sv):  # una BD de Turso reutilizada: no se pisa a su dueño
                 raise ValueError("La base de datos de ese cliente ya tiene usuarios")
@@ -514,7 +575,7 @@ class Operador:
             raise ValueError("color inválido: usa el formato #rrggbb")
         if dominio and any(c.dominio == dominio and c.slug != slug for c in self.cargar(self.ruta)):
             raise FileExistsError("Ese dominio ya es de otro cliente")
-        antes = [(f, f.read_bytes() if f.exists() else None) for f in (self.ruta, carpeta / "servicio.yaml", carpeta / "tema.css")]
+        antes = self._foto(self.ruta, carpeta / "servicio.yaml", carpeta / "tema.css", carpeta / "tema.json")
         try:
             if nombre:
                 # ponytail: safe_dump conserva los datos pero no los comentarios del servicio.yaml
@@ -524,15 +585,14 @@ class Operador:
                 cfg["nombre"], cfg["marca"] = nombre, nombre[:40].strip()  # marca: 40 es el tope del panel
                 (carpeta / "servicio.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False), encoding="utf-8")
             if color:
-                self._tema(carpeta, color)
+                self._tema(carpeta, self._tema_de(carpeta)["tema"], color)  # su tema, con el color nuevo; personalizado.css no se toca
             if dominio:
                 y = self._yaml()
                 y["clientes"][slug]["dominio"] = dominio
                 self._guardar(y)
             self.cargar(self.ruta)  # mismas reglas que al arrancar
         except Exception:
-            for f, b in antes:
-                f.write_bytes(b) if b is not None else f.unlink(missing_ok=True)
+            self._volver(antes)
             self.ruta.with_suffix(".tmp").unlink(missing_ok=True)
             raise
 
@@ -618,6 +678,8 @@ RUTAS = {
     "pin": ("pin", lambda op, s, d: op.pin(s, d)),  # única, con el alta, que responde un PIN en claro
     "equipo/activo": ("equipo", lambda op, s, d: op.equipo_activo(s, d)),
     "ajustes": ("ajustes", lambda op, s, d: op.ajustes(s, d)),
+    "tema": ("tema", lambda op, s, d: op.tema(s, d)),
+    "personalizado": ("personalizado", lambda op, s, d: op.personalizado(s, d)),  # al registro va la acción, nunca el CSS
     "archivar": ("archivar", lambda op, s, d: {"copia": op.archivar(s, d.get("confirmar"))}),
     "restaurar": ("restaurar", lambda op, s, d: op.restaurar(s)),
     "eliminar": ("eliminar", lambda op, s, d: op.eliminar(s, d.get("confirmar"))),
@@ -651,9 +713,9 @@ def handler(op):
             self.end_headers()
             self.wfile.write(b)
 
-        def _json(self):
+        def _json(self, tope=4096):
             try:
-                n = max(0, min(int(self.headers.get("Content-Length") or 0), 4096))
+                n = max(0, min(int(self.headers.get("Content-Length") or 0), tope))
                 d = json.loads(self.rfile.read(n) or b"{}")
                 return d if isinstance(d, dict) else {}
             except ValueError:
@@ -689,14 +751,18 @@ def handler(op):
                 if not (n.isascii() and n.isdigit() and len(n) <= 6 and int(n) >= 1):
                     return self._send(400, {"error": "n: un entero de 1 a 500"})
                 return self._send(200, op.registro(min(int(n), 500)))
+            if u.path == "/api/temas":
+                return self._send(200, temas.catalogo())
             if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "equipo":
                 return self._send(*self._hacer(lambda: op.equipo(partes[2])))
+            if len(partes) == 4 and partes[:2] == ["api", "clientes"] and partes[3] == "personalizado":
+                return self._send(*self._hacer(lambda: op.personalizado_actual(partes[2])))
             self._send(404, {"error": "no existe"})
 
         def do_POST(self):
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self._send(415, {"error": "json"})
-            d = self._json()
+            d = self._json(MAX_CUERPO_CSS if self.path.endswith("/personalizado") else 4096)
             if self.path == "/api/entrar":
                 try:
                     ck = op.entrar(str(d.get("clave", "")), self._ip())

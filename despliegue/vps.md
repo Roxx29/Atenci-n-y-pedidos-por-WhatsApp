@@ -14,7 +14,7 @@ Un servidor, todos los clientes, cada uno con su dominio y HTTPS automático. Ar
 - Caddy solo deja pasar a `operador.<dominio>` las IPs de `OPERADOR_IPS` (en `.env`, separadas por espacio); el resto recibe 403. Con IP dinámica, usa el túnel.
 - Alternativa túnel SSH: quita el bloque `operador.` del Caddyfile, publica `127.0.0.1:8081:8081` en el servicio `operador` y entra con `ssh -L 8081:127.0.0.1:8081 usuario@vps` → `http://127.0.0.1:8081` (con `OPERADOR_HOST=0.0.0.0` la cookie lleva `Secure`: sobre http local no se guarda; usa un túnel con `OPERADOR_HOST=127.0.0.1` o el dominio).
 - Clave de la consola: mínimo 12 caracteres; 5 fallos por IP bloquean esa IP 5 minutos.
-- Pausar/Activar y las altas escriben `clientes.yaml` y `alojar` lo recarga solo (sin reiniciar). Cambios de carpeta o de variables de un cliente ya abierto sí piden `docker compose restart alojar`.
+- Pausar/Activar y las altas escriben `clientes.yaml` y `alojar` lo recarga solo (sin reiniciar). Cambios de variables de un cliente ya abierto sí piden `docker compose restart alojar`. Restaurar una copia de su `datos.sqlite` o recrear su carpeta no: `alojar` lo detecta y reabre su BD en la siguiente petición.
 - Variables del panel: `PANEL_PUBLICO=1` (o `PANEL_PUBLICO_<SLUG>=1`) permite `/panel` por dominio (siempre con PIN); `ALOJAR_HOST=0.0.0.0` solo dentro de Docker. Ya van fijadas en `docker-compose.yml` para `alojar`.
 
 ## 3. Firewall

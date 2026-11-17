@@ -75,6 +75,11 @@ class Servicio:
         self.tools = herramientas.esquemas(self._cfg.get("herramientas", []))
         ruta = str(db or self.dir / "datos.sqlite")
         self.db, self.nube = conectar(ruta, nube=db is None, env=env)
+        try:
+            self.db.execute("PRAGMA schema_version")  # un archivo que no es una BD falla aquí
+        except Exception:
+            self.db.close()  # sin esto el archivo queda abierto hasta el recolector (en Windows, sin poder borrarlo)
+            raise
         if ruta != ":memory:" and not self.nube:
             self.db.execute("PRAGMA journal_mode=WAL")  # las lecturas del panel no bloquean al bot
         self.db.executescript(

@@ -9,7 +9,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from motor import web
+from motor import mesa, web
 from motor.nucleo import Servicio
 from tests.test_motor import MENU, SERVICIO_PEDIDOS, ClienteFalso, herramienta, texto
 
@@ -155,10 +155,16 @@ class Acceso(Base):
         self.assertIn(b"Ver aviso de privacidad", raw)
         self.assertIsNone(r.getheader("Access-Control-Allow-Origin"))
 
-    def test_logo_sello_estatico(self):
-        r, raw = self.req("GET", "/estatico/logo-delifood-v1.png")
-        self.assertEqual((r.status, r.getheader("Content-Type")), (200, "image/png"))
-        self.assertTrue(raw.startswith(b"\x89PNG"))
+    def test_logo_del_cliente(self):
+        self.assertEqual(self.req("GET", "/logo")[0].status, 404)  # sin logo: la web no muestra sello
+        png = bytes.fromhex("89504e470d0a1a0a") + b"0" * 20
+        mesa.guardar_logo(self.sv, png)
+        r, raw = self.req("GET", "/logo")
+        self.assertEqual((r.status, r.getheader("Content-Type"), raw), (200, "image/png", png))
+        mesa.guardar_logo(self.sv, b"<svg xmlns='http://www.w3.org/2000/svg'/>")
+        r, _ = self.req("GET", "/logo")
+        self.assertEqual((r.getheader("Content-Type"), r.getheader("X-Content-Type-Options")), ("image/svg+xml", "nosniff"))
+        self.assertIn("default-src 'none'", r.getheader("Content-Security-Policy"))
 
     def test_pagina_segura_y_casilla_no_premarcada(self):
         h = Path(web.__file__).with_name("web_index.html").read_text(encoding="utf-8")

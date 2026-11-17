@@ -667,7 +667,7 @@ class Operador:
         try:
             os.rename(carpeta, tumba)  # o todo o nada: si no se puede retirar la carpeta, no se toca el YAML
         except OSError:
-            raise Conflicto("No se pudo retirar su carpeta (¿la tiene abierta el servidor?): reinicia `alojar` y reintenta") from None
+            raise Conflicto("No se pudo retirar su carpeta (¿la tiene abierta el servidor?): espera unos segundos a que `alojar` la suelte y reintenta") from None
         try:
             del d["clientes"][slug]
             self._guardar(d)

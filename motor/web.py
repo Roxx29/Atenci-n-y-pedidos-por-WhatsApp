@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import socket
+import sqlite3
 import threading
 import time
 import traceback
@@ -33,7 +34,7 @@ MANIFEST_REP = {"name": "Repartidor", "short_name": "Repartidor", "start_url": "
 FUENTES = ("epilogue-v1.woff2", "jakarta-v1.woff2", "mono-v1.woff2")
 LEAFLET = {"leaflet-1.9.4.js": "text/javascript", "leaflet-1.9.4.css": "text/css",
            **{f"images/{f}": "image/png" for f in ("marker-icon.png", "marker-icon-2x.png", "marker-shadow.png", "layers.png", "layers-2x.png")}}
-ESTATICOS = {**{f: "font/woff2" for f in FUENTES}, **LEAFLET, "logo-delifood-v1.png": "image/png"}  # lista blanca de /estatico/ (motor/estatico/) -> Content-Type
+ESTATICOS = {**{f: "font/woff2" for f in FUENTES}, **LEAFLET}  # lista blanca de /estatico/ (motor/estatico/) -> Content-Type
 ESTATICO = Path(__file__).with_name("estatico")
 # sin caché de pedidos (no se guardan en el móvil); solo se guardan las fuentes (Leaflet no)
 SW_REP = ("const C='fuentes-v1',F=%s.map(f=>'/estatico/'+f);self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(C).then(c=>c.addAll(F)).catch(()=>{}))});"
@@ -220,6 +221,22 @@ class _Base(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def send_response(self, *a, **k):
+        self._enviado = True  # desde aquí ya no se puede mandar otra respuesta en esta petición
+        super().send_response(*a, **k)
+
+    def _blindado(self, atender):
+        """Atiende la petición; una excepción no controlada da 500 JSON en vez de cortar el socket (Caddy lo convertía en 502)."""
+        self._enviado = False
+        try:
+            atender()
+        except Exception:
+            traceback.print_exc()
+            if self._enviado:  # respuesta a medias (o el cliente se fue): solo cerrar
+                self.close_connection = True
+            else:
+                self._err(500, "Error interno")
+
     def _enviar(self, codigo, cuerpo, tipo="application/json", extra=()):
         if not isinstance(cuerpo, bytes):
             cuerpo = json.dumps(cuerpo, ensure_ascii=False).encode()
@@ -247,7 +264,50 @@ class _Base(BaseHTTPRequestHandler):
 
 
 def crear_servidor(sv, puerto=8080, secreto=None):
-    return ThreadingHTTPServer(("0.0.0.0", puerto), crear_manejador(sv, secreto))
+    class S(crear_manejador(sv, secreto)):
+        def do_GET(self):
+            self._blindado(super().do_GET)
+
+        def do_POST(self):
+            self._blindado(super().do_POST)
+
+    return ThreadingHTTPServer(("0.0.0.0", puerto), S)
+
+
+BD_ROTA = ("file is not a database", "malformed", "readonly database", "closed database")
+
+
+def bd_rota(e):
+    """¿La BD de un cliente se reemplazó, se corrompió o se cerró por debajo? (vale la pena reabrirla)"""
+    return isinstance(e, sqlite3.DatabaseError) and any(m in str(e) for m in BD_ROTA)
+
+
+def huella_bd(sv):
+    """Identidad en disco de la BD de `sv` y de su carpeta (dispositivo, inodo): cambia si se reemplaza el archivo o se recrea la carpeta.
+    ponytail: un `cp` encima del mismo archivo conserva el inodo; eso lo cubre el reintento con `bd_rota`."""
+    try:
+        return tuple(x for f in (sv.dir, sv.dir / ("datos-nube.db" if sv.nube else "datos.sqlite")) for st in [os.stat(f)] for x in (st.st_dev, st.st_ino))
+    except OSError:
+        return None
+
+
+class _Releible:
+    """El rfile de una petición, guardando lo leído del cuerpo para poder reintentarla una vez."""
+
+    def __init__(self, f):
+        self.f, self.b, self.i = f, b"", 0
+
+    def read(self, n=-1):
+        if self.i < len(self.b):
+            d = self.b[self.i:] if n is None or n < 0 else self.b[self.i:self.i + n]
+        else:
+            d = self.f.read(n)
+            self.b += d
+        self.i += len(d)
+        return d
+
+    def rebobinar(self):
+        self.i = 0
 
 
 def crear_manejador(sv, secreto=None, env=None):
@@ -675,6 +735,22 @@ def crear_manejador(sv, secreto=None, env=None):
             self.end_headers()
             self.wfile.write(datos)
 
+        def _logo(self):
+            """GET /logo: público; el logo del cliente (qr_config: PNG, WebP o SVG ya validados al subirlo). Sin logo: 404."""
+            if limite.excede(("foto", self._ip()), 300):
+                return self._err(429, "Demasiadas peticiones")
+            uri = mesa.logo_uri(sv)
+            tipo = uri and uri[5:uri.index(";")]
+            if tipo not in ("image/png", "image/webp", "image/svg+xml"):
+                return self._err(404, "No encontrado")
+            datos = base64.b64decode(uri.split(",", 1)[1])
+            self.send_response(200)
+            for k, v in (("Content-Type", tipo), ("Content-Length", str(len(datos))), ("X-Content-Type-Options", "nosniff"), ("Cache-Control", "public, max-age=300"),
+                         *([("Content-Security-Policy", paginas.CSP_SVG)] if tipo == "image/svg+xml" else [])):
+                self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(datos)
+
         def _foto(self, ruta):
             """GET /menu/foto/<id>.webp[?s=2]: público; la URL lleva ?v=<hash>, así que se cachea para siempre."""
             iid = ruta[len("/menu/foto/"):].removesuffix(".webp")
@@ -779,6 +855,8 @@ def crear_manejador(sv, secreto=None, env=None):
         def do_GET(self):
             if self.path.split("?")[0].startswith("/estatico/"):
                 return self._estatico(self.path.split("?")[0])
+            if self.path.split("?")[0] == "/logo":
+                return self._logo()
             if self.path.split("?")[0].startswith("/repartidor"):
                 return self._repartidor("GET", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
@@ -1074,7 +1152,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
     `ruta`: el clientes.yaml de donde salió `lista`; cuando cambia en disco se vuelve a leer sin reiniciar (pausar, reactivar, alta).
     `al_abrir(sv)`: se llama con cada Servicio que se abre, también los que entran en caliente.
     Escucha en ALOJAR_HOST (por defecto 127.0.0.1: solo el Caddy de esta máquina; en un contenedor, 0.0.0.0)."""
-    servicios, manejadores, cerrojo = {}, {}, threading.Lock()
+    servicios, abiertos, paradas, fichas, cerrojo = {}, {}, {}, {}, threading.RLock()
     por_host, dominios, activos, visto = {}, set(), [], None
 
     def huella():
@@ -1084,32 +1162,67 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
         except OSError:
             return None  # sin archivo: se sigue con lo que había
 
+    def abrir(c):
+        """Con `cerrojo`. Abre el Servicio de `c` y su manejador: abiertos[slug] = (manejador, sv, huella de su BD)."""
+        env = clientes.entorno(c.slug)
+        sv = Servicio(c.carpeta, env=env)
+        sv.modulos_operador, sv.tope_ia = c.modulos, clientes.tope_ia(c)  # modulos None = manda su servicio.yaml (panel_web.modulos)
+        abiertos[c.slug] = a = (crear_manejador(sv, secreto_cliente(c), env), sv, huella_bd(sv))
+        servicios[c.slug] = sv
+        if al_abrir:
+            paradas[c.slug] = al_abrir(sv)
+        return a
+
+    def soltar(slug):
+        """Con `cerrojo`. Cierra su BD (y su purga): sin archivos abiertos, su carpeta se puede mover, borrar o reemplazar."""
+        a = abiertos.pop(slug, None)
+        servicios.pop(slug, None)
+        if hasattr(p := paradas.pop(slug, None), "set"):
+            p.set()
+        if a:
+            with a[1]._db_lock:  # espera a la consulta en curso; las que lleguen después fallan con «closed database» y se reintentan
+                a[1].cerrar()
+
+    def al_dia(slug, fallido=None):
+        """(manejador, sv, huella) vigentes de `slug`. Reabre su Servicio, una sola vez aunque lleguen varios hilos, si no está abierto, si
+        su BD o su carpeta cambiaron en disco (archivo reemplazado, carpeta recreada, copia restaurada) o si `fallido` sigue siendo el abierto."""
+        a = abiertos.get(slug)
+        if a and a is not fallido and a[2] == huella_bd(a[1]):
+            return a
+        with cerrojo:
+            a = abiertos.get(slug)
+            if a and a is not fallido and a[2] == huella_bd(a[1]):
+                return a  # otro hilo ya lo reabrió
+            soltar(slug)
+            return abrir(fichas[slug])
+
     def aplicar(lista):
-        """Los ya abiertos conservan su instancia (BD, sesiones, límites); un pausado solo deja de estar en el mapa de hosts.
-        ponytail: carpeta o variables de un cliente ya abierto no cambian en caliente (pide reinicio); un pausado sigue con la BD abierta."""
+        """Con `cerrojo`. Los ya abiertos conservan su instancia (BD, sesiones, límites); un pausado solo deja de estar en el mapa de hosts.
+        Uno archivado, eliminado o con otra carpeta suelta su BD (si vuelve, se abre de nuevo).
+        ponytail: las variables de un cliente ya abierto no cambian en caliente (pide reinicio); un pausado sigue con la BD abierta."""
         nonlocal por_host, dominios, activos
+        fichas.clear()
+        fichas.update((c.slug, c) for c in lista if c.archivado is None)
+        for slug in list(abiertos):
+            c = fichas.get(slug)
+            if c is None or Path(c.carpeta).resolve() != abiertos[slug][1].dir.resolve():
+                soltar(slug)
         hosts, doms = {}, {}
         for c in lista:
             if c.activo:
-                if c.slug not in manejadores:
-                    env = clientes.entorno(c.slug)
-                    sv = Servicio(c.carpeta, env=env)
-                    manejadores[c.slug], servicios[c.slug] = crear_manejador(sv, secreto_cliente(c), env), sv
-                    if al_abrir:
-                        al_abrir(sv)
-                sv = servicios[c.slug]
-                sv.modulos_operador = c.modulos  # None = manda su servicio.yaml; se relee en cada petición (panel_web.modulos)
-                sv.tope_ia = clientes.tope_ia(c)
-                hosts[c.dominio] = doms[c.dominio] = (manejadores[c.slug], sv, c.prueba_hasta)
+                sv = (abiertos.get(c.slug) or abrir(c))[1]
+                sv.modulos_operador, sv.tope_ia = c.modulos, clientes.tope_ia(c)  # se relee en cada petición (panel_web.modulos)
+                hosts[c.dominio] = doms[c.dominio] = (c.slug, c.prueba_hasta)
                 if os.environ.get("PROXY") != "1":  # atajo para probar en este PC; tras un proxy sería un segundo nombre que nadie vigila
                     hosts[c.slug + ".localhost"] = hosts[c.dominio]
-        por_host, dominios, activos = hosts, doms, [servicios[c.slug] for c in lista if c.activo]
+        por_host, dominios, activos = hosts, doms, [c.slug for c in lista if c.activo]
 
     def vigente(mapa, nombre):
-        """El manejador de ese host/dominio, o None si no es de un cliente activo o su prueba gratis venció (hoy > prueba_hasta en la zona
+        """El slug de ese host/dominio, o None si no es de un cliente activo o su prueba gratis venció (hoy > prueba_hasta en la zona
         horaria de su servicio). Se mira en cada petición: una resta de fechas, sin tarea de fondo."""
-        h, sv, hasta = mapa.get(nombre) or (None, None, None)
-        return None if h is None or (hasta is not None and sv.ahora().date() > hasta) else h
+        slug, hasta = mapa.get(nombre) or (None, None)
+        a = abiertos.get(slug)
+        return None if slug is None or (hasta is not None and a and a[1].ahora().date() > hasta) else slug
 
     def recargar():
         nonlocal visto
@@ -1125,7 +1238,8 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
             except Exception as e:  # a medio escribir o inválido: se conserva la lista anterior
                 print(f"[alojar] {ruta} no se pudo recargar; sigue la lista anterior: {e}")
 
-    aplicar(lista)
+    with cerrojo:
+        aplicar(lista)
     visto = huella() if ruta is not None else None
 
     class D(_Base):
@@ -1152,25 +1266,50 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
                 if not self._caddy() or reenviada:  # desde internet: barato y sin decir nada (un SELECT por cliente a petición de cualquiera, no)
                     return self._enviar(200, {"ok": True})
                 try:
-                    for sv in activos:
-                        sv._q("SELECT 1")
+                    for slug in activos:
+                        al_dia(slug)[1]._q("SELECT 1")
                     return self._enviar(200, {"ok": True})
                 except Exception:
                     return self._enviar(503, {"ok": False})
-            h = vigente(por_host, (self.headers.get("Host") or "").strip().lower().partition(":")[0].rstrip("."))
-            if not h:  # desconocido, pausado o con la prueba vencida: la misma respuesta, sin decir cuál
+            slug = vigente(por_host, (self.headers.get("Host") or "").strip().lower().partition(":")[0].rstrip("."))
+            if not slug:  # desconocido, pausado o con la prueba vencida: la misma respuesta, sin decir cuál
                 return self._err(404, "No encontrado")
-            self.__dict__.pop("_leido", None)
-            self.__class__ = h  # el manejador del cliente atiende esta petición...
+            real = self.rfile
+            self.rfile = cuerpo = _Releible(real)
             try:
-                getattr(self, "do_" + self.command)()
+                self._atender(slug, cuerpo)
             finally:
-                self.__class__ = D  # ...y la siguiente de la misma conexión se vuelve a despachar (Caddy reutiliza conexiones entre dominios)
+                self.rfile = real
 
-        do_GET = do_POST = _despachar
+        def _atender(self, slug, cuerpo):
+            """La atiende el manejador del cliente. Si su BD resulta rota (reemplazada o corrupta por debajo), reabre su Servicio y
+            reintenta UNA vez con el mismo cuerpo; si sigue rota, 503. Los demás clientes ni se enteran."""
+            a = None
+            for intento in (0, 1):
+                self.__dict__.pop("_leido", None)
+                cuerpo.rebobinar()
+                try:
+                    a = al_dia(slug, a)
+                    self.__class__ = a[0]  # el manejador del cliente atiende esta petición...
+                    try:
+                        return getattr(self, "do_" + self.command)()
+                    finally:
+                        self.__class__ = D  # ...y la siguiente de la misma conexión se vuelve a despachar (Caddy reutiliza conexiones entre dominios)
+                except Exception as e:
+                    if not bd_rota(e) or self._enviado:
+                        raise
+                    if intento:
+                        print(f"[alojar] BD de {slug} no disponible: {type(e).__name__}")  # sin datos de clientes
+                        return self._err(503, "El servicio no está disponible en este momento; inténtalo en unos minutos")
+
+        def _despachar_blindado(self):
+            self._blindado(self._despachar)
+
+        do_GET = do_POST = _despachar_blindado
 
     srv = ThreadingHTTPServer((os.environ.get("ALOJAR_HOST") or "127.0.0.1", puerto), D)
-    srv.servicios = servicios  # todos los abiertos, también los pausados después
+    srv.servicios = servicios  # los abiertos (también los pausados después); los archivados o eliminados ya no
+    srv.recargar = recargar
     return srv
 
 
@@ -1202,6 +1341,16 @@ def iniciar_purga(sv, cada=3600):
 
 def alojar(ruta="clientes.yaml", puerto=8080):
     srv = crear_alojamiento(clientes.cargar(ruta), puerto, ruta, al_abrir=iniciar_purga)
+
+    def vigilar():  # también sin peticiones se aplica clientes.yaml: un archivado o eliminado suelta su BD en segundos
+        while True:
+            time.sleep(5)
+            try:
+                srv.recargar()
+            except Exception as e:
+                print(f"[alojar] recarga: {type(e).__name__}")
+
+    threading.Thread(target=vigilar, daemon=True).start()
     if os.environ.get("PROXY") != "1":
         for slug in srv.servicios:
             print(f"  {slug}: http://{slug}.localhost:{srv.server_address[1]}/")

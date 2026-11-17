@@ -1,10 +1,15 @@
 """Varios clientes en un proceso (`python -m motor alojar`): se elige por Host y nada se cruza. Ejecutar: python -m unittest tests.test_alojar"""
+import contextlib
 import http.client
+import io
 import json
 import os
+import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 import unittest.mock
@@ -406,3 +411,152 @@ class TestComandos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rota:
+    """Conexión que falla como una BD reemplazada por debajo (lo que se veía en el VPS)."""
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def close(self): pass
+    def execute(self, *a): raise sqlite3.DatabaseError("file is not a database")
+
+
+class TestBdCambiada(Base):
+    """Bug de producción: `alojar` seguía con la conexión al archivo viejo de un cliente → `file is not a database` en cada petición → 502."""
+    escribir, clientes = TestRecarga.escribir, TestRecarga.clientes
+
+    def bd(self, marca):
+        f = self.d / f"nueva-{marca}.sqlite"
+        sv = Servicio(self.d / "a", db=str(f))
+        sv.poner_ajuste("marca", marca)
+        sv.cerrar()
+        return f
+
+    def liberar(self, slug):
+        if os.name == "nt":  # Windows no deja reemplazar ni mover un archivo abierto (en Linux sí: ahí aparece el bug); se cierra a mano
+            sv = self.srv.servicios[slug]
+            with sv._db_lock:
+                sv.db.close()
+
+    def romper(self, sv):
+        with sv._db_lock:  # cerrar con otra consulta en curso tumba el proceso
+            sv.db.close()
+            sv.db = Rota()
+
+    def test_bd_reemplazada_se_reabre_antes_de_atender(self):
+        viejo, b = self.srv.servicios["a"], self.srv.servicios["b"]
+        self.assertEqual(self.marca("a.com"), "Marca-a")
+        nueva = self.bd("Nueva")
+        self.liberar("a")
+        os.replace(nueva, self.d / "a" / "datos.sqlite")
+        with unittest.mock.patch.object(web, "bd_rota", wraps=web.bd_rota) as rota:
+            self.assertEqual(self.marca("a.com"), "Nueva")
+            self.assertEqual(self.marca("b.com"), "Marca-b")
+        rota.assert_not_called()  # se vio por el archivo, antes de atender: sin fallo ni reintento
+        self.assertIsNot(self.srv.servicios["a"], viejo)
+        self.assertIs(self.srv.servicios["b"], b)  # el otro cliente ni se entera
+
+    def test_carpeta_recreada(self):
+        self.srv.servicios["a"]._q("INSERT INTO ajustes VALUES ('marca', '\"Vieja\"')")
+        self.assertEqual(self.marca("a.com"), "Vieja")
+        self.liberar("a")
+        shutil.rmtree(self.d / "a")
+        shutil.copytree(self.d / "c", self.d / "a", ignore=shutil.ignore_patterns("datos.sqlite*"))
+        self.assertEqual(self.marca("a.com"), "Marca-c")
+
+    def test_archivar_suelta_la_bd_y_restaurar_la_reabre(self):
+        viejo = self.srv.servicios["a"]
+        self.escribir("clientes:\n  a: {carpeta: a, dominio: a.com, activo: false, archivado: 2026-11-17}\n  b: {carpeta: b, dominio: b.com}\n")
+        self.assertEqual([self.marca("a.com"), self.marca("b.com")], [404, "Marca-b"])
+        self.assertNotIn("a", self.srv.servicios)
+        with self.assertRaises(sqlite3.ProgrammingError):  # conexión cerrada: sus archivos quedan libres
+            viejo._q("SELECT 1")
+        os.rename(self.d / "a", self.d / "a2")  # en Windows falla si sigue abierta
+        os.rename(self.d / "a2", self.d / "a")
+        self.clientes()
+        self.assertEqual(self.marca("a.com"), "Marca-a")
+
+    def test_eliminar_y_recrear_el_mismo_slug(self):
+        self.srv.servicios["a"]._q("INSERT INTO ajustes VALUES ('marca', '\"Vieja\"')")
+        self.escribir("clientes:\n  b: {carpeta: b, dominio: b.com}\n")
+        self.assertEqual(self.marca("b.com"), "Marca-b")
+        shutil.rmtree(self.d / "a")  # en Windows falla si alojar no la soltó
+        shutil.copytree(self.d / "c", self.d / "a", ignore=shutil.ignore_patterns("datos.sqlite*"))
+        self.clientes()
+        self.assertEqual(self.marca("a.com"), "Marca-c")
+
+    def test_reintenta_una_vez_reabriendo_solo_ese_cliente(self):
+        viejo, b = self.srv.servicios["a"], self.srv.servicios["b"]
+        self.romper(viejo)
+        self.assertEqual(self.marca("a.com"), "Marca-a")
+        self.assertIsNot(self.srv.servicios["a"], viejo)
+        self.assertIs(self.srv.servicios["b"], b)
+
+    def test_post_se_reintenta_con_su_cuerpo(self):
+        self.romper(self.srv.servicios["a"])
+        self.assertEqual(self.entrar("a.com")[0], 200)
+
+    def test_503_si_sigue_rota_y_se_recupera_al_arreglarla(self):
+        sv = self.srv.servicios["a"]
+        self.romper(sv)
+        f = self.d / "a" / "datos.sqlite"
+        f.write_bytes(b"esto no es una base de datos" * 200)
+        for x in ("-wal", "-shm"):
+            Path(str(f) + x).unlink(missing_ok=True)
+        salida = io.StringIO()
+        with contextlib.redirect_stdout(salida):
+            st, raw, _ = self.req("a.com", "GET", "/config")
+        self.assertEqual(st, 503)
+        self.assertIn("error", json.loads(raw))
+        self.assertIn("[alojar] BD de a no disponible: DatabaseError", salida.getvalue())
+        self.assertEqual(self.marca("b.com"), "Marca-b")
+        f.unlink()
+        self.assertEqual(self.marca("a.com"), "Marca-a")  # se reabre sola al volver a pedir
+
+    def test_concurrencia_mientras_se_reemplaza(self):
+        estados, fallos = [], []
+
+        def pedir():
+            try:
+                for _ in range(12):
+                    estados.append(self.req("a.com", "GET", "/config")[0])
+            except Exception as e:
+                fallos.append(e)
+
+        hilos = [threading.Thread(target=pedir) for _ in range(4)]
+        for h in hilos:
+            h.start()
+        for marca in ("X", "Y", "Z"):
+            nueva, viejo = self.bd(marca), self.srv.servicios["a"]
+            if os.name == "nt":
+                self.romper(viejo)  # Windows: no se puede reemplazar abierto; se rompe la conexión en vivo
+            else:
+                os.replace(nueva, self.d / "a" / "datos.sqlite")
+            for _ in range(200):
+                if self.srv.servicios.get("a") not in (viejo, None):
+                    break
+                time.sleep(0.01)
+            time.sleep(0.05)
+        for h in hilos:
+            h.join(30)
+        self.assertFalse(any(h.is_alive() for h in hilos), "bloqueo")
+        self.assertEqual(fallos, [])
+        self.assertEqual(set(estados), {200})
+
+
+class TestError500(Base):
+    def test_excepcion_no_controlada_da_500_json(self):
+        for ruta, que in (("/config", "config_publica"), ("/", "armar_pagina")):
+            with unittest.mock.patch.object(web, que, side_effect=RuntimeError("x")), contextlib.redirect_stderr(io.StringIO()):
+                st, raw, _ = self.req("a.com", "GET", ruta)
+            self.assertEqual((st, json.loads(raw)["error"]), (500, "Error interno"), ruta)
+
+    def test_motor_web_tambien(self):
+        srv = web.crear_servidor(self.srv.servicios["b"], 0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
+        with unittest.mock.patch.object(web, "config_publica", side_effect=RuntimeError("x")), contextlib.redirect_stderr(io.StringIO()):
+            c = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=10)
+            c.request("GET", "/config")
+            self.assertEqual(c.getresponse().status, 500)
+            c.close()

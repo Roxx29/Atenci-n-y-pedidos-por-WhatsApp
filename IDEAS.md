@@ -3,6 +3,8 @@
 Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` al terminar.
 
 ## Ideas
+- 2026-11-18 — Envío por distancia en km (tarifa por tramos desde el local) además de por zonas; hoy solo hay zonas con precio fijo (claude)
+- 2026-11-18 — Copiar la sección «Zonas de entrega» a `diseno/editable/base/panel.html` (kit de diseño) para que coincida con `motor/panel_web.html` (claude)
 - 2026-11-02 — Reservas de mesa con capacidad por turno (fuera de v1) (agenteservicios)
 - 2026-11-02 — Factura electrónica DGI por pedido (fuera de v1) (agenteservicios)
 - 2026-11-02 — Link de pago (Tilopay/PagueloFacil, requiere cuenta de comercio) (agenteservicios)
@@ -144,3 +146,11 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-16 — Tope de IA / prueba gratis, pendientes: avisar al dueño ANTES de llegar al tope (p. ej. al 80 %) y días antes de que venza la prueba; el tope hoy solo se aplica en `alojar` (no en `motor web` ni `servir` de WhatsApp); una prueba vencida deja la BD abierta y sus mensajes programados sin enviar hasta reactivar; limpiar filas viejas de `uso_ia` (una por día, crece muy poco) (programador)
 - [ ] 2026-11-17 — Fotos del plato en WhatsApp (mensaje de imagen con la foto del menú): hoy solo el chat web las muestra.
 - [ ] 2026-11-17 — Sello por cliente: el logo del sello es el de DeliFood para todos; falta logo por servicio (servicios/<slug>/) y alt sin marca fija (agentedeprogramacion, 2026-11-17)
+
+## Chitré DeliFood · ideas de diseño (2026-11-18)
+- [x] El plato vuela en arco hasta el carrito al agregar (hecho 2026-11-18).
+- [ ] Lluvia de papas, aros de cebolla y chiles al confirmar el pedido.
+- [ ] Hamburguesa que se arma en la cabecera (capas que caen) y estado del pedido como hamburguesa que se completa.
+- [ ] Chiles de picante en las tarjetas que se encienden al pasar el cursor; etiqueta «MÁS VENDIDO» que late en los combos.
+- [ ] Panel del restaurante y app del repartidor con este mismo estilo.
+- [ ] Logo en alta resolución (el actual es 150 px y se ve borroso en pantallas densas) y fuente `.woff2` de su carta.

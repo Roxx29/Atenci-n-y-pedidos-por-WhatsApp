@@ -654,6 +654,12 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
               <small>El cliente elige pagar al recibir, el pedido pasa a cocina y el repartidor cobra y avisa desde su página.</small></label>
           </section>
           <section class="caja-aj">
+            <h3 class="grupo">Zonas de entrega</h3>
+            <p class="t-espera" style="margin:0">Cada zona tiene su precio de envío. En «Lugares» escribe, separados por coma, los barrios o corregimientos que cuentan como esa zona (ej.: La Arena, Monagrillo). Sin zonas se cobra el envío fijo de siempre.</p>
+            <div id="zonas-envio"></div>
+            <button type="button" class="btn" id="zona-nueva">+ Agregar zona</button>
+          </section>
+          <section class="caja-aj">
             <h3 class="grupo">Ventas</h3>
             <label class="casilla"><input type="checkbox" name="sugerencias"> Sugerir un complemento antes de confirmar
               <small>Una sola vez por pedido, en WhatsApp y en la web: lo que más se pide junto con esos platos (o los que marques con «Sugerir» en el menú).</small></label>
@@ -1362,11 +1368,19 @@ $("#preg-ejemplos").onclick = ev => { const b = ev.target.closest("button"); if 
   };
 })();
 
+function filaZona(z = {}) {
+  const nombre = h("input", {maxlength:40, placeholder:"Zona (ej.: Chitré)", "aria-label":"Nombre de la zona"}), precio = h("input", {type:"number", min:0, max:100, step:"0.25", placeholder:"B/.", "aria-label":"Precio de envío"}),
+    inc = h("input", {maxlength:900, placeholder:"Lugares: La Arena, Monagrillo…", "aria-label":"Lugares de la zona"}), quitar = h("button", {type:"button", class:"btn", "aria-label":"Quitar zona"}, "Quitar");
+  nombre.value = z.nombre || ""; precio.value = z.precio ?? ""; inc.value = (z.incluye || []).join(", ");
+  const fila = h("div", {class:"dia-h zona-fila"}, nombre, precio, inc, quitar); quitar.onclick = () => fila.remove(); return fila;
+}
+$("#zona-nueva").onclick = () => { const f = filaZona(); $("#zonas-envio").append(f); f.querySelector("input").focus(); };
 async function pintarConfig() {
   let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
   const f = $("#f-config");
   f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo; f.sugerencias.checked = a.sugerencias !== false;
   $("#config-nota").textContent = "";
+  $("#zonas-envio").replaceChildren(...(a.envio || []).map(filaZona));
   $("#horario-dias").replaceChildren(...DIAS_H.map(([d, nombre]) => {
     const t = a.horario[d] || [], abre = h("input", {type:"checkbox", "data-dia":d}); abre.checked = t.length > 0;
     const hora = (v, etq) => { const i = h("input", {type:"time", "aria-label":`${nombre}: ${etq}`}); i.value = v || ""; return i; };
@@ -1387,8 +1401,15 @@ $("#f-config").onsubmit = async ev => {
     }
     horario[abre.dataset.dia] = turnos;
   }
+  const envio = [];
+  for (const fila of document.querySelectorAll("#zonas-envio .zona-fila")) {
+    const [n, v, i] = fila.querySelectorAll("input");
+    if (!n.value.trim() && !v.value && !i.value.trim()) continue;
+    if (!n.value.trim() || v.value === "" || +v.value < 0) { nota.textContent = "Cada zona necesita nombre y precio."; return n.focus(); }
+    envio.push({nombre:n.value.trim(), precio:+v.value, incluye:i.value.split(",").map(x => x.trim()).filter(Boolean)});
+  }
   try {
-    await api("POST", "/panel/dueno/ajustes", {marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
+    await api("POST", "/panel/dueno/ajustes", {envio, marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
     nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
   } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
 };
@@ -1574,7 +1595,7 @@ const DEMO = {
         ["empanadas", "Empanadas de carne (3 u.)", 3, "entradas"], ["chicheme", "Chicheme", 1.75, "bebidas"], ["saril", "Chicha de saril", 1.5, "bebidas"], ["tres-leches", "Tres leches", 3.5, "postres"]]
     .map(([id, nombre, precio, categoria]) => ({id, nombre, precio, categoria, disponible:id !== "tres-leches", foto:null})),
   usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true})),
-  ajustes:{marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:"", efectivo:true},
+  ajustes:{envio:[{nombre:"Chitré", precio:2, incluye:["La Arena", "Monagrillo"]}], marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:"", efectivo:true},
            horario:Object.fromEntries(["lun", "mar", "mie", "jue", "vie", "sab", "dom"].map(d => [d, d === "lun" ? [] : [["11:00", "15:00"], ["18:00", "22:00"]]]))}
 };
 function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la demostración sin servidor; no valida nada (eso lo hace el servidor)

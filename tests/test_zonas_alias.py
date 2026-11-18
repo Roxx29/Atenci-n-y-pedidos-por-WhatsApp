@@ -36,3 +36,13 @@ class Alias(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZonasDelPanel(unittest.TestCase):
+    def test_validar_y_cobrar(self):
+        from motor import panel_web
+        zonas, alias = panel_web._zonas_validas([{"nombre": "Las Tablas", "precio": 4.5, "incluye": ["Palmira"]}])
+        self.assertEqual(herramientas._envio({"envio": {"zonas": zonas, "alias": alias}}, "palmira"), 450)
+        for malo in ([{"nombre": "", "precio": 1}], [{"nombre": "A", "precio": -1}], [{"nombre": "A", "precio": 1, "incluye": ["a"]}]):
+            with self.assertRaises(ValueError):
+                panel_web._zonas_validas(malo)

@@ -578,7 +578,40 @@ def ajustes_json(sv):
     pago = c.get("pago") or {}
     return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")),
             "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)},
-            "sugerencias": bool(c.get("sugerencias", True))}
+            "sugerencias": bool(c.get("sugerencias", True)), "envio": envio_zonas(c)}
+
+
+def envio_zonas(c):
+    """Zonas de entrega para el panel: [{nombre, precio, incluye: [barrios]}] (de envio.zonas + envio.alias del servicio.yaml o los ajustes)."""
+    e = (c.get("pedidos") or {}).get("envio") or {}
+    z = e.get("zonas") or {}
+    z = {n: e.get("costo", 0) for n in z} if isinstance(z, list) else z
+    return [{"nombre": n, "precio": float(v), "incluye": list((e.get("alias") or {}).get(n) or [])} for n, v in z.items()]
+
+
+def _zonas_validas(lista):
+    """Valida lo que manda el panel y devuelve (zonas {nombre: precio}, alias {nombre: [barrios]})."""
+    if not (isinstance(lista, list) and len(lista) <= 30):
+        raise ValueError("Zonas de envío: máximo 30")
+    zonas, alias, vistos = {}, {}, set()
+    for z in lista:
+        n, v, inc = (z.get("nombre"), z.get("precio"), z.get("incluye") or []) if isinstance(z, dict) else (None, None, None)
+        if not (isinstance(n, str) and 1 <= len(n.strip()) <= 40):
+            raise ValueError("Cada zona necesita un nombre (hasta 40 letras)")
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 100:
+            raise ValueError(f"Precio de envío de {n.strip()}: un número entre 0 y 100")
+        if not (isinstance(inc, list) and len(inc) <= 30 and all(isinstance(x, str) and 1 <= len(x.strip()) <= 40 for x in inc)):
+            raise ValueError(f"Lugares de {n.strip()}: hasta 30 nombres de 40 letras")
+        n, nombres = " ".join(n.split()), [" ".join(x.split()) for x in inc]
+        for x in [n, *nombres]:
+            k = herramientas._sin_tildes(x)
+            if k in vistos:
+                raise ValueError(f"«{x}» está repetido: cada lugar va en una sola zona")
+            vistos.add(k)
+        zonas[n] = round(float(v), 2)
+        if nombres:
+            alias[n] = nombres
+    return zonas, alias
 
 
 def poner_cerrado(sv, quien, cerrado):
@@ -628,6 +661,11 @@ def guardar_ajustes(sv, d, quien):
                 and all(isinstance(v, bool) if k == "efectivo" else isinstance(v, str) and len(v) <= 160 for k, v in p.items())):
             raise ValueError("Datos de pago inválidos (máx. 160 letras cada uno)")
         nuevo["pago"] = {**(sv.cfg.get("pago") or {}), **{k: v if k == "efectivo" else " ".join(v.split()) or None for k, v in p.items()}}
+    if "envio" in d:  # zonas de entrega con su precio; vacío = vuelve al costo fijo del servicio.yaml
+        zonas, alias = _zonas_validas(d["envio"])
+        ped = dict(sv.cfg.get("pedidos") or {})
+        ped["envio"] = {**{k: v for k, v in (ped.get("envio") or {}).items() if k not in ("zonas", "alias")}, **({"zonas": zonas, "alias": alias} if zonas else {})}
+        nuevo["pedidos"] = ped
     for k, nombre in (("cerrado", "Cerrado"), ("sugerencias", "Sugerencias")):  # sugerencias: venta sugerida en bot y web
         if k in d:
             if not isinstance(d[k], bool):

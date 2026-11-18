@@ -2,6 +2,7 @@
 
 Lo último que se agregó, cambió o actualizó en el proyecto. Lo más reciente arriba. Formato: `- AAAA-MM-DD — qué cambió (autor)`.
 
+- 2026-11-18 — Cloudflare Tunnel deshabilitado en el PC: `publicar.cmd` ya no lo exige ni lo arranca (líneas comentadas con «DESHABILITADO», fáciles de reactivar); el código del motor (`TUNEL`) y las guías no se tocan porque el VPS puede seguir usándolos (claude)
 - 2026-11-18 — Chitré DeliFood: quitado el botón «Pedir por chat» de la cabecera (claude)
 - 2026-11-18 — Chitré DeliFood: al agregar un plato, su dibujo/foto vuela en arco hasta la barra del carrito y esta rebota (sin movimiento con «reducir animaciones»). Marcado hecho en IDEAS.md (claude)
 - 2026-11-18 — Chitré DeliFood (móvil): la barra de entrega solo sale en el menú; al entrar a «Pedir» la cabecera se pliega con animación (solo logo y nombre pequeños; sin «abierto», «llamar», anuncio ni cabecera del chat) y el chat ocupa casi toda la pantalla (claude)

@@ -1,5 +1,5 @@
 @echo off
-rem Doble clic: enciende todo el sistema (web, panel, bot y tunel) y abre la pagina.
+rem Doble clic: enciende todo el sistema (web, panel y bot) y abre la pagina.
 title Encender sistema
 cd /d "%~dp0"
 echo Encendiendo el sistema...

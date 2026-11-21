@@ -102,12 +102,16 @@ pre.ej{margin:0;padding:8px;background:var(--bg);border:1px solid var(--line);bo
   <p class="err" id="lerr" role="alert"></p>
 </form>
 <section id="app" hidden>
-  <header><h1>Consola del operador</h1><div class="acc"><button class="p" id="nuevo">Nuevo cliente</button><button id="vtem">Temas</button><button id="vreg">Registro de actividad</button><button id="salir">Salir</button></div></header>
+  <header><h1>Consola del operador</h1><div class="acc"><button class="p" id="nuevo">Nuevo cliente</button><button id="vsal">Salud</button><button id="vtem">Temas</button><button id="vreg">Registro de actividad</button><button id="salir">Salir</button></div></header>
   <div class="m res" id="resumen"></div>
   <div id="vcli">
     <div class="tools"><label class="f" style="flex:1 1 200px"><span>Buscar</span><input id="q" type="search" placeholder="Nombre, slug o dominio" autocomplete="off"></label>
     <label class="f"><span>Ver</span><select id="filtro"><option value="todos">Todos (vencidos primero)</option><option value="pend">Solo vencidos y por vencer</option><option value="pruebas">Solo pruebas (las que vencen primero)</option><option value="archivados">Archivados</option></select></label></div>
     <div class="grid" id="lista"></div>
+  </div>
+  <div id="vsal2" hidden>
+    <div class="tools"><button id="vcl3">&larr; Clientes</button><button id="srec">Actualizar</button></div>
+    <div class="tw"><table class="tb"><thead><tr><th>Cliente</th><th>Estado</th><th>Pedidos hoy</th><th>Último pedido</th><th>Avisos</th><th>IA hoy</th><th>Base de datos</th><th>Módulos</th></tr></thead><tbody id="stb"></tbody></table></div>
   </div>
   <div id="vtem2" hidden>
     <div class="tools"><button id="vcl2">&larr; Clientes</button></div>
@@ -275,6 +279,8 @@ function tResumen(c){
     sec("Módulos",el("p","dom",c.modulos.length?c.modulos.join(", "):"Ninguno")),
     sec("Dominio",el("p","dom",c.dominio||"sin dominio"))];
   if(c.error)x.push(el("p","warn","Error en "+c.error));
+  const lp=botonAcc("Cancelar pedidos de prueba","",()=>api("POST",R(c.slug)+"limpiar-pruebas"),j=>j.canceladas+" pedido(s) de prueba cancelado(s)");
+  x.push(sec("Pedidos de prueba",el("p","dom","Cancela los «PRUEBA-CARGA» que dejó la prueba de carga. Los pedidos reales no se tocan."),lp));
   if(c.notas)x.push(sec("Notas",el("p","dom",c.notas)));
   return x;
 }
@@ -302,7 +308,12 @@ function tAccesos(c){  // el PIN nuevo vive en pinBox: cargar() solo repinta al 
   };
   const reset=(b,u)=>accionLocal(b,async()=>mostrarPin(await api("POST",R(slug)+"pin",{usuario:u})));
   const duenoB=el("button","p","Olvidó su PIN (dueño)");duenoB.type="button";
-  duenoB.onclick=()=>reset(duenoB,(equipo.find(p=>/due/i.test(p.rol))||{nombre:"dueño"}).nombre);
+  const nomDueno=()=>(equipo.find(p=>/due/i.test(p.rol))||{nombre:"Dueno"}).nombre;
+  duenoB.onclick=()=>reset(duenoB,nomDueno());
+  const [lpn,ipn]=campo("input","PIN que elijo para el dueño (6 números, no trivial)");ipn.inputMode="numeric";ipn.maxLength=6;ipn.autocomplete="off";
+  const pinB=el("button","","Poner este PIN");pinB.type="button";
+  pinB.onclick=()=>{if(!/^\d{6}$/.test(ipn.value)){aviso("El PIN debe tener 6 números");ipn.focus();return}
+    accionLocal(pinB,async()=>{mostrarPin(await api("POST",R(slug)+"pin",{usuario:nomDueno(),pin:ipn.value}));ipn.value=""})};
   const pintaEq=()=>{
     lista.replaceChildren();
     if(!equipo.length)lista.append(el("p","dom","Sin personas registradas."));
@@ -316,7 +327,7 @@ function tAccesos(c){  // el PIN nuevo vive en pinBox: cargar() solo repinta al 
   };
   lista.append(el("p","dom","Cargando…"));
   api("GET",R(slug)+"equipo").then(j=>{equipo=Array.isArray(j)?j:(j.equipo||[]);pintaEq()}).catch(()=>{lista.replaceChildren(el("p","dom","Lista de personas no disponible."))});
-  return [sec("Dueño",el("p","dom","Si el dueño olvidó su PIN, genera uno nuevo y envíaselo."),duenoB),pinBox,sec("Equipo",lista)];
+  return [sec("Dueño",el("p","dom","Pon tú el PIN del dueño, o genera uno al azar si lo olvidó."),lpn,pinB,duenoB),pinBox,sec("Equipo",lista)];
 }
 function tAjustes(c){
   const [ln,nn]=campo("input","Nombre del negocio");nn.value=c.nombre||"";nn.maxLength=80;
@@ -364,6 +375,21 @@ $("fdel").onsubmit=async e=>{e.preventDefault();const s=$("del").dataset.slug;if
   catch(x){$("delerr").textContent=x.message;$("delok").disabled=false}};
 $("dx").onclick=cerrarDet;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("det").hidden&&!document.querySelector("dialog[open]"))cerrarDet()});
+function salud(c){  // mal: BD o servicio.yaml con error; ojo: IA al 80 %, avisos abiertos o sin pedidos hoy en un cliente activo; bien: el resto
+  if(c.error)return["mal","Error en "+c.error];
+  if(c.tope_ia>0&&c.uso_ia/c.tope_ia>=0.8)return["ojo","IA cerca del tope"];
+  if(c.avisos>0)return["ojo",c.avisos+" aviso(s) abierto(s)"];
+  return c.activo?["bien","Bien"]:["ojo","Pausado"];
+}
+function pintarSalud(){
+  if(!datos)return;
+  $("stb").replaceChildren(...datos.clientes.filter(c=>!c.archivado).sort((a,b)=>({mal:0,ojo:1,bien:2}[salud(a)[0]])-({mal:0,ojo:1,bien:2}[salud(b)[0]])||a.slug.localeCompare(b.slug)).map(c=>{
+    const [n,t]=salud(c),r=el("tr"),p=el("span","pill "+({mal:"vencido",ojo:"por_vencer",bien:"al_dia"}[n]),t);
+    const k=el("td");k.append(p);
+    r.append(el("td","",(c.nombre||c.slug)+" ("+c.slug+")"),k,el("td","",c.hoy),el("td","",c.ultimo?c.ultimo.replace("T"," ").slice(0,16):"—"),el("td","",c.avisos),
+      el("td","",c.uso_ia+" / "+(c.tope_ia>0?c.tope_ia:"sin tope")),el("td","",c.error?"Error":kb(c.bytes)),el("td","",c.modulos.length?c.modulos.join(", "):"—"));
+    r.style.cursor="pointer";r.onclick=()=>{vista("cli");abrirDet(c.slug)};return r}));
+}
 async function cargarRegistro(){
   const tb=$("rtb");$("rerr").textContent="";
   try{
@@ -372,7 +398,7 @@ async function cargarRegistro(){
     if(!filas.length)$("rerr").textContent="Sin actividad.";
   }catch(e){tb.replaceChildren();$("rerr").textContent="Registro no disponible."}
 }
-function vista(v){$("vcli").hidden=v!=="cli";$("vreg2").hidden=v!=="reg";$("vtem2").hidden=v!=="tem";if(v!=="cli")cerrarDet();if(v==="reg")cargarRegistro();if(v==="tem")pintarGaleria()}
+function vista(v){$("vcli").hidden=v!=="cli";$("vreg2").hidden=v!=="reg";$("vtem2").hidden=v!=="tem";$("vsal2").hidden=v!=="sal";if(v!=="cli")cerrarDet();if(v==="reg")cargarRegistro();if(v==="sal")pintarSalud();if(v==="tem")pintarGaleria()}
 // ---- Temas ----
 let temas=null,tAlta=null;
 async function cargarTemas(){
@@ -519,6 +545,7 @@ async function selAlta(){
   const l=await cargarTemas(),w=$("temsel");tAlta=null;
   const pv=el("div");w.replaceChildren(...(l.length?[tarjetas(l,null,id=>{tAlta=id;const t=l.find(x=>x.id===id);pv.replaceChildren(...(t?[previa(t)]:[]))},true),pv]:[el("span","dom","Temas no disponibles.")]));
 }
+$("vsal").onclick=()=>vista("sal");$("vcl3").onclick=()=>vista("cli");$("srec").onclick=async()=>{await cargar();pintarSalud()};
 $("vtem").onclick=()=>vista("tem");$("vcl2").onclick=()=>vista("cli");
 
 $("vreg").onclick=()=>vista("reg");$("vcl").onclick=()=>vista("cli");$("rrec").onclick=cargarRegistro;$("rfil").onchange=cargarRegistro;

@@ -114,6 +114,18 @@ class Pin(Base):
         self.assertEqual(self.post("/api/clientes/napa/pin", {"pin": "615243"})[0], 409)
 
 
+class LimpiarPruebas(Base):
+    def test_cancela_solo_los_de_prueba_de_carga(self):
+        sv = self.sv()
+        base = {"estado": "confirmado", "modalidad": "recoger", "lineas": [], "subtotal_c": 0, "itbms_c": 0, "envio_c": 0, "total_c": 0, "creado_at": HOY}
+        ids = {n: sv.insertar("pedido", {**base, "nombre": n}) for n in ("PRUEBA-CARGA 1", "Ana Real")}
+        st, j = self.post("/api/clientes/napa/limpiar-pruebas")
+        self.assertEqual((st, j["canceladas"]), (200, 1))
+        est = {p["nombre"]: p["estado"] for p in self.sv().listar("pedido")}
+        self.assertEqual(est, {"PRUEBA-CARGA 1": "cancelado", "Ana Real": "confirmado"})
+        self.assertEqual(self.post("/api/clientes/napa/limpiar-pruebas")[1]["canceladas"], 0)
+
+
 class Equipo(Base):
     def test_lista_sin_hash_y_desactiva(self):
         sv = self.sv()

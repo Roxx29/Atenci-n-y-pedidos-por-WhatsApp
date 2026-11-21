@@ -28,7 +28,7 @@ SLUG = re.compile(r"[a-z0-9-]{1,40}")
 HTML = Path(__file__).with_name("operador.html")
 SESION = 8 * 3600
 MAX_FALLOS, BLOQUEO = 5, 300
-CATALOGO = ("estadisticas",)  # módulos que el operador puede activar; añade aquí los nuevos
+CATALOGO = clientes.MODULOS  # módulos que el operador puede activar (misma lista que valida clientes.py)
 AVISO_DIAS = 5
 COLOR = temas.COLOR
 MARCADOR = re.compile(r"\{(nombre|marca|slug)\}")  # los que rellena el alta en la plantilla
@@ -572,6 +572,19 @@ class Operador:
             panel_web.guardar_usuario(sv, {"nombre": usuario, "pin": pin}, "operador")
         return {"usuario": usuario, "pin": pin}
 
+    def limpiar_pruebas(self, slug):
+        """Cancela los pedidos activos «PRUEBA-CARGA…» (los de despliegue/carga.py). Los reales no se tocan."""
+        n = 0
+        with self._sv(slug) as sv:
+            for p in sv.listar("pedido"):
+                if (p.get("nombre") or "").startswith("PRUEBA-CARGA") and p["estado"] not in panel_web.TERMINADOS:
+                    try:
+                        panel_web.marcar(sv, p["id"], "cancelado", "operador")
+                        n += 1
+                    except ValueError:
+                        pass
+        return {"canceladas": n}
+
     # --- ajustes ---
     def ajustes(self, slug, d):
         """Cambia dominio (clientes.yaml), nombre/marca (su servicio.yaml) y color (su tema.css). Valida todo antes de escribir y,
@@ -686,6 +699,7 @@ RUTAS = {
     "pago": ("pago", lambda op, s, d: {"pagado_hasta": op.pagar(s, d.get("meses", 1))}),
     "prueba": ("prueba", lambda op, s, d: {"hasta": op.prueba(s, d.get("accion"), d.get("dias", 15), d.get("meses", 1))}),
     "respaldo": ("backup", lambda op, s, d: {"archivo": op.respaldo(s)}),
+    "limpiar-pruebas": ("limpiar_pruebas", lambda op, s, d: op.limpiar_pruebas(s)),
     "pin": ("pin", lambda op, s, d: op.pin(s, d)),  # única, con el alta, que responde un PIN en claro
     "equipo/activo": ("equipo", lambda op, s, d: op.equipo_activo(s, d)),
     "ajustes": ("ajustes", lambda op, s, d: op.ajustes(s, d)),

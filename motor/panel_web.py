@@ -487,7 +487,7 @@ def estado_panel(sv, desde=0, repartidores=(), rutas=None):
     esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")) or (f"Mesa {mesa.de_cid(e.get('telefono'))}" if mesa.de_cid(e.get("telefono")) else None),
             "telefono": None if mesa.de_cid(e.get("telefono")) else e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
-            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": bool(sv.cfg.get("cerrado")), "modulos": modulos(sv),
+            "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": herramientas.cerrado_ahora(sv), "cerrado_hasta": sv.cfg.get("cerrado_hasta") if sv.cfg.get("cerrado") else None, "modulos": modulos(sv),
             "rutas": rutas or {}}  # repartidor -> ruta (motor/ruta.py); la calcula web.py, que es quien tiene las posiciones
 
 
@@ -576,8 +576,8 @@ def ajustes_json(sv):
     """Configuración general que el dueño ve y cambia en el panel."""
     c = sv.cfg
     pago = c.get("pago") or {}
-    return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")),
-            "horario": herramientas.horario_por_dia(c.get("horario")), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)},
+    return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": herramientas.cerrado_ahora(sv), "cerrado_hasta": c.get("cerrado_hasta") if c.get("cerrado") else None,
+            "horario": herramientas.horario_por_dia(c.get("horario")), "excepciones": excepciones_futuras(sv), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)},
             "sugerencias": bool(c.get("sugerencias", True)), "envio": envio_zonas(c)}
 
 
@@ -614,13 +614,56 @@ def _zonas_validas(lista):
     return zonas, alias
 
 
-def poner_cerrado(sv, quien, cerrado):
-    """Cerrar o abrir la tienda a mano (cualquiera del panel): cerrada no entran pedidos nuevos aunque el horario diga abierto."""
+def excepciones_futuras(sv):
+    """Días especiales de hoy en adelante: {AAAA-MM-DD: [] (cerrado) o [[desde, hasta], ...]}."""
+    hoy = f"{sv.ahora():%Y-%m-%d}"
+    return {k: v for k, v in sorted(((sv.cfg.get("horario") or {}).get("excepciones") or {}).items()) if k >= hoy}
+
+
+def _excepciones_validas(sv, ex):
+    if not (isinstance(ex, dict) and len(ex) <= 60):
+        raise ValueError("Días especiales: máximo 60")
+    hoy, out = sv.ahora().date(), {}
+    for fecha, turnos in sorted(ex.items()):
+        try:
+            f = dt.date.fromisoformat(fecha) if isinstance(fecha, str) and re.fullmatch(r"\d{4}-\d\d-\d\d", fecha) else None
+        except ValueError:
+            f = None
+        if f is None:
+            raise ValueError(f"Día especial «{fecha}»: fecha inválida")
+        if f < hoy:
+            raise ValueError(f"Día especial {fecha}: esa fecha ya pasó")
+        out[fecha] = _turnos_validos(turnos, f"Día especial {fecha}")
+    return out
+
+
+def _turnos_validos(turnos, nombre):
+    turnos = turnos or []
+    if not (isinstance(turnos, list) and len(turnos) <= 3 and all(isinstance(t, list) and len(t) == 2 and all(isinstance(x, str) and HHMM.fullmatch(x) for x in t) for t in turnos)):
+        raise ValueError(f"Horario del {nombre} inválido: horas como 11:00 (hasta 3 turnos)")
+    turnos = sorted(turnos)
+    if any(a >= b for a, b in turnos) or any(turnos[i][1] > turnos[i + 1][0] for i in range(len(turnos) - 1)):
+        raise ValueError(f"Horario del {nombre}: cada turno debe abrir antes de cerrar y no pisar al otro")
+    return turnos
+
+
+def poner_cerrado(sv, quien, cerrado, hasta=None):
+    """Cerrar o abrir la tienda a mano (cualquiera del panel): cerrada no entran pedidos nuevos aunque el horario diga abierto.
+    `hasta` (AAAA-MM-DD HH:MM, hora local, futura y a menos de 14 días) = se reabre sola a esa hora."""
     if not isinstance(cerrado, bool):
         raise ValueError("Cerrado debe ser sí o no")
+    if hasta is not None:
+        if not cerrado:
+            raise ValueError("La hora de reapertura solo va al cerrar")
+        t = herramientas._hora(hasta, sv.tz)
+        ahora = sv.ahora()
+        if not ahora < t <= ahora + dt.timedelta(days=14):
+            raise ValueError("La hora de reapertura debe ser futura y dentro de 14 días")
+        hasta = f"{t:{herramientas.FMT}}"
     sv.poner_ajuste("cerrado", cerrado)
-    auditar(sv, quien, "tienda_cerrar" if cerrado else "tienda_abrir")
-    return {"ok": True, "cerrado": cerrado}
+    sv.poner_ajuste("cerrado_hasta", hasta)
+    auditar(sv, quien, ("tienda_cerrar" + (f":hasta {hasta}" if hasta else "")) if cerrado else "tienda_abrir")
+    return {"ok": True, "cerrado": cerrado, "cerrado_hasta": hasta}
 
 
 def guardar_ajustes(sv, d, quien):
@@ -646,15 +689,13 @@ def guardar_ajustes(sv, d, quien):
             raise ValueError("Horario inválido")
         por_dia = {}
         for dia in herramientas.DIAS:
-            turnos = h.get(dia) or []
-            if not (isinstance(turnos, list) and len(turnos) <= 3 and all(isinstance(t, list) and len(t) == 2 and all(isinstance(x, str) and HHMM.fullmatch(x) for x in t) for t in turnos)):
-                raise ValueError(f"Horario del {dia} inválido: horas como 11:00")
-            turnos = sorted(turnos)
-            if any(a >= b for a, b in turnos) or any(turnos[i][1] > turnos[i + 1][0] for i in range(len(turnos) - 1)):
-                raise ValueError(f"Horario del {dia}: cada turno debe abrir antes de cerrar y no pisar al otro")
-            por_dia[dia] = turnos
-        viejo = {k: v for k, v in (sv.cfg.get("horario") or {}).items() if k not in ("dias", "turnos", "desde", "hasta", "por_dia")}
+            por_dia[dia] = _turnos_validos(h.get(dia), dia)
+        viejo = {k: v for k, v in (sv.cfg.get("horario") or {}).items() if k not in ("dias", "turnos", "desde", "hasta", "por_dia", "excepciones")}
         nuevo["horario"] = {**viejo, "dias": [x for x in herramientas.DIAS if por_dia[x]], "por_dia": por_dia}
+    if "excepciones" in d:  # días especiales; si no vienen se conservan los guardados
+        nuevo.setdefault("horario", {k: v for k, v in (sv.cfg.get("horario") or {}).items() if k != "excepciones"})["excepciones"] = _excepciones_validas(sv, d["excepciones"])
+    elif "horario" in nuevo and (sv.cfg.get("horario") or {}).get("excepciones"):
+        nuevo["horario"]["excepciones"] = (sv.cfg["horario"])["excepciones"]
     if "pago" in d:
         p = d["pago"]
         if not (isinstance(p, dict) and set(p) <= {"yappy", "transferencia", "efectivo"}
@@ -671,6 +712,8 @@ def guardar_ajustes(sv, d, quien):
             if not isinstance(d[k], bool):
                 raise ValueError(f"{nombre} debe ser sí o no")
             nuevo[k] = d[k]
+            if k == "cerrado":
+                nuevo["cerrado_hasta"] = None  # abrir o cerrar a mano anula una reapertura programada
     for k, v in nuevo.items():
         sv.poner_ajuste(k, v)
     if nuevo:

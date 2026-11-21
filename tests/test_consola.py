@@ -194,6 +194,39 @@ class Ajustes(Base):
         self.assertEqual(self.registro()[-1]["resultado"], "error 500")
 
 
+class ReglasBot(Base):
+    URL = "/api/clientes/napa/config"
+
+    def test_guarda_lista_carga_y_quita(self):
+        self.assertEqual(self.post(self.URL, {"reglas_bot": "Saluda con: ¡Hola {x}!"})[0], 200)
+        self.assertEqual(self.entrada()["reglas_bot"], "Saluda con: ¡Hola {x}!")
+        self.assertEqual(self.get("/api/clientes")[1]["clientes"][0]["reglas_bot"], "Saluda con: ¡Hola {x}!")
+        self.assertEqual(clientes.cargar(self.ruta)[0].reglas_bot, "Saluda con: ¡Hola {x}!")
+        self.assertEqual(self.post(self.URL, {"reglas_bot": ""})[0], 200)
+        self.assertNotIn("reglas_bot", self.entrada())
+        self.assertEqual(clientes.cargar(self.ruta)[0].reglas_bot, "")
+
+    def test_invalidas_y_desconocido(self):
+        for mal in ("a" * 801, "a\x00b", "a\x1b[31m", "a\rb", 5, None):
+            self.assertEqual(self.post(self.URL, {"reglas_bot": mal})[0], 400, repr(mal))
+        self.assertNotIn("reglas_bot", self.entrada())
+        self.assertEqual(self.post(self.URL, {"reglas_bot": "a" * 800 + ""})[0], 200)
+        self.assertEqual(self.post("/api/clientes/nadie/config", {"reglas_bot": "x"})[0], 404)
+
+    def test_en_el_prompt_con_llaves_y_sin_registro(self):
+        sv = self.sv()
+        self.assertNotIn("Indicaciones adicionales", sv._prompt)
+        self.post(self.URL, {"reglas_bot": "No vendemos alcohol {negocio} {0} {"})
+        sv.reglas_operador = clientes.cargar(self.ruta)[0].reglas_bot
+        p = sv._prompt
+        self.assertIn("Indicaciones adicionales del restaurante", p)
+        self.assertIn("No vendemos alcohol {negocio} {0} {", p)
+        self.assertLess(p.index("Instrucciones específicas"), p.index("Indicaciones adicionales"))
+        self.assertLess(p.index("Indicaciones adicionales"), p.index("Información del negocio"))
+        self.assertNotIn("alcohol", (self.raiz / "registro.jsonl").read_text(encoding="utf-8"))
+        self.assertEqual(self.registro()[-1]["accion"], "config")
+
+
 class Archivo(Base):
     def test_archivar_restaurar_archivar_eliminar(self):
         self.assertEqual(self.post("/api/clientes/napa/archivar", {"confirmar": "otro"})[0], 400)

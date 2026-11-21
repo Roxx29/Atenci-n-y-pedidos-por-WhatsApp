@@ -259,7 +259,7 @@ class Operador:
                         "pagado_hasta": hasta.isoformat() if hasta else None, "estado_pago": est, "dias": dias, "etiqueta_pago": et,
                         "prueba_hasta": ph.isoformat() if ph else None, "prueba_dias": pd, "etiqueta_prueba": pet,
                         "uso_ia": self._uso(Path(c.carpeta)), "tope_ia": tope,
-                        "precio": precio, "notas": str(e.get("notas") or ""), "pagos": pagos.get(c.slug, []),
+                        "precio": precio, "notas": str(e.get("notas") or ""), "reglas_bot": c.reglas_bot, "pagos": pagos.get(c.slug, []),
                         "archivado": c.archivado.isoformat() if c.archivado else None,
                         **self._tema_de(Path(c.carpeta)), "personalizado": (Path(c.carpeta) / "personalizado.css").is_file()})
         vivos = [c for c in out if not c["archivado"]]  # los archivados se cuentan aparte: ni ingresos ni vencidos ni pruebas
@@ -301,6 +301,13 @@ class Operador:
             if isinstance(t, bool) or not isinstance(t, int) or not 0 <= t <= 100000:
                 raise ValueError("tope IA: entero entre 0 y 100000")
             e["tope_ia_dia"] = t
+        if "reglas_bot" in d:
+            if not clientes.reglas_validas(d["reglas_bot"]):
+                raise ValueError(f"reglas_bot: máximo {clientes.REGLAS_MAX} caracteres, sin caracteres de control")
+            if d["reglas_bot"].strip():
+                e["reglas_bot"] = d["reglas_bot"].strip()
+            else:
+                e.pop("reglas_bot", None)
         self._guardar(datos)
 
     def prueba(self, slug, accion, dias=15, meses=1):

@@ -113,7 +113,7 @@ Solo se abre desde la red del local (o con el panel público activado por el ope
               "estado_at": "2026-11-02T12:00:00-05:00", "acciones": ["en_preparacion"], "repartidor": null, "tiene_ubicacion": true,
               "por_cobrar": true, "cobrado_por": null, "fuera_de_zona": false}],
  "avisos": [{"id": 4, "tipo": "pedido", "texto": "Pedido #2 de Ana: pagará EN EFECTIVO al repartidor, B/. 15.07. …", "pedido_id": 2}],
- "ultimo": 4, "escalados": [], "repartidores": ["Juan"], "cerrado": false, "modulos": [], "rutas": {}}
+ "ultimo": 4, "escalados": [], "repartidores": ["Juan"], "cerrado": false, "cerrado_hasta": null, "modulos": [], "rutas": {}}
 ```
 - `acciones`: **los botones que puede mostrar** para ese pedido (el servidor ya aplicó las reglas). Valores: `pagado`, `pago_rechazado`, `en_preparacion`, `listo`, `en_camino`, `entregado`, `cancelado`.
 - `avisos`: los de id > `desde` (y los de pagos pendientes); guarde `ultimo` y páselo en la siguiente llamada. `tipo`: `pago` o `pedido`.
@@ -134,11 +134,11 @@ Solo entregas pagadas o en curso (409 si no).
 ### Menú y tienda
 - `GET /panel/menu` → `{"menu": [ <plato como en /menu> ]}`.
 - `POST /panel/agotado` → `{"plato": "chicha", "disponible": false}` → `{"ok": true, "plato": {…}}` (cualquier rol).
-- `POST /panel/tienda` → `{"cerrado": true}` → `{"ok": true, "cerrado": true}` (cerrar/abrir a mano).
+- `POST /panel/tienda` → `{"cerrado": true}` → `{"ok": true, "cerrado": true, "cerrado_hasta": null}` (cerrar/abrir a mano).
 - `GET /panel/repartidores_mapa` → `{"restaurante": {"lat": 7.96, "lon": -80.43, "nombre": "Fonda"}, "repartidores": [{"repartidor": "Juan", "pedido_id": 2, "lat": 7.962, "lon": -80.432, "precision": 10.0, "edad_s": 0, "viejo": false}]}` (`restaurante` puede ser `null`).
 
 ### Solo el dueño: `/panel/dueno/…` (403 para el personal)
-- `GET /panel/dueno/ajustes` → `{"ajustes": {"marca": "Fonda", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "horario": {"lun": [["11:00", "21:00"]], …}, "pago": {"yappy": "@fonda", "transferencia": "", "efectivo": true}, "sugerencias": true}}` (`sugerencias`: venta sugerida activa); `POST /panel/dueno/ajustes` con las claves a cambiar → `{"ok": true, "ajustes": {…}}`.
+- `GET /panel/dueno/ajustes` → `{"ajustes": {"marca": "Fonda", "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "cerrado_hasta": null, "excepciones": {}, "horario": {"lun": [["11:00", "21:00"]], …}, "pago": {"yappy": "@fonda", "transferencia": "", "efectivo": true}, "sugerencias": true}}` (`sugerencias`: venta sugerida activa); `POST /panel/dueno/ajustes` con las claves a cambiar → `{"ok": true, "ajustes": {…}}`.
 - `GET /panel/dueno/menu` → `{"menu": […]}`; `POST /panel/dueno/plato {id?, nombre?, precio?, categoria?, disponible?}` → `{"ok": true, "plato": {…}}`; `POST /panel/dueno/plato_borrar {plato}` → `{"ok": true}`.
 - `POST /panel/dueno/foto?plato=<id>` (imagen cruda JPEG/PNG/WebP ≤ 3 MB) → `{"ok": true, "foto": "…", "foto2x": "…"}`; `POST /panel/dueno/foto_borrar {plato}` → `{"ok": true}`.
 - `GET /panel/dueno/usuarios` → `{"usuarios": [{"nombre": "Dueno", "rol": "dueno", "activo": true}, {"nombre": "Juan", "rol": "repartidor", "activo": true}]}`; `POST /panel/dueno/usuario {nombre, rol?, pin?, activo?}` → `{"ok": true, "usuario": {"nombre", "rol", "activo"}}`; `POST /panel/dueno/usuario_borrar {nombre}` → `{"ok": true}`. Nunca devuelve PINs.

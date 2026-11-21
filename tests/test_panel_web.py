@@ -170,6 +170,36 @@ class PanelWeb(Base):
             self.assertIn("--primary:", h)  # tema incrustado
             self.assertNotIn("estatico/tema.css", h)
 
+    def test_dias_especiales_y_cierre_temporal(self):
+        import datetime as dt
+        _, ck = self.login()
+        hoy = self.sv.ahora().date()
+        man, pasado = hoy + dt.timedelta(days=1), hoy - dt.timedelta(days=1)
+        todo = {d: [["00:00", "23:59"]] for d in herramientas.DIAS}
+        ex = {f"{man}": [], f"{hoy + dt.timedelta(days=2)}": [["09:00", "10:00"]]}
+        st, d, _ = self.js("POST", "/panel/dueno/ajustes", {"horario": todo, "excepciones": ex}, cookie=ck)
+        self.assertEqual((st, d["ajustes"]["excepciones"]), (200, ex))
+        # el día cerrado no abre aunque el día de semana sí; el de turnos propios solo esos
+        self.assertEqual(herramientas._turnos(self.sv, man), [])
+        self.assertEqual(len(herramientas._turnos(self.sv, hoy + dt.timedelta(days=2))), 1)
+        self.assertEqual(len(herramientas._turnos(self.sv, hoy + dt.timedelta(days=3))), 1)
+        # guardar solo el horario conserva los días especiales
+        self.js("POST", "/panel/dueno/ajustes", {"horario": todo}, cookie=ck)
+        self.assertEqual(self.sv.cfg["horario"]["excepciones"], ex)
+        for malo in ({"excepciones": {str(pasado): []}}, {"excepciones": {"2026-02-31": []}}, {"excepciones": {str(man): [["15:00", "11:00"]]}},
+                     {"excepciones": {str(hoy + dt.timedelta(days=i)): [] for i in range(61)}}, {"excepciones": []}):
+            self.assertEqual(self.js("POST", "/panel/dueno/ajustes", malo, cookie=ck)[0], 409, malo)
+        # cierre temporal: se reabre solo al llegar la hora
+        h = f"{self.sv.ahora() + dt.timedelta(hours=1):%Y-%m-%d %H:%M}"
+        self.assertEqual(self.js("POST", "/panel/tienda", {"cerrado": True, "hasta": h}, cookie=ck)[1]["cerrado_hasta"], h)
+        self.assertTrue(herramientas.cerrado_ahora(self.sv))
+        self.assertEqual(self.js("GET", "/panel/dueno/ajustes", cookie=ck)[1]["ajustes"]["cerrado_hasta"], h)
+        for malo in ({"cerrado": True, "hasta": f"{pasado} 10:00"}, {"cerrado": True, "hasta": "x"}, {"cerrado": False, "hasta": h}):
+            self.assertEqual(self.js("POST", "/panel/tienda", malo, cookie=ck)[0], 400, malo)
+        self.sv.poner_ajuste("cerrado_hasta", f"{pasado} 10:00")
+        self.assertFalse(herramientas.cerrado_ahora(self.sv))
+        self.assertFalse(self.sv.cfg["cerrado"])
+
     def test_ajustes_generales_tienda_y_promos(self):
         _, ck = self.login()
         self.js("POST", "/panel/dueno/usuario", {"nombre": "Ana", "rol": "personal", "pin": "918273"}, cookie=ck)

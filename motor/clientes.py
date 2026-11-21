@@ -27,7 +27,8 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 
 
 MODULOS = ("estadisticas", "mesas")  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
-CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta", "archivado"}
+CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta", "archivado", "reglas_bot"}
+REGLAS_MAX = 800  # caracteres de `reglas_bot`
 TOPE_IA_PRUEBA = 300  # turnos de IA al día de un cliente en prueba si nadie dice otra cosa (TOPE_IA_DIA lo cambia)
 
 
@@ -45,6 +46,7 @@ class Cliente:
     tope_ia_dia: int | None = None  # turnos de IA al día; 0 = sin tope; None = el valor por defecto (ver `tope_ia`)
     prueba_hasta: dt.date | None = None  # prueba gratis: pasado ese día, `alojar` lo trata como pausado
     archivado: dt.date | None = None  # día en que el operador lo archivó: no se sirve (activo queda en False) aunque conserva sus datos
+    reglas_bot: str = ""  # indicaciones extra del restaurante para el bot (nucleo.Servicio._prompt); solo el operador las escribe
 
 
 def tope_ia(c):
@@ -70,6 +72,11 @@ def _fecha(slug, c, campo):
     return v
 
 
+def reglas_validas(t):
+    """Texto de hasta REGLAS_MAX caracteres, sin caracteres de control salvo el salto de línea."""
+    return isinstance(t, str) and len(t) <= REGLAS_MAX and all(ch == "\n" or ch.isprintable() for ch in t)
+
+
 def _operador(slug, c):
     """Valida modulos, pagado_hasta, precio, notas, tope_ia_dia y prueba_hasta de un cliente. ValueError con el campo que falla."""
     mods, precio, notas, tope = c.get("modulos"), c.get("precio"), c.get("notas", ""), c.get("tope_ia_dia")
@@ -82,7 +89,10 @@ def _operador(slug, c):
         raise ValueError(f"cliente {slug}: precio debe ser un número mayor o igual que 0 (US$/mes)")
     if not (isinstance(notas, str) and len(notas) <= 500):
         raise ValueError(f"cliente {slug}: notas debe ser un texto de 500 caracteres como máximo")
-    return {"modulos": list(dict.fromkeys(mods)) if "modulos" in c else None, "pagado_hasta": hasta,
+    reglas = c.get("reglas_bot", "")
+    if not reglas_validas(reglas):
+        raise ValueError(f"cliente {slug}: reglas_bot debe ser un texto de {REGLAS_MAX} caracteres como máximo, sin caracteres de control")
+    return {"reglas_bot": reglas, "modulos": list(dict.fromkeys(mods)) if "modulos" in c else None, "pagado_hasta": hasta,
             "precio": float(precio) if "precio" in c else None, "notas": notas, "tope_ia_dia": tope, "prueba_hasta": prueba, "archivado": archivado}
 
 

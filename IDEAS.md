@@ -3,6 +3,8 @@
 Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` al terminar.
 
 ## Ideas
+- [ ] 2026-11-21 — Bot, 4 mejoras pedidas por el usuario: (1) dar el teléfono del restaurante al cliente cuando pase algo (queja, pago, pedido, escalado), también visible en la web; (2) «Reglas del bot» por restaurante editables por el dueño en Configuración, con tope de largo y sin poder cambiar precios, totales ni pagos; (3) control de tema: el bot solo atiende pedidos, menú, horario y su negocio, y rechaza con amabilidad lo demás (regla en el prompt, tope de turnos fuera de tema, pruebas); (4) horario del panel más dinámico: varios turnos, copiar a todos los días, excepciones por fecha/feriados, cierre temporal con hora de reapertura (usuario/claude)
+- [ ] 2026-11-21 — Horario: pasar de medianoche (cierre menor que apertura) no está soportado; `web_index.html` debería leer `horario.excepciones` si calcula «abierto ahora» en JS; probar el bot con un modelo real (`python -m motor probar`) contra los casos fuera de tema (claude)
 - 2026-11-21 — QR, diseño (investigado): tarjeta de mesa plegable, posavasos y tarjeta de delivery; número de mesa en círculo de color; márgenes de 4 módulos y aviso de tamaño mínimo 2 cm; descarga PNG/PDF con sangrado; vista previa móvil y botón «probar QR»; QR por promoción (happy hour, reseña); prueba A/B de plantillas con los escaneos por código; frases de acción editables por tipo (claude)
 - 2026-11-18 — Casa de Mamá Elia: panel y repartidor con la misma marca; ilustraciones de sus platos reales; probar flujo de pedido con clics (claude)
 - 2026-11-18 — Envío por distancia en km (tarifa por tramos desde el local) además de por zonas; hoy solo hay zonas con precio fijo (claude)
@@ -167,3 +169,5 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] Compartir por WhatsApp, redes @urban_sazon, galería, abierto/cerrado en vivo
 - [ ] Promo del día con cuenta regresiva y barra "te falta X para envío gratis"
 - [ ] Después: sellos de lealtad, reseñas, PWA instalable
+
+- [ ] Horario: la tienda web (web_index.html) y el prompt del bot (nucleo.py) deben leer `horario.excepciones` y `cerrado_hasta` (usar herramientas.cerrado_ahora). Pasar de medianoche (cierre < apertura) no soportado: se usa 11:59 p. m.

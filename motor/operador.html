@@ -346,7 +346,14 @@ function tAjustes(c){
     {modulos:cks.filter(([,i])=>i.checked).map(([x])=>x),precio:ip.value===""?undefined:Number(ip.value),notas:io.value}),null);
   const [lt,it]=campo("input","Tope diario de IA (0 = sin tope)");it.type="number";it.min=0;it.max=100000;it.step=1;it.inputMode="numeric";it.value=c.tope_ia;
   const gT=botonAcc("Guardar tope","",()=>api("POST",R(c.slug)+"config",{tope_ia_dia:Number(it.value)}),null);
-  return [sec("Negocio",ln,ld,lc,gA),sec("Módulos",mo),sec("Precio y notas",lp,lo,gC),sec("Tope de IA",lt,gT)];
+  const [lr,ir]=campo("textarea","Indicaciones para el bot");ir.maxLength=800;ir.rows=5;ir.value=c.reglas_bot||"";
+  const cu=el("p","dom"),pinta=()=>{cu.textContent=ir.value.length+"/800"};ir.oninput=pinta;pinta();
+  const ej=el("div","acc");
+  ["Ofrece siempre el combo del día.","No vendemos alcohol a domicilio.","Saluda con: ¡Bienvenido a La Fonda!"].forEach(t=>{
+    const b=el("button","",t);b.type="button";b.onclick=()=>{ir.value=t;pinta();ir.focus()};ej.append(b)});
+  const gR=botonAcc("Guardar reglas","",()=>api("POST",R(c.slug)+"config",{reglas_bot:ir.value}),null);
+  return [sec("Negocio",ln,ld,lc,gA),sec("Módulos",mo),sec("Precio y notas",lp,lo,gC),sec("Tope de IA",lt,gT),
+    sec("Reglas del bot",el("p","warn","No pueden cambiar precios, pagos ni el alcance del bot."),lr,cu,el("p","dom","Ejemplos (clic para usar):"),ej,gR)];
 }
 function tPeligro(c){
   const slug=c.slug,z=el("div","peli");

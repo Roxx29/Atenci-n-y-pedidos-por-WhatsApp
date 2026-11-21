@@ -393,6 +393,28 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
 .caja-aj label.casilla{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:.9375rem;color:var(--on-surface)}
 .caja-aj label.casilla input{width:22px;height:22px;min-height:0;accent-color:var(--primary)}
 .caja-aj label.casilla small{flex:1 0 100%}
+.caja-aj>*,.dh>*{min-width:0}
+.hor-plant{display:flex;flex-wrap:wrap;gap:8px}
+.hor-plant .btn,.dh .btn,.dh summary{min-height:44px;font-size:.9375rem;padding:0 14px}
+.hor-res{margin:0;padding:12px;border-radius:10px;background:var(--sc);font-weight:600;color:var(--on-surface);line-height:1.5}
+.hor-res b{display:block;font-size:.9375rem}
+.hor-res .ahora{display:block;margin-top:4px;font-weight:700}
+.hor-res .ahora.abierto{color:var(--tertiary)}.hor-res .ahora.cerrado{color:var(--error)}
+.hor-err{margin:0;padding:10px 12px 10px 28px;border-radius:10px;background:var(--sc);border:1.5px solid var(--error);color:var(--on-surface);font-weight:600;font-size:.875rem}
+.hor-err:empty{display:none}
+.dh{display:grid;gap:8px;padding:10px 0 0;border-top:1px solid var(--sc-high)}
+.dh-cab{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dh-cab>b{font-size:1rem;color:var(--on-surface)}
+.dh-cab .sw{font-size:.9375rem}
+.dh.cerrado>.dh-cab>b{color:var(--on-variant)}
+.turno{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.turno select,.dh input[type=date]{flex:1 1 0;min-width:0;min-height:48px;padding:0 8px;border:1.5px solid var(--outline-variant);border-radius:8px;background:var(--sc-lowest);color:var(--on-surface);font:inherit;font-weight:600}
+.turno select:focus,.dh input[type=date]:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
+.turno .btn{flex:none;min-width:44px}
+.dh-acc{display:flex;flex-wrap:wrap;gap:8px}
+.dh-acc:empty{display:none}
+.dh details summary{display:flex;align-items:center;cursor:pointer;color:var(--on-variant);font-weight:700}
+.dh details[open] summary{margin-bottom:8px}
 .config-pie{display:flex;flex-wrap:wrap;align-items:center;gap:12px;position:sticky;bottom:0;padding:12px 0;background:var(--papel)}
 .config-pie .btn{min-height:48px}
 .sw.tienda[aria-checked=false]{color:var(--error)}
@@ -551,6 +573,8 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
           <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button><button type="button" aria-pressed="false" data-f="mesa">Mesa</button>
         </div>
         <span id="tienda-caja"></span>
+        <button class="btn suave" id="btn-cierre" type="button">Cerrar por un rato…</button>
+        <span class="t-espera" id="cierre-estado" role="status"></span>
         <button class="btn suave" id="btn-cerrados" type="button" aria-pressed="false">Cancelados</button>
         <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
         <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
@@ -643,8 +667,17 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
           </section>
           <section class="caja-aj">
             <h3 class="grupo">Horario</h3>
-            <p class="t-espera" style="margin:0">Marca los días que abres y sus horas. El segundo turno es opcional (almuerzo y cena). Fuera de horario el cliente puede dejar el pedido programado.</p>
+            <p class="t-espera" style="margin:0">Elige un modelo de arriba y ajusta lo que cambie. Cada día puede tener hasta 3 turnos (por ejemplo almuerzo y cena). Fuera de horario el cliente puede dejar el pedido programado.</p>
+            <div class="hor-plant" role="group" aria-label="Modelos rápidos de horario" id="hor-plant"></div>
+            <p class="hor-res" id="hor-res" aria-live="polite"></p>
+            <ul class="hor-err" id="hor-err" role="alert"></ul>
             <div id="horario-dias"></div>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Días especiales</h3>
+            <p class="t-espera" style="margin:0">Feriados, vacaciones o un día con horario distinto. Ese día manda sobre el horario normal. Los que ya pasaron se borran solos.</p>
+            <div id="hor-exc"></div>
+            <button type="button" class="btn" id="hor-exc-nuevo">+ Agregar día especial</button>
           </section>
           <section class="caja-aj">
             <h3 class="grupo">Datos de pago</h3>
@@ -711,6 +744,16 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     </div>
   </div>
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-cierre" class="chico" aria-labelledby="cierre-tit">
+  <div class="caja-aj" style="margin:0;box-shadow:none">
+    <h2 id="cierre-tit" style="margin:0;font-size:1.125rem">Cerrar por un rato</h2>
+    <p class="t-espera" style="margin:0">No entran pedidos nuevos y la tienda se abre sola a la hora que elijas.</p>
+    <div class="dh-acc" id="cierre-op"><button type="button" class="btn" data-m="60">1 hora</button><button type="button" class="btn" data-m="120">2 horas</button><button type="button" class="btn" data-m="man">Hasta mañana 8:00 a. m.</button></div>
+    <label>Hasta una hora de hoy<input type="time" id="cierre-hora"></label>
+    <div class="dh-acc"><button type="button" class="btn" id="cierre-hora-ok">Cerrar hasta esa hora</button><button type="button" class="btn suave" id="cierre-x">Cancelar</button></div>
+  </div>
 </dialog>
 
 <dialog id="dlg-flota" class="dlg-mapa" aria-labelledby="mapa-tit">
@@ -884,7 +927,7 @@ function recibir(d) {
     if (a.tipo === "sistema") mostrarBanda(a.texto);
   }
   if (d.escalados) st.escalados = d.escalados;
-  if (d.cerrado != null) pintarTienda(d.cerrado);
+  if (d.cerrado != null) { pintarTienda(d.cerrado); pintarCierre(d.cerrado, d.cerrado_hasta); }
   if (d.modulos) pintarModulos(d.modulos);
   if (d.repartidores) st.repartidores = d.repartidores.map(repNombre).filter(Boolean);
   if (d.rutas) { st.rutas = d.rutas; if ($("#dlg-flota").open) actualizarMapa(); }
@@ -1281,7 +1324,7 @@ $("#carta-publicar").onclick = async () => {
 
 /* ---------- Tienda abierta / cerrada a mano (todo el panel) ---------- */
 const swTienda = interruptor(true, on => on ? "Recibiendo pedidos" : "Tienda cerrada", async on => {
-  await api("POST", "/panel/tienda", {cerrado:!on}); st.cerrado = !on;
+  await api("POST", "/panel/tienda", {cerrado:!on}); st.cerrado = !on; pintarCierre(!on, null);
   aviso(on ? "Tienda abierta: entran pedidos según el horario" : "Tienda cerrada: no entran pedidos hasta que la abras");
 }, "Recibir pedidos");
 swTienda.classList.add("tienda"); $("#tienda-caja").append(swTienda);
@@ -1289,6 +1332,30 @@ function pintarTienda(cerrado) {
   if (swTienda.disabled || st.cerrado === cerrado) return; // a medio cambiar manda el toque
   st.cerrado = cerrado; swTienda.setAttribute("aria-checked", String(!cerrado)); swTienda.lastChild.textContent = cerrado ? "Tienda cerrada" : "Recibiendo pedidos";
 }
+
+/* Cierre temporal: «Cerrar por un rato» guarda la hora de reapertura y el servidor reabre solo */
+const f2 = n => String(n).padStart(2, "0"), fechaIso = d => `${d.getFullYear()}-${f2(d.getMonth() + 1)}-${f2(d.getDate())}`, horaIso = d => `${f2(d.getHours())}:${f2(d.getMinutes())}`;
+function pintarCierre(cerrado, hasta) {
+  $("#cierre-estado").textContent = cerrado && hasta ? `Se abre sola a las ${h12(hasta.slice(11, 16))}${hasta.slice(0, 10) === fechaIso(new Date()) ? "" : " del " + hasta.slice(8, 10) + "/" + hasta.slice(5, 7)}` : "";
+}
+async function cerrarHasta(d) {
+  try {
+    await api("POST", "/panel/tienda", {cerrado:true, hasta:`${fechaIso(d)} ${horaIso(d)}`});
+    st.cerrado = null; pintarTienda(true); pintarCierre(true, `${fechaIso(d)} ${horaIso(d)}`);
+    $("#dlg-cierre").close(); aviso("Tienda cerrada: se abre sola a las " + h12(horaIso(d)));
+  } catch (e) { aviso(e.message, true); }
+}
+$("#btn-cierre").onclick = () => $("#dlg-cierre").showModal();
+$("#cierre-x").onclick = () => $("#dlg-cierre").close();
+$("#cierre-op").onclick = ev => {
+  const m = ev.target.closest("[data-m]")?.dataset.m; if (!m) return;
+  const d = new Date(); if (m === "man") { d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); } else d.setMinutes(d.getMinutes() + Number(m));
+  cerrarHasta(d);
+};
+$("#cierre-hora-ok").onclick = () => {
+  const v = $("#cierre-hora").value; if (!v) return aviso("Elige la hora", true);
+  const d = new Date(); d.setHours(+v.slice(0, 2), +v.slice(3, 5), 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); cerrarHasta(d);
+};
 
 /* ---------- Configuración general (solo dueño): nombre, teléfono, anuncio, horario por día y datos de pago ---------- */
 const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["jue", "Jueves"], ["vie", "Viernes"], ["sab", "Sábado"], ["dom", "Domingo"]];
@@ -1375,32 +1442,92 @@ function filaZona(z = {}) {
   const fila = h("div", {class:"dia-h zona-fila"}, nombre, precio, inc, quitar); quitar.onclick = () => fila.remove(); return fila;
 }
 $("#zona-nueva").onclick = () => { const f = filaZona(); $("#zonas-envio").append(f); f.querySelector("input").focus(); };
+/* Horario: estado en HOR (días con turnos + días especiales); todo se vuelve a pintar desde ahí y el servidor valida de nuevo al guardar */
+const HORAS = [...Array.from({length:48}, (_, i) => f2(i >> 1) + ":" + (i % 2 ? "30" : "00")), "23:59"];
+const h12 = v => { const [H, M] = v.split(":").map(Number); return `${H % 12 || 12}:${f2(M)} ${H < 12 ? "a. m." : "p. m."}`; };
+const rango = t => `${h12(t[0])} – ${h12(t[1])}`, TXT_D = {lun:"Lun", mar:"Mar", mie:"Mié", jue:"Jue", vie:"Vie", sab:"Sáb", dom:"Dom"};
+const HOR = {dias:{}, exc:[]}, DEF = [["11:00", "22:00"]], copia = t => t.map(x => [...x]);
+function turnoNuevo(ts) { const u = ts[ts.length - 1]; return !u ? [...DEF[0]] : u[1] <= "15:00" ? ["18:00", "22:00"] : [u[1], u[1] < "22:00" ? "22:00" : "23:59"]; }
+function erroresTurnos(ts, quien) {
+  const e = [], v = copia(ts).sort();
+  if (ts.some(([a, b]) => a >= b)) e.push(`${quien}: un turno cierra antes (o a la misma hora) de abrir. Si pasas de medianoche, cierra a las 11:59 p. m. y abre el día siguiente.`);
+  else if (v.some((t, i) => i && v[i - 1][1] > t[0])) e.push(`${quien}: dos turnos se pisan.`);
+  return e;
+}
+function horarioErrores() {
+  const e = [], hoy = fechaIso(new Date()), vistos = new Set();
+  for (const [d, n] of DIAS_H) { const x = HOR.dias[d]; if (x.abierto) e.push(...(x.turnos.length ? erroresTurnos(x.turnos, n) : [`${n}: está abierto pero sin horas. Agrega un turno o ciérralo.`])); }
+  HOR.exc.forEach((x, i) => {
+    const q = x.fecha ? "Día especial " + x.fecha.split("-").reverse().join("/") : `Día especial ${i + 1}`;
+    if (!x.fecha) e.push(`${q}: falta la fecha.`); else if (x.fecha < hoy) e.push(`${q}: esa fecha ya pasó.`); else if (vistos.has(x.fecha)) e.push(`${q}: la fecha está repetida.`);
+    vistos.add(x.fecha);
+    if (x.turnos) e.push(...(x.turnos.length ? erroresTurnos(x.turnos, q) : [`${q}: sin horas. Agrega un turno o márcalo cerrado.`]));
+  });
+  return e;
+}
+function resumenHorario() {
+  const tx = d => HOR.dias[d].abierto ? HOR.dias[d].turnos.map(rango).join(", ") : "cerrado", g = [];
+  DIAS_H.forEach(([d]) => { const u = g[g.length - 1]; if (u && u.t === tx(d)) u.f = d; else g.push({d, f:d, t:tx(d)}); });
+  const hoy = new Date(), ex = HOR.exc.find(x => x.fecha === fechaIso(hoy)), dia = DIAS_H[(hoy.getDay() + 6) % 7][0];
+  const ts = ex ? (ex.turnos || []) : HOR.dias[dia].abierto ? HOR.dias[dia].turnos : [], min = hoy.getHours() * 60 + hoy.getMinutes(), m = v => +v.slice(0, 2) * 60 + +v.slice(3, 5);
+  const en = ts.find(([a, b]) => m(a) <= min && min < m(b)), sig = ts.filter(([a]) => m(a) > min).sort()[0];
+  const ahora = st.cerrado ? ["cerrado", "Ahora: cerrado a mano (la tienda no recibe pedidos)."] : en ? ["abierto", `Ahora: abierto, cierra a las ${h12(en[1])}.`]
+    : sig ? ["cerrado", `Ahora: cerrado, abre hoy a las ${h12(sig[0])}.`] : ["cerrado", "Ahora: cerrado, hoy ya no abre."];
+  return [h("b", {}, g.map(x => `${TXT_D[x.d]}${x.d === x.f ? "" : "–" + TXT_D[x.f]} ${x.t}`).join(" · ") + (HOR.exc.some(x => x.fecha >= fechaIso(hoy)) ? " · más los días especiales" : "")), h("span", {class:"ahora " + ahora[0]}, ahora[1])];
+}
+function pintarHorario(foco) {
+  const sel = (v, etq, ts, i, k) => {
+    const o = HORAS.includes(v) ? HORAS : [...HORAS, v].sort(), e = h("select", {"aria-label":etq, "data-foco":etq}, ...o.map(x => h("option", {value:x}, x === "23:59" ? "11:59 p. m. (fin del día)" : h12(x))));
+    e.value = v; e.onchange = () => { ts[i][k] = e.value; pintarHorario(etq); }; return e;
+  };
+  const turnos = (ts, quien) => h("div", {}, ...ts.map((t, i) => h("div", {class:"turno", role:"group", "aria-label":`${quien}, turno ${i + 1}`},
+    sel(t[0], `${quien}, turno ${i + 1}: abre`, ts, i, 0), "a", sel(t[1], `${quien}, turno ${i + 1}: cierra`, ts, i, 1),
+    h("button", {type:"button", class:"btn suave", "aria-label":`Quitar turno ${i + 1} de ${quien}`, on:{click:() => { ts.splice(i, 1); pintarHorario(); }}}, "✕"))));
+  const agregar = (ts, quien) => ts.length < 3 ? h("button", {type:"button", class:"btn suave", "data-foco":"mas " + quien, on:{click:() => { ts.push(turnoNuevo(ts)); pintarHorario("mas " + quien); }}}, "+ Agregar turno") : null;
+  const sw = (on, txt, alt, fn) => { const b = h("button", {class:"sw", type:"button", role:"switch", "aria-checked":String(on), "aria-label":alt, "data-foco":"sw " + alt}, h("i", {"aria-hidden":"true"}), h("span", {}, txt)); b.onclick = fn; return b; };
+  $("#horario-dias").replaceChildren(...DIAS_H.map(([d, n]) => {
+    const x = HOR.dias[d], todos = fn => () => { DIAS_H.forEach(([k]) => { if (fn(k)) HOR.dias[k] = {abierto:x.abierto, turnos:copia(x.turnos)}; }); pintarHorario(); aviso("Horario copiado"); };
+    const atajo = (txt, ts) => h("button", {type:"button", class:"btn suave", on:{click:() => { x.turnos = copia(ts); x.abierto = true; pintarHorario(); }}}, txt);
+    return h("div", {class:"dh" + (x.abierto ? "" : " cerrado")},
+      h("div", {class:"dh-cab"}, h("b", {}, n), sw(x.abierto, x.abierto ? "Abierto" : "Cerrado", `${n}: abierto`, () => { x.abierto = !x.abierto; if (x.abierto && !x.turnos.length) x.turnos = copia(DEF); pintarHorario(`sw ${n}: abierto`); })),
+      ...(x.abierto ? [turnos(x.turnos, n), h("div", {class:"dh-acc"}, agregar(x.turnos, n)),
+        h("details", {}, h("summary", {}, "Atajos y copiar"), h("div", {class:"dh-acc"}, atajo("24 horas", [["00:00", "23:59"]]), atajo("Almuerzo y cena", [["11:00", "15:00"], ["18:00", "22:00"]]),
+          h("button", {type:"button", class:"btn suave", on:{click:todos(() => true)}}, "Copiar a todos los días"), h("button", {type:"button", class:"btn suave", on:{click:todos(k => "lun mar mie jue vie".includes(k))}}, "Copiar a lun–vie")))] : []));
+  }));
+  $("#hor-exc").replaceChildren(...HOR.exc.map((x, i) => {
+    const q = `Día especial ${i + 1}`, f = h("input", {type:"date", min:fechaIso(new Date()), "aria-label":q + ": fecha", "data-foco":q}), modo = h("select", {"aria-label":q + ": cómo abre"}, h("option", {value:"c"}, "Cerrado todo el día"), h("option", {value:"t"}, "Abre con horario propio"));
+    f.value = x.fecha; f.onchange = () => { x.fecha = f.value; pintarHorario(q); }; modo.value = x.turnos ? "t" : "c"; modo.onchange = () => { x.turnos = modo.value === "t" ? copia(DEF) : null; pintarHorario(q); };
+    return h("div", {class:"dh dh-esp"}, h("div", {class:"turno"}, f, h("button", {type:"button", class:"btn suave", "aria-label":`Quitar ${q}`, on:{click:() => { HOR.exc.splice(i, 1); pintarHorario(); }}}, "✕")),
+      h("div", {class:"turno"}, modo), ...(x.turnos ? [turnos(x.turnos, q), h("div", {class:"dh-acc"}, agregar(x.turnos, q))] : []));
+  }));
+  $("#hor-exc-nuevo").hidden = HOR.exc.length >= 60;
+  const er = horarioErrores(); $("#hor-err").replaceChildren(...er.map(t => h("li", {}, t))); $("#hor-res").replaceChildren(...resumenHorario());
+  if (foco) document.querySelector(`[data-foco="${CSS.escape(foco)}"]`)?.focus();
+}
+const PLANT = [["Lunes a viernes", d => "lun mar mie jue vie".includes(d)], ["Todos los días", () => true], ["Fin de semana", d => "sab dom".includes(d)], ["Cerrar los domingos", null]];
+$("#hor-plant").replaceChildren(...PLANT.map(([txt, abre]) => h("button", {type:"button", class:"btn suave", on:{click:() => {
+  if (!abre) HOR.dias.dom.abierto = false;
+  else { const base = DIAS_H.map(([d]) => HOR.dias[d]).find(x => x.abierto && x.turnos.length)?.turnos || DEF; DIAS_H.forEach(([d]) => HOR.dias[d] = abre(d) ? {abierto:true, turnos:copia(base)} : {abierto:false, turnos:[]}); }
+  pintarHorario();
+}}}, txt)));
+$("#hor-exc-nuevo").onclick = () => { HOR.exc.push({fecha:"", turnos:null}); pintarHorario(`Día especial ${HOR.exc.length}`); };
 async function pintarConfig() {
   let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
   const f = $("#f-config");
   f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo; f.sugerencias.checked = a.sugerencias !== false;
   $("#config-nota").textContent = "";
   $("#zonas-envio").replaceChildren(...(a.envio || []).map(filaZona));
-  $("#horario-dias").replaceChildren(...DIAS_H.map(([d, nombre]) => {
-    const t = a.horario[d] || [], abre = h("input", {type:"checkbox", "data-dia":d}); abre.checked = t.length > 0;
-    const hora = (v, etq) => { const i = h("input", {type:"time", "aria-label":`${nombre}: ${etq}`}); i.value = v || ""; return i; };
-    const ins = [hora(t[0] && t[0][0], "abre"), hora(t[0] && t[0][1], "cierra"), hora(t[1] && t[1][0], "segundo turno, abre"), hora(t[1] && t[1][1], "segundo turno, cierra")];
-    const ver = () => ins.forEach(i => i.disabled = !abre.checked); abre.onchange = ver; ver();
-    return h("div", {class:"dia-h"}, h("label", {class:"dia-n"}, abre, nombre), ins[0], "a", ins[1], h("span", {class:"t-espera"}, "y"), ins[2], "a", ins[3]);
-  }));
+  for (const [d] of DIAS_H) HOR.dias[d] = {abierto:(a.horario[d] || []).length > 0, turnos:copia(a.horario[d] || [])};
+  HOR.exc = Object.entries(a.excepciones || {}).map(([fecha, t]) => ({fecha, turnos:t.length ? copia(t) : null}));
+  pintarHorario(); pintarCierre(a.cerrado, a.cerrado_hasta);
 }
 $("#f-config").onsubmit = async ev => {
   ev.preventDefault(); const f = ev.target, horario = {}, nota = $("#config-nota");
   if (!f.marca.value.trim()) { nota.textContent = "Pon el nombre del restaurante."; return f.marca.focus(); }
-  for (const fila of document.querySelectorAll("#horario-dias .dia-h")) {
-    const [abre, a1, b1, a2, b2] = fila.querySelectorAll("input"), turnos = [];
-    if (abre.checked) {
-      if (!a1.value || !b1.value) { nota.textContent = "Pon la hora de abrir y de cerrar de cada día que abres."; return a1.focus(); }
-      turnos.push([a1.value.slice(0, 5), b1.value.slice(0, 5)]);
-      if (a2.value && b2.value) turnos.push([a2.value.slice(0, 5), b2.value.slice(0, 5)]);
-    }
-    horario[abre.dataset.dia] = turnos;
-  }
+  const er = horarioErrores(); pintarHorario();
+  if (er.length) { nota.textContent = "No se guardó. Corrige el horario: " + er[0]; return $("#hor-res").scrollIntoView({block:"center"}); }
+  for (const [d] of DIAS_H) horario[d] = HOR.dias[d].abierto ? HOR.dias[d].turnos : [];
+  const excepciones = Object.fromEntries(HOR.exc.map(x => [x.fecha, x.turnos || []]));
   const envio = [];
   for (const fila of document.querySelectorAll("#zonas-envio .zona-fila")) {
     const [n, v, i] = fila.querySelectorAll("input");
@@ -1409,7 +1536,7 @@ $("#f-config").onsubmit = async ev => {
     envio.push({nombre:n.value.trim(), precio:+v.value, incluye:i.value.split(",").map(x => x.trim()).filter(Boolean)});
   }
   try {
-    await api("POST", "/panel/dueno/ajustes", {envio, marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
+    await api("POST", "/panel/dueno/ajustes", {envio, marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, excepciones, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
     nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
   } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
 };

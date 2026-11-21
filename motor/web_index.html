@@ -716,6 +716,8 @@ function pintarAbierto() {
     const g = t => f.find(x => x.type === t).value;
     d = {Sun:"dom", Mon:"lun", Tue:"mar", Wed:"mie", Thu:"jue", Fri:"vie", Sat:"sab"}[g("weekday")]; ahora = +g("hour") * 60 + +g("minute");
   } catch (err) { d = null; }
+  const fecha = new Intl.DateTimeFormat("en-CA", {timeZone:"America/Panama"}).format(new Date()), ex = (h.excepciones || {})[fecha];
+  if (d && Array.isArray(ex)) pd[d] = ex;  // día especial (feriado…): manda sobre el día de la semana
   if (!d || !ORDEN_DIAS.some(x => pd[x].length)) { e.hidden = true; return; }
   const min = t => { const [a, b] = String(t).split(":"); return +a * 60 + (+b || 0); };
   const tramo = !CFG.cerrado && pd[d].find(([a, b]) => ahora >= min(a) && ahora < min(b)); // cerrado a mano desde el panel: cerrado aunque toque abrir

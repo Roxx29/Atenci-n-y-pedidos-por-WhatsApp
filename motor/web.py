@@ -143,7 +143,7 @@ def config_publica(sv, con_pago=False):
     envio = dict(zonas) if isinstance(zonas, dict) else {z: costo for z in zonas} if zonas else {"": costo} if costo else {}
     c = sv.cfg
     d = {"marca": marca_de(sv), "horario": c.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio,
-         "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": bool(c.get("cerrado")), "efectivo": herramientas.efectivo_ok(sv)}
+         "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": herramientas.cerrado_ahora(sv), "efectivo": herramientas.efectivo_ok(sv)}
     if con_pago:
         d["pago"] = {k: v for k, v in (sv.cfg.get("pago") or {}).items() if k in ("yappy", "transferencia") and v}
     return d
@@ -580,7 +580,7 @@ def crear_manejador(sv, secreto=None, env=None):
                     if d is None:
                         return
                     try:
-                        return self._enviar(200, panel_web.poner_cerrado(sv, quien, d.get("cerrado")), extra=renovar)
+                        return self._enviar(200, panel_web.poner_cerrado(sv, quien, d.get("cerrado"), d.get("hasta")), extra=renovar)
                     except ValueError as e:
                         return self._err(400, str(e))
                 if len(partes) == 5 and partes[2] == "escalado" and partes[4] == "atendido" and metodo == "POST":
@@ -1166,7 +1166,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
         """Con `cerrojo`. Abre el Servicio de `c` y su manejador: abiertos[slug] = (manejador, sv, huella de su BD)."""
         env = clientes.entorno(c.slug)
         sv = Servicio(c.carpeta, env=env)
-        sv.modulos_operador, sv.tope_ia = c.modulos, clientes.tope_ia(c)  # modulos None = manda su servicio.yaml (panel_web.modulos)
+        sv.modulos_operador, sv.tope_ia, sv.reglas_operador = c.modulos, clientes.tope_ia(c), c.reglas_bot  # modulos None = manda su servicio.yaml (panel_web.modulos)
         abiertos[c.slug] = a = (crear_manejador(sv, secreto_cliente(c), env), sv, huella_bd(sv))
         servicios[c.slug] = sv
         if al_abrir:
@@ -1211,7 +1211,7 @@ def crear_alojamiento(lista, puerto=8080, ruta=None, al_abrir=None):
         for c in lista:
             if c.activo:
                 sv = (abiertos.get(c.slug) or abrir(c))[1]
-                sv.modulos_operador, sv.tope_ia = c.modulos, clientes.tope_ia(c)  # se relee en cada petición (panel_web.modulos)
+                sv.modulos_operador, sv.tope_ia, sv.reglas_operador = c.modulos, clientes.tope_ia(c), c.reglas_bot  # se relee en cada petición (panel_web.modulos)
                 hosts[c.dominio] = doms[c.dominio] = (c.slug, c.prueba_hasta)
                 if os.environ.get("PROXY") != "1":  # atajo para probar en este PC; tras un proxy sería un segundo nombre que nadie vigila
                     hosts[c.slug + ".localhost"] = hosts[c.dominio]

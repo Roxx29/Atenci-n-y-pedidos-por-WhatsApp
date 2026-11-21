@@ -231,7 +231,7 @@ def crear(carpeta, puerto=8090):
                     desde = int((q.get("desde") or ["0"])[0] or 0)
                     return self._enviar(200, {"pedidos": [est.para_panel(p) for p in est.pedidos if p["estado"] not in TERMINADOS],
                                               "avisos": [a for a in est.avisos if a["id"] > desde], "ultimo": max([a["id"] for a in est.avisos] + [0]),
-                                              "escalados": [], "repartidores": est.d["repartidores"], "cerrado": est.cerrado, "modulos": [], "rutas": {}})
+                                              "escalados": [], "repartidores": est.d["repartidores"], "cerrado": est.cerrado, "cerrado_hasta": None, "modulos": [], "rutas": {}})
                 if r.startswith("/panel/pedido/"):
                     p = next((p for p in est.pedidos if str(p["id"]) == r.rsplit("/", 1)[1]), None)
                     return self._enviar(200, {"pedido": est.para_panel(p, True)}) if p else self._err(404, "No existe ese pedido")
@@ -245,7 +245,7 @@ def crear(carpeta, puerto=8090):
                     return self._enviar(200, {"restaurante": rest, "repartidores": [{"repartidor": p["repartidor"], "pedido_id": p["id"], **est.vista_pos()}
                                                                                      for p in camino if est.pos]})
                 if r == "/panel/dueno/ajustes":
-                    return self._enviar(200, {"ajustes": {**est.d["ajustes"], "cerrado": est.cerrado}})
+                    return self._enviar(200, {"ajustes": {**est.d["ajustes"], "cerrado": est.cerrado, "cerrado_hasta": None, "excepciones": {}, "envio": [{"nombre": z, "precio": pr, "incluye": []} for z, pr in est.d["config"]["envio"].items()]}})
                 if r == "/panel/dueno/usuarios":
                     return self._enviar(200, {"usuarios": est.d["usuarios"]})
             if r == "/repartidor/pedidos":
@@ -356,7 +356,7 @@ def crear(carpeta, puerto=8090):
                 return self._enviar(200, {"ok": True, "plato": m})
             if r == "/panel/tienda":
                 est.cerrado = d.get("cerrado") is True
-                return self._enviar(200, {"ok": True, "cerrado": est.cerrado})
+                return self._enviar(200, {"ok": True, "cerrado": est.cerrado, "cerrado_hasta": None})
             if r == "/panel/dueno/usuario":
                 return self._enviar(200, {"ok": True, "usuario": {"nombre": d.get("nombre"), "rol": d.get("rol", "personal"), "activo": d.get("activo", True)}})
             if r == "/panel/dueno/ajustes":

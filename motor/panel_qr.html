@@ -96,7 +96,7 @@ a.btn{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;bord
   <section class="caja" aria-labelledby="t-lista">
     <h2 id="t-lista">Tus códigos</h2>
     <div class="fila" style="margin-bottom:8px">
-      <label>Plantilla de impresión<select id="plantilla"><option value="mesa">Tarjeta de mesa</option><option value="flyer">Flyer vertical</option><option value="pegatina">Pegatina redonda</option></select></label>
+      <label>Plantilla de impresión<select id="plantilla"><option value="mesa">Tarjeta de mesa</option><option value="flyer">Flyer vertical</option><option value="pegatina">Pegatina redonda</option><option value="tienda">Tarjeta plegable (tienda)</option></select></label>
       <a class="btn" id="hoja" target="_blank" rel="noopener">Abrir hoja para imprimir</a>
     </div>
     <div id="lista"></div>
@@ -155,9 +155,21 @@ function fila(c) {
       el("button", {type:"button",}, "Guardar"),
       el("button", {type:"button", class:"sec"}, "Regenerar código"),
       el("a", {class:"btn", href:"/panel/qr/svg/" + c.id, download:""}, "Descargar SVG"),
+      el("button", {type:"button", class:"sec", "data-png":c.id}, "Descargar PNG"),
       el("button", {type:"button", class:"sec"}, "Borrar"))));
 }
+async function descargarPng(id) {  // el navegador pinta el SVG del servidor (con su logo) y lo guarda a 1600 px; nada sale de aquí
+  try {
+    const svg = await (await fetch("/panel/qr/svg/" + id)).text(), url = URL.createObjectURL(new Blob([svg], {type:"image/svg+xml"})), img = new Image();
+    await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error("No se pudo crear el PNG")); img.src = url; });
+    const S = 1600, cv = document.createElement("canvas"); cv.width = cv.height = S;
+    const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, S, S); g.drawImage(img, 0, 0, S, S); URL.revokeObjectURL(url);
+    const png = await new Promise(ok => cv.toBlob(ok, "image/png")), a = el("a", {href:URL.createObjectURL(png), download:"qr-" + id + ".png"});
+    document.body.append(a); a.click(); a.remove();
+  } catch (x) { msg(x.message); }
+}
 $("#lista").addEventListener("click", ev => {
+  const png = ev.target.closest("[data-png]"); if (png) return descargarPng(png.dataset.png);
   const b = ev.target.closest("button"); if (!b || b.type !== "button") return;
   const f = b.closest(".cod"), i = [...$("#lista").children].indexOf(f), c = ESTADO.codigos[i], [etq, tip, mes, act] = f.querySelectorAll(".fila input, .fila select"), dest = f.querySelector(".dest");
   const hacer = async (fn, ok) => { try { await fn(); await cargar(); msg(ok || ""); } catch (x) { msg(x.message); } };

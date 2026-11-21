@@ -23,7 +23,7 @@ HEX = re.compile(r"#[0-9a-f]{6}")
 URL = re.compile(r"https?://[^\s<>\"'\\]{3,480}")
 ESTILO0 = {"modulo": "cuadrado", "esquinas": "cuadrada", "color": "#000000", "fondo": "#ffffff", "texto": "Escanea y pide", "marco": True, "logo": True}
 MODULOS = ("cuadrado", "redondeado", "puntos")
-PLANTILLAS = ("mesa", "flyer", "pegatina")
+PLANTILLAS = ("mesa", "flyer", "pegatina", "tienda")
 
 
 def maximo(sv):
@@ -250,7 +250,11 @@ def hoja(marca, tarjetas, plantilla, acento="#000000", est=None):
     sobre = "#000" if 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 else "#fff"  # texto legible sobre la banda de la marca
     pasos = "" if plantilla == "pegatina" else '<ol class="pasos"><li>Escanea</li><li>Elige</li><li>Pide y paga</li></ol>'
     enlace = lambda t: f'<div class="url">{html.escape(re.sub(r"^https?://", "", t["url"]))}</div>' if t.get("url") else ""  # por si el teléfono no escanea
-    cuerpo = "".join(f'<article class="{plantilla}"><div class="cab">{m}</div><p class="cta">{texto}</p><div class="qr">{t["svg"]}</div>{enlace(t)}<h2>{html.escape(t["etiqueta"])}</h2>{pasos}</article>' for t in tarjetas)
+    if plantilla == "tienda":  # tarjeta plegable: dos mitades iguales, la de arriba girada 180° para que al doblar se lean las dos caras
+        mitad = lambda t, c="": f'<div class="mit{c}"><div class="cab">{m}</div><p class="cta">{texto}</p><div class="qr">{t["svg"]}</div>{enlace(t)}<h2>{html.escape(t["etiqueta"])}</h2>{pasos}</div>'
+        cuerpo = "".join(f'<article class="tienda">{mitad(t, " giro")}<div class="doblez">doblar aquí</div>{mitad(t)}</article>' for t in tarjetas)
+    else:
+        cuerpo = "".join(f'<article class="{plantilla}"><div class="cab">{m}</div><p class="cta">{texto}</p><div class="qr">{t["svg"]}</div>{enlace(t)}<h2>{html.escape(t["etiqueta"])}</h2>{pasos}</article>' for t in tarjetas)
     return (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QR · {m}</title><style>'
             f':root{{--ac:{acento};--on:{sobre}}}*{{box-sizing:border-box}}body{{margin:0;font:16px/1.4 system-ui,sans-serif;color:#000;background:#fff}}'
             '.barra{display:flex;gap:12px;align-items:center;padding:12px 16px;background:#f3f3f3;border-bottom:1px solid #ccc}.barra button{min-height:44px;padding:0 16px;font:inherit;font-weight:700}'
@@ -258,11 +262,13 @@ def hoja(marca, tarjetas, plantilla, acento="#000000", est=None):
             'article{border:3px solid var(--ac);border-radius:14px;padding:0 12px 12px;text-align:center;break-inside:avoid;overflow:hidden}'
             '.cab{margin:0 -12px;padding:8px 12px;background:var(--ac);color:var(--on)!important}.cta{font-weight:800;font-size:1.15rem;margin:10px 0 0}'
             '.url{font:600 .8rem ui-monospace,monospace;word-break:break-all;color:#333}.pasos{display:flex;justify-content:center;gap:6px;list-style:none;margin:8px 0 0;padding:0;counter-reset:p;font-size:.78rem;font-weight:600}'
-            '.pasos li{counter-increment:p}.pasos li::before{content:counter(p);display:inline-block;width:1.4em;height:1.4em;line-height:1.4em;margin-right:4px;border-radius:50%;background:var(--ac);color:var(--on);text-align:center}'
+            '.pasos li{counter-increment:p;white-space:nowrap}.pasos li::before{content:counter(p);display:inline-block;width:1.4em;height:1.4em;line-height:1.4em;margin-right:4px;border-radius:50%;background:var(--ac);color:var(--on);text-align:center}'
             '.cab{font-weight:800;letter-spacing:.04em;text-transform:uppercase;font-size:.85rem;color:var(--ac)}.qr svg{width:100%;height:auto;display:block;margin:6px auto;max-width:210px}'
             'h2{margin:0;font-size:2rem;line-height:1.1}p{margin:2px 0 0;font-size:.95rem}'
             '.flyer{min-height:260mm;display:flex;flex-direction:column;justify-content:center;gap:10mm;page-break-after:always;border-width:6mm}'
             '.flyer .cab{font-size:2.2rem}.flyer .qr svg{max-width:150mm}.flyer h2{font-size:4rem}.flyer p{font-size:1.6rem}'
+            '.tienda{padding:0;border-radius:6px}.tienda .mit{padding:0 12px 10px}.tienda .giro{transform:rotate(180deg)}.tienda .qr svg{max-width:150px}.tienda h2{font-size:1.5rem}'
+            '.doblez{border-top:2px dashed #888;color:#888;font-size:.65rem;text-align:center;letter-spacing:.1em;text-transform:uppercase;line-height:1.6}'
             '.pegatina .cab{margin:0;padding:0;background:none;color:var(--ac)!important}.pegatina .url{display:none}.pegatina .cta{font-size:.95rem;margin:2px 0 0}'
             '.pegatina{border-radius:50%;aspect-ratio:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:8%}.pegatina .qr svg{max-width:62%}.pegatina h2{font-size:1.5rem}.pegatina .cab{font-size:.7rem}'
             f'@media print{{.barra{{display:none}}main{{gap:6mm;padding:0;grid-template-columns:repeat({"1" if plantilla == "flyer" else "3"},1fr)}}}}'

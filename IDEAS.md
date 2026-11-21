@@ -3,6 +3,8 @@
 Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` al terminar.
 
 ## Ideas
+- 2026-11-21 — QR, diseño (investigado): tarjeta de mesa plegable, posavasos y tarjeta de delivery; número de mesa en círculo de color; márgenes de 4 módulos y aviso de tamaño mínimo 2 cm; descarga PNG/PDF con sangrado; vista previa móvil y botón «probar QR»; QR por promoción (happy hour, reseña); prueba A/B de plantillas con los escaneos por código; frases de acción editables por tipo (claude)
+- 2026-11-18 — Casa de Mamá Elia: panel y repartidor con la misma marca; ilustraciones de sus platos reales; probar flujo de pedido con clics (claude)
 - 2026-11-18 — Envío por distancia en km (tarifa por tramos desde el local) además de por zonas; hoy solo hay zonas con precio fijo (claude)
 - 2026-11-18 — Copiar la sección «Zonas de entrega» a `diseno/editable/base/panel.html` (kit de diseño) para que coincida con `motor/panel_web.html` (claude)
 - 2026-11-02 — Reservas de mesa con capacidad por turno (fuera de v1) (agenteservicios)
@@ -149,8 +151,19 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 
 ## Chitré DeliFood · ideas de diseño (2026-11-18)
 - [x] El plato vuela en arco hasta el carrito al agregar (hecho 2026-11-18).
-- [ ] Lluvia de papas, aros de cebolla y chiles al confirmar el pedido.
-- [ ] Hamburguesa que se arma en la cabecera (capas que caen) y estado del pedido como hamburguesa que se completa.
+- [x] Lluvia de papas, aros de cebolla y chiles al confirmar el pedido (hecho 2026-11-20, Urban Sazón).
+- [x] Hamburguesa que se arma en la cabecera (capas que caen) y estado del pedido como hamburguesa que se completa (hecho 2026-11-20, Urban Sazón).
+- [x] Urban Sazón: skeleton con brillo del menú, total del carrito que cuenta y chips de categoría que siguen el scroll (hecho 2026-11-20).
 - [ ] Chiles de picante en las tarjetas que se encienden al pasar el cursor; etiqueta «MÁS VENDIDO» que late en los combos.
 - [ ] Panel del restaurante y app del repartidor con este mismo estilo.
 - [ ] Logo en alta resolución (el actual es 150 px y se ve borroso en pantallas densas) y fuente `.woff2` de su carta.
+
+## Urban Sazón: ideas de la investigación (2026-11-20, investigador-web)
+- [ ] Sugeridos antes de pagar (papas + bebida) con "+" en un toque (solo página)
+- [ ] Salsas, extras y nivel de picante como modificadores (necesita servidor)
+- [ ] Arma tu combo por pasos con precio dinámico
+- [ ] Tracker de estado estilo Domino's con animación (solo página)
+- [ ] "Pedir lo de siempre" (reordenar, localStorage)
+- [ ] Compartir por WhatsApp, redes @urban_sazon, galería, abierto/cerrado en vivo
+- [ ] Promo del día con cuenta regresiva y barra "te falta X para envío gratis"
+- [ ] Después: sellos de lealtad, reseñas, PWA instalable

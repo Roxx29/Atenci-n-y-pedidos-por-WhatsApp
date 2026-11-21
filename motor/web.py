@@ -656,7 +656,7 @@ def crear_manejador(sv, secreto=None, env=None):
                 cs = [c for c in mesa.listar(sv, base) if c["activo"] and (not ids or c["id"] in ids)]
                 if not cs:
                     return self._err(404, "No hay códigos activos")
-                return self._enviar(200, mesa.hoja(marca_de(sv), [{"etiqueta": c["etiqueta"], "svg": mesa.svg_de(sv, c["url"], est, logo, c["etiqueta"])} for c in cs], plantilla, est["color"], est),
+                return self._enviar(200, mesa.hoja(marca_de(sv), [{"etiqueta": c["etiqueta"], "url": c["url"], "svg": mesa.svg_de(sv, c["url"], est, logo, c["etiqueta"])} for c in cs], plantilla, est["color"], est),
                                     "text/html", [("Content-Security-Policy", CSP), *renovar])
             return self._err(404, "No encontrado")
 

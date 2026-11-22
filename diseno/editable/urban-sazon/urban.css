@@ -166,3 +166,23 @@ dialog.hoja::backdrop{background:rgba(0,0,0,.7)}
   .u-pam .c{transform:none;transition:opacity .3s}
 }
 @media (max-width:420px){.barra .u-ham{width:32px;height:32px;margin-left:-4px}}
+
+/* ---------- Móvil: chat casi a pantalla completa, cabecera que se pliega con animación ---------- */
+.barra,.barra .logo,.barra .u-ham,.barra h1,.abierto,.llamar,.demo,.u-cinta,.u-lluvia,.anuncio,.info{transition:max-width .4s var(--m-out),max-height .4s var(--m-out),width .4s var(--m-out),height .4s var(--m-out),padding .4s var(--m-out),margin .4s var(--m-out),font-size .4s var(--m-out),opacity .3s ease,border-width .4s var(--m-out)}
+.anuncio{max-height:90px}.info{max-height:50px}
+@media (max-width:1023px){
+  .chat-cab{display:none}
+  #chat{grid-template-rows:minmax(0,1fr) auto auto auto}
+  .mensajes{padding-top:10px}
+  .abierto,.llamar,.demo{overflow:hidden;max-width:220px}
+  #app[data-vista=otra] .barra{padding-top:4px;padding-bottom:4px}
+  #app[data-vista=otra] .barra .logo{width:26px;height:26px;border-radius:8px;box-shadow:0 0 0 1.5px var(--primary)}
+  #app[data-vista=otra] .barra .u-ham{width:22px;height:22px}
+  #app[data-vista=otra] .barra h1{font-size:.8125rem}
+  #app[data-vista=otra] .barra h1 small{font-size:0;opacity:0}
+  #app[data-vista=otra] .abierto,#app[data-vista=otra] .llamar,#app[data-vista=otra] .demo{max-width:0;margin-left:0;padding-inline:0;border-width:0;opacity:0;pointer-events:none}
+  #app[data-vista=otra] .u-cinta{height:0;opacity:0}
+  #app[data-vista=otra] .u-lluvia{opacity:0}
+  #app[data-vista=otra] .anuncio,#app[data-vista=otra] .info{max-height:0;padding-block:0;opacity:0;overflow:hidden;border-width:0}
+}
+@media (prefers-reduced-motion:reduce){.barra,.barra *,.anuncio,.info{transition:none!important}}

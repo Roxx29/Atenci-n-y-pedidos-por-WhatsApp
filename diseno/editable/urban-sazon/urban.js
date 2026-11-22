@@ -187,4 +187,10 @@
     new MutationObserver(ver).observe(lista, {childList: true});
     new MutationObserver(marca).observe(cats, {childList: true}); ver();
   }
+  // Chat a pantalla casi completa: en Pedir / Mi pedido la cabecera se pliega (#app[data-vista]="otra"); en Menú queda entera.
+  const app = $("#app"), tabM = $("#tab-menu");
+  if (app && tabM) {
+    const vista = () => { app.dataset.vista = tabM.getAttribute("aria-selected") === "true" ? "menu" : "otra"; };
+    new MutationObserver(vista).observe(tabM, {attributes: true, attributeFilter: ["aria-selected"]}); vista();
+  }
 })();

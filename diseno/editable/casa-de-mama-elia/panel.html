@@ -1,0 +1,1327 @@
+<!doctype html>
+<!-- ==========================================================================================
+  COPIA DE PARTIDA de la página panel del restaurante (/panel) (motor/panel_web.html). Cámbiala como quieras: distribución, textos, CSS, JS.
+  - El marcador TEMA (más abajo, dentro de head): ahí el servidor pone los colores del cliente (su tema + su personalizado.css). No lo borres.
+  - «DeliFood» : donde aparezca, el servidor escribe el nombre del restaurante.
+  - Tus archivos (css, js, imágenes, fuentes) van en esta misma carpeta y se piden como /web/<nombre> (p. ej. /web/logo.png).
+  - NO cambies las llamadas a la API (fetch/api): rutas, métodos y datos están en ../API.md. Las reglas (precios, pagos, estados) las pone el servidor.
+  - Nada de scripts, hojas de estilo o llamadas a otros dominios: el servidor los bloquea (CSP). Fuentes/imágenes de fuera: pídelo (web.permitir).
+  Probar: python diseno/editable/vista.py diseno/editable/<tu-carpeta>
+=========================================================================================== -->
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel · DeliFood</title>
+<link rel="preload" href="/estatico/epilogue-v1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/estatico/jakarta-v1.woff2" as="font" type="font/woff2" crossorigin>
+<!-- === TEMA DEL CLIENTE: el servidor sustituye este marcador por sus colores === -->
+<!--TEMA-->
+<!-- === ESTILOS del panel === -->
+<link rel="stylesheet" href="/web/panel.css">
+</head>
+<!-- === CUERPO === -->
+<body data-marca="DeliFood">
+
+<!-- === ICONOS (sprite SVG) === -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 5h11a3 3 0 0 1 3 3v12H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h6"/></symbol>
+  <symbol id="i-salir" viewBox="0 0 24 24"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></symbol>
+  <symbol id="i-camara" viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+  <symbol id="i-buscar" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-moto" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M9 17h6l-3-7H8M15 7h3l2 5"/></symbol>
+  <symbol id="i-bolsa" viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/></symbol>
+  <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-campana" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-sonido" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9a4 4 0 0 1 0 6"/></symbol>
+  <symbol id="i-mudo" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 4 6M21 9l-4 6"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-persona" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-alerta" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-recibo" viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-promo" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></symbol>
+  <symbol id="i-grafica" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-ajustes" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></symbol>
+  <symbol id="p-vid" viewBox="0 0 60 120"><path d="M30 0C22 16 40 30 30 48C22 64 38 80 30 100" fill="none" stroke="#3A6B2C" stroke-width="2" stroke-linecap="round"/><g transform="translate(27 12) rotate(65) scale(0.55)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#4F8A3A"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(36 28) rotate(-60) scale(0.62)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#6BAA4B"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(27 46) rotate(70) scale(0.66)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#3F7A33"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(37 64) rotate(-55) scale(0.6)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#7DB856"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(27 82) rotate(60) scale(0.56)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#4F8A3A"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(33 98) rotate(-40) scale(0.5)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#6BAA4B"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g><g transform="translate(30 104) rotate(8) scale(0.42)"><path d="M0 0C-7-7-16 3-9 13C-5 18 0 21 0 21C0 21 5 18 9 13C16 3 7-7 0 0Z" fill="#9CC24A"/><path d="M0 2V17" stroke="#2E5A22" stroke-width="1.2" fill="none"/></g></symbol>
+  <symbol id="p-helecho" viewBox="0 0 60 120"><path d="M30 0C28 30 33 70 30 112" fill="none" stroke="#3A6B2C" stroke-width="2" stroke-linecap="round"/><ellipse cx="19.5" cy="14.0" rx="9.5" ry="2.8" fill="#5FA046" transform="rotate(-28 30 14.0)"/><ellipse cx="40.5" cy="14.0" rx="9.5" ry="2.8" fill="#5FA046" transform="rotate(28 30 14.0)"/><ellipse cx="20.2" cy="26.5" rx="8.8" ry="2.8" fill="#4F8A3A" transform="rotate(-28 30 26.5)"/><ellipse cx="39.8" cy="26.5" rx="8.8" ry="2.8" fill="#4F8A3A" transform="rotate(28 30 26.5)"/><ellipse cx="20.9" cy="39.0" rx="8.1" ry="2.8" fill="#5FA046" transform="rotate(-28 30 39.0)"/><ellipse cx="39.1" cy="39.0" rx="8.1" ry="2.8" fill="#5FA046" transform="rotate(28 30 39.0)"/><ellipse cx="21.6" cy="51.5" rx="7.4" ry="2.8" fill="#4F8A3A" transform="rotate(-28 30 51.5)"/><ellipse cx="38.4" cy="51.5" rx="7.4" ry="2.8" fill="#4F8A3A" transform="rotate(28 30 51.5)"/><ellipse cx="22.4" cy="64.0" rx="6.6" ry="2.8" fill="#5FA046" transform="rotate(-28 30 64.0)"/><ellipse cx="37.6" cy="64.0" rx="6.6" ry="2.8" fill="#5FA046" transform="rotate(28 30 64.0)"/><ellipse cx="23.1" cy="76.5" rx="5.9" ry="2.8" fill="#4F8A3A" transform="rotate(-28 30 76.5)"/><ellipse cx="36.9" cy="76.5" rx="5.9" ry="2.8" fill="#4F8A3A" transform="rotate(28 30 76.5)"/><ellipse cx="23.8" cy="89.0" rx="5.2" ry="2.8" fill="#5FA046" transform="rotate(-28 30 89.0)"/><ellipse cx="36.2" cy="89.0" rx="5.2" ry="2.8" fill="#5FA046" transform="rotate(28 30 89.0)"/><ellipse cx="24.5" cy="101.5" rx="4.5" ry="2.8" fill="#4F8A3A" transform="rotate(-28 30 101.5)"/><ellipse cx="35.5" cy="101.5" rx="4.5" ry="2.8" fill="#4F8A3A" transform="rotate(28 30 101.5)"/></symbol>
+</svg>
+
+<!-- ============ Entrada ============ -->
+<!-- === ENTRADA CON PIN (POST /panel/entrar) === -->
+<main id="login">
+  <svg class="cg l1" aria-hidden="true" focusable="false"><use href="#p-vid"/></svg><svg class="cg l2" aria-hidden="true" focusable="false"><use href="#p-helecho"/></svg><svg class="cg l3" aria-hidden="true" focusable="false"><use href="#p-vid"/></svg><svg class="cg l4" aria-hidden="true" focusable="false"><use href="#p-helecho"/></svg>
+  <form class="caja-login" id="form-pin" novalidate>
+    <img class="logo-login" src="/web/logo.png" width="104" height="104" alt="">
+    <h1>DeliFood</h1>
+    <p id="login-texto">Panel de pedidos. Escribe tu PIN de 6 números.</p>
+    <label class="sr" for="pin">PIN</label>
+    <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="6" aria-describedby="e-pin" required>
+    <div class="teclado" aria-label="Teclado numérico">
+      <button type="button">1</button><button type="button">2</button><button type="button">3</button>
+      <button type="button">4</button><button type="button">5</button><button type="button">6</button>
+      <button type="button">7</button><button type="button">8</button><button type="button">9</button>
+      <button type="button" data-borrar aria-label="Borrar">⌫</button><button type="button">0</button>
+      <button type="submit" class="btn" style="min-height:64px;font-size:1.125rem">Entrar</button>
+    </div>
+    <p class="error" id="e-pin" role="alert"></p>
+  </form>
+</main>
+
+<!-- ============ Panel ============ -->
+<!-- === PANEL: menú lateral + secciones (Pedidos, Menú, Promos, Estadísticas, Equipo, Configuración) === -->
+<div id="panel" hidden>
+<!-- === MENÚ LATERAL de secciones === -->
+  <nav class="lado" aria-label="Secciones">
+    <img class="logo-lado" src="/web/logo.png" width="56" height="56" alt="">
+    <button type="button" data-vista="pedidos" aria-current="page"><svg class="i" aria-hidden="true"><use href="#i-recibo"/></svg>Pedidos<span class="cuenta" id="n-nav" hidden>0</span></button>
+    <button type="button" data-vista="menu"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg>Menú</button>
+    <button type="button" data-vista="promos"><svg class="i" aria-hidden="true"><use href="#i-promo"/></svg>Promos</button>
+    <button type="button" data-vista="stats" id="nav-stats" hidden><svg class="i" aria-hidden="true"><use href="#i-grafica"/></svg>Estadíst.</button>
+    <button type="button" data-vista="qr" id="nav-qr" hidden><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>QR</button>
+    <button type="button" data-vista="equipo" id="nav-equipo" hidden><svg class="i" aria-hidden="true"><use href="#i-persona"/></svg>Equipo</button>
+    <button type="button" data-vista="config" id="nav-config" hidden><svg class="i" aria-hidden="true"><use href="#i-ajustes"/></svg>Config.</button>
+    <span class="hueco"></span>
+    <button type="button" id="btn-sonido" aria-pressed="true" aria-label="Sonido activado"><svg class="i" aria-hidden="true"><use href="#i-sonido"/></svg>Sonido</button>
+    <button type="button" id="btn-salir"><svg class="i" aria-hidden="true"><use href="#i-salir"/></svg>Salir</button>
+  </nav>
+<!-- === SECCIONES: tablero de pedidos por columnas, menú, equipo, configuración === -->
+  <div class="cuerpo">
+    <header class="barra">
+      <span class="colgantes" aria-hidden="true"><svg class="cg cg1" aria-hidden="true" focusable="false"><use href="#p-vid"/></svg><svg class="cg cg2" aria-hidden="true" focusable="false"><use href="#p-helecho"/></svg><svg class="cg cg3" aria-hidden="true" focusable="false"><use href="#p-vid"/></svg></span>
+      <h1>DeliFood <small id="modo">Pedidos de hoy</small></h1>
+      <button class="btn" id="btn-nuevos" hidden><span class="cuenta" id="n-nuevos">0</span> Nuevos</button>
+      <button class="btn suave" id="btn-avisos" aria-controls="bandeja" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-campana"/></svg>Avisos <span class="cuenta" id="n-avisos" hidden>0</span></button>
+      <span class="reloj num" id="reloj" aria-hidden="true"></span>
+    </header>
+    <div class="banda" id="banda" role="alert" hidden>
+      <svg class="i" aria-hidden="true"><use href="#i-alerta"/></svg><p id="banda-texto"></p>
+      <button id="banda-ok">Entendido</button>
+    </div>
+
+    <div class="vista" id="v-pedidos">
+      <section class="mando" aria-label="Resumen y filtros">
+        <h2>Pedidos en servicio</h2>
+        <div class="metricas" role="group" aria-label="Resumen de hoy">
+          <span class="metrica"><span class="etq">Venta de hoy</span><b id="m-venta">B/. 0.00</b></span>
+          <span class="metrica"><span class="etq">Tiempo medio</span><b id="m-medio">—</b></span>
+          <span class="metrica"><span class="etq">Activos</span><b id="m-activos">0</b></span>
+        </div>
+        <div class="seg" role="group" aria-label="Tipo de pedido" id="filtro-tipo">
+          <button type="button" aria-pressed="true" data-f="todos">Todos</button><button type="button" aria-pressed="false" data-f="entrega">Entrega</button><button type="button" aria-pressed="false" data-f="recoger">Para recoger</button><button type="button" aria-pressed="false" data-f="mesa">Mesa</button>
+        </div>
+        <span id="tienda-caja"></span>
+        <button class="btn suave" id="btn-cierre" type="button">Cerrar por un rato…</button>
+        <span class="t-espera" id="cierre-estado" role="status"></span>
+        <button class="btn suave" id="btn-cerrados" type="button" aria-pressed="false">Cancelados</button>
+        <button class="btn suave" id="btn-mapa" type="button"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Repartidores <span class="cuenta" id="n-mapa" hidden>0</span></button>
+        <label class="buscar-p"><span class="sr">Buscar pedido por número o nombre</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-ped" placeholder="Buscar pedido" autocomplete="off"></label>
+      </section>
+      <main class="tablero" id="tablero" aria-label="Pedidos por estado"></main>
+    </div>
+
+    <div class="vista" id="v-menu" hidden>
+      <div class="vista-cab">
+        <h2>Menú</h2>
+        <label class="buscar-p"><span class="sr">Buscar plato</span><svg class="i" aria-hidden="true"><use href="#i-buscar"/></svg><input type="search" id="buscar-plato" placeholder="Buscar plato" autocomplete="off"></label>
+        <button class="btn suave" id="btn-carta" type="button" hidden><svg class="i" aria-hidden="true"><use href="#i-camara"/></svg>Subir mi carta</button>
+        <input type="file" id="carta-archivos" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      </div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj" id="f-plato" autocomplete="off" hidden>
+          <label>Plato nuevo<input name="nombre" maxlength="80" required placeholder="Nombre del plato"></label>
+          <label>Precio (B/.)<input name="precio" type="number" inputmode="decimal" min="0" max="999.99" step="0.01" required placeholder="0.00"></label>
+          <label>Categoría<input name="categoria" maxlength="30" list="cats-lista" placeholder="platos, bebidas…"></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <section class="carta-rev" id="carta-rev" hidden aria-labelledby="carta-tit">
+          <h3 id="carta-tit">Revisa tu carta</h3>
+          <p class="t-espera" id="carta-pista"></p>
+          <div id="carta-filas"></div>
+          <div class="aj-acc"><button class="mini" type="button" id="carta-descartar">Descartar</button><button class="btn" type="button" id="carta-publicar">Publicar</button></div>
+        </section>
+        <datalist id="cats-lista"></datalist>
+        <p class="t-espera" id="menu-pista" hidden>Marca aquí lo que se agotó: el cliente y el asistente lo ven al momento.</p>
+        <div id="lista-platos"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-promos" hidden>
+      <div class="vista-cab"><h2>Promociones</h2></div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj promo" id="f-promo" autocomplete="off" hidden>
+          <label>Promoción nueva<input name="nombre" maxlength="80" required placeholder="Ej.: Combo almuerzo"></label>
+          <label>Qué incluye<input name="descripcion" maxlength="200" placeholder="Ej.: sancocho + chicha de saril"></label>
+          <label>Precio (B/.)<input name="precio" type="number" inputmode="decimal" min="0" max="999.99" step="0.01" required placeholder="0.00"></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <p class="t-espera">Una promoción es un combo u oferta con su precio. Sale arriba del todo en la página de pedidos y el asistente la ofrece. Apágala cuando termine y vuelve a encenderla cuando quieras.</p>
+        <div id="lista-promos"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-qr" hidden>
+      <div class="vista-cab"><h2>Códigos QR</h2></div>
+      <iframe id="qr-marco" title="Códigos QR de las mesas" style="flex:1;min-height:70vh;width:100%;border:0"></iframe>
+    </div>
+
+    <div class="vista" id="v-stats" hidden>
+      <div class="vista-cab">
+        <h2>Estadísticas</h2>
+        <div class="seg" role="group" aria-label="Periodo" id="stats-seg"><button type="button" aria-pressed="false" data-d="7">7 días</button><button type="button" aria-pressed="true" data-d="30">30 días</button><button type="button" aria-pressed="false" data-d="90">90 días</button></div>
+      </div>
+      <div class="vista-cuerpo">
+        <div id="stats-arriba"></div>
+        <section class="caja-aj preguntas" aria-labelledby="preg-tit">
+          <h3 class="grupo" id="preg-tit">Pregúntale a tus ventas</h3>
+          <form id="f-preguntar" class="preg-fila" autocomplete="off">
+            <input name="texto" maxlength="300" placeholder="Ej.: ¿Cuánto vendí el viernes?" aria-label="Tu pregunta sobre las ventas" required>
+            <button type="button" class="mini preg-mic" id="preg-mic" hidden aria-pressed="false" aria-label="Preguntar con la voz"><svg class="i" aria-hidden="true"><use href="#i-mic"/></svg></button>
+            <button class="btn">Preguntar</button>
+          </form>
+          <div class="preg-ejemplos" id="preg-ejemplos">
+            <button type="button" class="chip-rep">¿Cuánto vendí ayer?</button>
+            <button type="button" class="chip-rep">¿Cuál fue mi plato estrella esta semana?</button>
+            <button type="button" class="chip-rep">¿A qué hora vendo más este mes?</button>
+            <button type="button" class="chip-rep">¿Vendo más a domicilio o para recoger?</button>
+          </div>
+          <div class="preg-resp" id="preg-resp" role="status" aria-live="polite"></div>
+        </section>
+        <div id="stats-cuerpo"></div>
+      </div>
+    </div>
+
+    <div class="vista" id="v-config" hidden>
+      <div class="vista-cab"><h2>Configuración general</h2></div>
+      <div class="vista-cuerpo">
+        <form id="f-config" autocomplete="off" novalidate>
+          <section class="caja-aj">
+            <h3 class="grupo">Restaurante</h3>
+            <label>Nombre<input name="marca" maxlength="40" required></label>
+            <label>Teléfono del restaurante<input name="telefono" type="tel" inputmode="tel" maxlength="20" placeholder="Ej.: 6123-4567">
+              <small>Los clientes lo ven para llamar, y el asistente lo da cuando alguien pide hablar con una persona.</small></label>
+            <label>Anuncio para los clientes (opcional)<input name="anuncio" maxlength="160" placeholder="Ej.: Hoy cerramos a las 8 p. m.">
+              <small>Sale arriba en la página de pedidos y el asistente lo sabe.</small></label>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Horario</h3>
+            <p class="t-espera" style="margin:0">Elige un modelo de arriba y ajusta lo que cambie. Cada día puede tener hasta 3 turnos (por ejemplo almuerzo y cena). Fuera de horario el cliente puede dejar el pedido programado.</p>
+            <div class="hor-plant" role="group" aria-label="Modelos rápidos de horario" id="hor-plant"></div>
+            <p class="hor-res" id="hor-res" aria-live="polite"></p>
+            <ul class="hor-err" id="hor-err" role="alert"></ul>
+            <div id="horario-dias"></div>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Días especiales</h3>
+            <p class="t-espera" style="margin:0">Feriados, vacaciones o un día con horario distinto. Ese día manda sobre el horario normal. Los que ya pasaron se borran solos.</p>
+            <div id="hor-exc"></div>
+            <button type="button" class="btn" id="hor-exc-nuevo">+ Agregar día especial</button>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Datos de pago</h3>
+            <label>Yappy<input name="yappy" maxlength="160" placeholder="@turestaurante o número"></label>
+            <label>Transferencia<input name="transferencia" maxlength="160" placeholder="Banco · tipo de cuenta · número · a nombre de"></label>
+            <label class="casilla"><input type="checkbox" name="efectivo"> Aceptar efectivo en entregas a domicilio
+              <small>El cliente elige pagar al recibir, el pedido pasa a cocina y el repartidor cobra y avisa desde su página.</small></label>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Zonas de entrega</h3>
+            <p class="t-espera" style="margin:0">Cada zona tiene su precio de envío. En «Lugares» escribe, separados por coma, los barrios o corregimientos que cuentan como esa zona (ej.: La Arena, Monagrillo). Sin zonas se cobra el envío fijo de siempre.</p>
+            <div id="zonas-envio"></div>
+            <button type="button" class="btn" id="zona-nueva">+ Agregar zona</button>
+          </section>
+          <section class="caja-aj">
+            <h3 class="grupo">Ventas</h3>
+            <label class="casilla"><input type="checkbox" name="sugerencias"> Sugerir un complemento antes de confirmar
+              <small>Una sola vez por pedido, en WhatsApp y en la web: lo que más se pide junto con esos platos (o los que marques con «Sugerir» en el menú).</small></label>
+          </section>
+          <div class="config-pie"><button class="btn">Guardar cambios</button><span class="t-espera" id="config-nota" role="status"></span></div>
+        </form>
+      </div>
+    </div>
+
+    <div class="vista" id="v-equipo" hidden>
+      <div class="vista-cab"><h2>Equipo</h2></div>
+      <div class="vista-cuerpo">
+        <form class="nuevo-aj" id="f-usuario" autocomplete="off">
+          <label>Persona nueva<input name="nombre" maxlength="30" pattern="[A-Za-z0-9_\-]+" required placeholder="Nombre, sin tildes ni espacios"></label>
+          <label>Rol<select name="rol"><option value="personal">Personal</option><option value="repartidor">Repartidor</option><option value="dueno">Dueño</option></select></label>
+          <label>PIN (6 números)<input name="pin" type="password" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="new-password" required></label>
+          <button class="btn">Agregar</button>
+        </form>
+        <div id="lista-equipo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- === BANDEJA DE AVISOS === -->
+<aside class="bandeja" id="bandeja" aria-label="Avisos" hidden>
+  <header><h2>Avisos</h2><button class="icono-btn" id="bandeja-cerrar" aria-label="Cerrar avisos"><svg class="i"><use href="#i-cerrar"/></svg></button></header>
+  <div class="lista" id="lista-avisos"></div>
+</aside>
+
+<!-- === DETALLE DE UN PEDIDO (GET /panel/pedido/<id>; botones = acciones permitidas) === -->
+<dialog id="dlg" aria-labelledby="dlg-titulo">
+  <div class="dlg" id="dlg-caja">
+    <div class="dlg-img" id="dlg-img-caja"><img id="dlg-img" alt="Comprobante de pago enviado por el cliente"></div>
+    <div class="dlg-lado">
+      <h2 id="dlg-titulo"></h2>
+      <div class="dlg-dato grande"><span>Total</span><b class="num" id="dlg-total"></b></div>
+      <div class="dlg-dato"><span>Cliente</span><b id="dlg-cliente"></b></div>
+      <div class="fila-btn" id="dlg-contacto"><a class="btn suave" id="dlg-llamar">Llamar</a><a class="btn suave" id="dlg-wa">WhatsApp</a></div>
+      <div class="dlg-dato"><span id="dlg-modo"></span><b id="dlg-lugar"></b></div>
+      <div class="dlg-dato" id="dlg-ubic-caja"><span>Ubicación del cliente</span><b id="dlg-ubic"></b><small class="fuera" id="dlg-fuera" hidden>Ubicación fuera de la zona de entrega</small><a class="btn suave" id="dlg-mapa" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#i-pin"/></svg>Ver en el mapa</a></div>
+      <label class="dlg-dato" id="dlg-rep-caja"><span>Repartidor</span><select id="dlg-rep"></select></label>
+      <div class="dlg-dato" id="dlg-ref-caja"><span>Método y referencia</span><b id="dlg-ref"></b></div>
+      <ul class="t-items" id="dlg-items"></ul>
+      <p class="t-espera" id="dlg-pista">Compara el monto y la referencia con tu app de Yappy o del banco.</p>
+      <div class="acciones" id="dlg-acciones"></div>
+      <div class="confirmar" id="dlg-confirmar" hidden>
+        <p>¿Seguro? El pedido vuelve a "Nuevos" y se avisa al cliente para que pague de nuevo.</p>
+        <div class="acciones dos"><button class="btn" id="dlg-no-si">Sí, no es válido</button><button class="btn suave" id="dlg-no-volver">Volver</button></div>
+      </div>
+    </div>
+  </div>
+  <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-cierre" class="chico" aria-labelledby="cierre-tit">
+  <div class="caja-aj" style="margin:0;box-shadow:none">
+    <h2 id="cierre-tit" style="margin:0;font-size:1.125rem">Cerrar por un rato</h2>
+    <p class="t-espera" style="margin:0">No entran pedidos nuevos y la tienda se abre sola a la hora que elijas.</p>
+    <div class="dh-acc" id="cierre-op"><button type="button" class="btn" data-m="60">1 hora</button><button type="button" class="btn" data-m="120">2 horas</button><button type="button" class="btn" data-m="man">Hasta mañana 8:00 a. m.</button></div>
+    <label>Hasta una hora de hoy<input type="time" id="cierre-hora"></label>
+    <div class="dh-acc"><button type="button" class="btn" id="cierre-hora-ok">Cerrar hasta esa hora</button><button type="button" class="btn suave" id="cierre-x">Cancelar</button></div>
+  </div>
+</dialog>
+
+<!-- === MAPA DE REPARTIDORES (GET /panel/repartidores_mapa) === -->
+<dialog id="dlg-flota" class="dlg-mapa" aria-labelledby="mapa-tit">
+  <div class="mapa-cab"><h2 id="mapa-tit">Repartidores en camino</h2><button class="icono-btn" id="mapa-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button></div>
+  <div id="mapa" role="img" aria-label="Mapa con la posición actual de los repartidores en camino"></div>
+  <p class="error" id="mapa-aviso" hidden>No se pudo cargar el mapa. La lista de abajo sigue al día.</p>
+  <ul id="mapa-lista" aria-live="polite"></ul>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- === LÓGICA: entrada, sondeo cada 3 s de /panel/estado, tablero, menú, equipo, ajustes === -->
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const NS = document.querySelector("svg").namespaceURI; // sin URLs en el código
+const MARCA = document.body.dataset.marca || "Restaurante"; // el servidor escribe aquí `marca:` de servicio.yaml
+document.querySelectorAll("[data-inicial]").forEach(e => e.textContent = MARCA.trim().charAt(0).toUpperCase());
+function h(tag, attrs, ...hijos) { // crea nodos; el texto siempre va como texto
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn);
+    else if (k === "class") e.className = v;
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of hijos.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+function icono(n) { const s = document.createElementNS(NS, "svg"); s.setAttribute("class", "i"); s.setAttribute("aria-hidden", "true"); const u = document.createElementNS(NS, "use"); u.setAttribute("href", "#i-" + n); s.append(u); return s; }
+const num = x => typeof x === "string" ? parseFloat(((x.match(/-?\d+(?:[.,]\d+)?/) || ["0"])[0]).replace(",", ".")) : Number(x);
+const dinero = n => { const v = num(n); return "B/. " + (isFinite(v) ? v : 0).toFixed(2); };
+const minutos = iso => Math.max(0, Math.floor((Date.now() - new Date(iso)) / 60000));
+const hace = m => m < 1 ? "Ahora" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+const telLocal = t => { const d = String(t || "").replace(/\D/g, "").replace(/^507/, ""); return d.length === 8 ? d.slice(0, 4) + "-" + d.slice(4) : d; };
+const mascara = t => { if (/\*/.test(t)) return t; const l = telLocal(t); return l.length === 9 ? l[0] + "***-**" + l.slice(-2) : "***"; }; // listas: 6***-**67
+const CERRADOS = new Set(["entregado", "cancelado", "caducado"]);
+const hora = iso => new Date(iso).toLocaleTimeString("es-PA", {hour:"numeric", minute:"2-digit"});
+
+/* Columnas del tablero. `tarde`: minutos en ese estado a partir de los que la tarjeta pide atención. */
+const COLS = [
+  {titulo:"Nuevos", estados:["por_confirmar", "confirmado"], acento:"a-azul"},
+  {titulo:"Verificar pago", estados:["pago_reportado"], tarde:5, acento:"a-ambar"},
+  {titulo:"Pagado", estados:["pagado"], tarde:5, acento:"a-verde"},
+  {titulo:"En cocina", estados:["en_preparacion"], tarde:25, acento:"a-primary", destacada:true},
+  {titulo:"Listo", estados:["listo"], tarde:15, acento:"a-violeta"},
+  {titulo:"En camino", estados:["en_camino"], tarde:15, acento:"a-celeste"},
+  {titulo:"Entregado", estados:["entregado"], estrecha:true},
+  {titulo:"Cancelados", estados:["cancelado", "caducado"], estrecha:true, filtro:true}
+];
+const SIGUIENTE = {pagado:["en_preparacion", "A cocina"], en_preparacion:["listo", "Listo"], listo:["entregado", "Entregado"]};
+const lugarDe = p => p.modalidad === "mesa" ? "Mesa " + p.mesa : p.modalidad === "entrega" ? "Entrega" : "Recoger";
+const repNombre = x => x ? (typeof x === "string" ? x : x.nombre || "") : ""; // el servidor puede mandar nombre o {id, nombre}
+const ASIGNABLE = new Set(["pagado", "en_preparacion", "listo"]);
+function siguiente(p) { // acción principal: en una entrega lista, sale con el repartidor
+  const s = p.estado === "listo" && p.modalidad === "mesa" ? ["entregado", "Servido en la mesa"]
+          : p.estado === "listo" && p.modalidad === "entrega" && permite(p, "en_camino") ? ["en_camino", "Salió con el repartidor"]
+          : p.estado === "en_camino" ? ["entregado", "Entregado"] : SIGUIENTE[p.estado];
+  return s && permite(p, s[0]) ? s : null;
+}
+const NOMBRE_ESTADO = {en_camino:"En camino", cancelado:"Cancelado", pagado:"Pagado", en_preparacion:"En cocina", listo:"Listo", entregado:"Entregado", confirmado:"Nuevos"};
+
+const st = {demo:location.protocol === "file:" || window.VISTA_DEMO === true, vista:"pedidos", rol:"dueno", menu:[], qMenu:"", pedidos:new Map(), avisos:[], escalados:[], repartidores:[], ultimo:0, primera:true,
+            nuevos:new Set(), sinLeer:0, cerrados:false, sonido:true, sondeo:0, abierto:null};
+try { st.sonido = localStorage.getItem("panel-sonido") !== "no"; } catch (e) {}
+
+/* ---------- Entrada con PIN ---------- */
+const pin = $("#pin");
+$(".teclado").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || b.type === "submit") return;
+  if (b.hasAttribute("data-borrar")) pin.value = pin.value.slice(0, -1); else if (pin.value.length < 8) pin.value += b.textContent;
+  pin.focus();
+});
+$("#form-pin").addEventListener("submit", async ev => {
+  ev.preventDefault(); desbloquearSonido();
+  const v = pin.value.trim();
+  if (!/^\d{6}$/.test(v)) { $("#e-pin").textContent = "El PIN tiene 6 números."; return pin.focus(); }
+  $("#e-pin").textContent = "";
+  if (!st.demo) {
+    try {
+      const r = await fetch("/panel/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({pin:v})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { $("#e-pin").textContent = j.error || "PIN incorrecto."; pin.value = ""; return pin.focus(); } // tras 5 fallos el servidor manda el mensaje de bloqueo
+      st.rol = j.rol;
+    } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
+  }
+  pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
+  $("#nav-equipo").hidden = $("#nav-config").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
+  if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
+  if (st.demo) { cargarDemo(); pintarModulos(["estadisticas"]); }
+  sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
+});
+$("#btn-salir").onclick = async () => {
+  clearInterval(st.sondeo);
+  if (!st.demo) await fetch("/panel/salir", {method:"POST"}).catch(() => {});
+  location.reload();
+};
+
+/* Bloqueo por inactividad (30 min): el tablero sigue a la vista, sin teléfonos ni direcciones. */
+const INACTIVO_MS = 30 * 60000;
+let ultimaActividad = Date.now();
+const actividad = () => { ultimaActividad = Date.now(); };
+["pointerdown", "keydown"].forEach(ev => document.addEventListener(ev, actividad, true));
+setInterval(() => {
+  if ($("#panel").hidden || st.bloqueado || Date.now() - ultimaActividad < INACTIVO_MS) return;
+  st.bloqueado = true;
+  if ($("#dlg").open) $("#dlg").close();
+  if (!$("#bandeja").hidden) abrirBandeja(false);
+  $("#panel").inert = true;
+  $("#login-texto").textContent = "Panel bloqueado por inactividad. Escribe tu PIN para seguir.";
+  $("#login").classList.add("bloqueo"); $("#login").hidden = false; pin.focus();
+}, 15000);
+
+/* ---------- Pantalla encendida y globo en el icono (mejora progresiva: sin la API no hace nada) ---------- */
+let bloqueoPantalla = null, quierePantalla = false;
+async function mantenerPantalla(on) {
+  quierePantalla = on;
+  try {
+    if (on && !bloqueoPantalla && "wakeLock" in navigator && document.visibilityState === "visible") {
+      bloqueoPantalla = await navigator.wakeLock.request("screen");
+      bloqueoPantalla.addEventListener("release", () => { bloqueoPantalla = null; });
+    } else if (!on && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+  } catch (e) { /* sin permiso o sin soporte: se ignora */ }
+}
+document.addEventListener("visibilitychange", () => { if (quierePantalla && document.visibilityState === "visible") mantenerPantalla(true); });
+const globo = n => { try { Promise.resolve(n > 0 ? navigator.setAppBadge && navigator.setAppBadge(n) : navigator.clearAppBadge && navigator.clearAppBadge()).catch(() => {}); } catch (e) {} };
+
+/* ---------- Sonido (sin archivos: dos tonos con WebAudio) ---------- */
+let audio;
+function desbloquearSonido() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
+function sonar(urgente) {
+  if (!st.sonido || !audio) return;
+  const t = audio.currentTime;
+  (urgente ? [880, 660, 880] : [660, 880]).forEach((f, i) => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = f; o.type = "sine"; g.gain.setValueAtTime(0.0001, t + i * .22);
+    g.gain.exponentialRampToValueAtTime(0.35, t + i * .22 + .02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * .22 + .2);
+    o.connect(g).connect(audio.destination); o.start(t + i * .22); o.stop(t + i * .22 + .22);
+  });
+}
+function pintarSonido() {
+  const b = $("#btn-sonido"); b.setAttribute("aria-pressed", st.sonido); b.setAttribute("aria-label", st.sonido ? "Sonido activado" : "Sonido apagado");
+  b.querySelector("use").setAttribute("href", st.sonido ? "#i-sonido" : "#i-mudo");
+}
+$("#btn-sonido").onclick = () => { st.sonido = !st.sonido; desbloquearSonido(); try { localStorage.setItem("panel-sonido", st.sonido ? "si" : "no"); } catch (e) {} pintarSonido(); if (st.sonido) sonar(); };
+pintarSonido();
+
+/* ---------- Datos ---------- */
+async function api(metodo, ruta, cuerpo) {
+  if (st.demo) return demoAjustes(ruta, cuerpo || {});
+  const r = await fetch(ruta, {method:metodo, headers:{"Content-Type":"application/json"}, body:cuerpo ? JSON.stringify(cuerpo) : undefined});
+  if (r.status === 401) { location.reload(); throw new Error("401"); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "No se pudo completar. Inténtalo de nuevo.");
+  return j;
+}
+async function sondear() {
+  if (st.demo) return pintar();
+  try { recibir(await api("GET", "/panel/estado?desde=" + st.ultimo)); }
+  catch (e) { /* sin conexión: reintenta en 3 s */ }
+}
+const ESPERA = new Set(["confirmado", "pago_reportado"]); // estados que piden al restaurante mirar el pedido
+function recibir(d) {
+  let sonido = 0;
+  for (const p of d.pedidos || []) {
+    const antes = st.pedidos.get(p.id);
+    if (!st.primera && ESPERA.has(p.estado) && (!antes || antes.estado !== p.estado)) { st.nuevos.add(p.id); sonido = Math.max(sonido, 1); }
+    st.pedidos.set(p.id, p);
+  }
+  for (const a of d.avisos || []) {
+    st.avisos.unshift({...a, leido:st.primera});
+    if (!st.primera) { st.sinLeer++; if (a.tipo === "escalado" || a.tipo === "sistema") sonido = 2; }
+    if (a.tipo === "sistema") mostrarBanda(a.texto);
+  }
+  if (d.escalados) st.escalados = d.escalados;
+  if (d.cerrado != null) { pintarTienda(d.cerrado); pintarCierre(d.cerrado, d.cerrado_hasta); }
+  if (d.modulos) pintarModulos(d.modulos);
+  if (d.repartidores) st.repartidores = d.repartidores.map(repNombre).filter(Boolean);
+  if (d.rutas) { st.rutas = d.rutas; if ($("#dlg-flota").open) actualizarMapa(); }
+  if (d.ultimo != null) st.ultimo = d.ultimo;
+  st.primera = false;
+  if (sonido) sonar(sonido === 2);
+  pintar();
+}
+
+/* ---------- Tablero ---------- */
+/* Filtros de la barra de mando: tipo de pedido y búsqueda por número o nombre */
+st.tipo = "todos"; st.q = "";
+const plano = t => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const coincide = p => (st.tipo === "todos" || (st.tipo === "mesa" ? p.modalidad === "mesa" : st.tipo === "entrega" ? p.modalidad === "entrega" : p.modalidad === "recogida")) &&
+  (!st.q || String(p.id).includes(st.q.replace(/^#/, "")) || plano(p.nombre).includes(plano(st.q)));
+$("#filtro-tipo").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  st.tipo = b.dataset.f; for (const x of $("#filtro-tipo").children) x.setAttribute("aria-pressed", x === b); pintar();
+});
+$("#buscar-ped").addEventListener("input", e => { st.q = e.target.value.trim(); pintar(); });
+/* Métricas de hoy, con todos los pedidos que llegan (no solo los filtrados) */
+const COBRADOS = new Set(["pagado", "en_preparacion", "listo", "en_camino", "entregado"]);
+function pintarMetricas() {
+  const todos = [...st.pedidos.values()];
+  let venta = 0, suma = 0, n = 0;
+  for (const p of todos) {
+    if (COBRADOS.has(p.estado)) venta += Math.round(num(p.total) * 100); // en centavos
+    if (p.estado === "entregado" && p.creado_at && p.estado_at) { const m = (new Date(p.estado_at) - new Date(p.creado_at)) / 60000; if (m >= 0 && m < 600) { suma += m; n++; } }
+  }
+  $("#m-venta").textContent = dinero(venta / 100);
+  $("#m-medio").textContent = n ? Math.round(suma / n) + " min" : "—";
+  $("#m-activos").textContent = todos.filter(p => !CERRADOS.has(p.estado)).length;
+}
+/* FLIP del tablero: el tablero se reconstruye entero, así que se mide cada tarjeta antes (por su aria-labelledby)
+   y después se anima del sitio viejo al nuevo con WAAPI (transform/opacity, 180 ms). Las tarjetas nuevas entran con un fundido. */
+const SIN_MOVIMIENTO = matchMedia("(prefers-reduced-motion: reduce)");
+function posTarjetas() {
+  const m = new Map();
+  for (const t of document.querySelectorAll("#tablero .tarjeta")) { const r = t.getBoundingClientRect(); if (r.width) m.set(t.getAttribute("aria-labelledby"), r); }
+  return m;
+}
+function animarTarjetas(antes) {
+  if (SIN_MOVIMIENTO.matches || !antes.size) return; // primera pintura o movimiento reducido: sin animar
+  for (const t of document.querySelectorAll("#tablero .tarjeta")) {
+    const a = antes.get(t.getAttribute("aria-labelledby")), r = t.getBoundingClientRect();
+    if (!r.width) continue;
+    const o = {duration:180, easing:"cubic-bezier(.23,1,.32,1)"};
+    if (!a) t.animate([{opacity:0, transform:"translateY(8px)"}, {opacity:1, transform:"none"}], o);
+    else if (Math.abs(a.left - r.left) > 1 || Math.abs(a.top - r.top) > 1) t.animate([{transform:`translate(${a.left - r.left}px,${a.top - r.top}px)`}, {transform:"none"}], o);
+  }
+}
+function pintar() {
+  pintarMetricas();
+  const foco = document.activeElement && document.activeElement.dataset.clave; // conservar el foco al repintar
+  const tablero = $("#tablero"), cols = [];
+  for (const c of COLS) {
+    if (c.filtro && !st.cerrados) continue;
+    const ps = [...st.pedidos.values()].filter(p => c.estados.includes(p.estado) && coincide(p)).sort((a, b) => c.estrecha ? b.id - a.id : a.id - b.id);
+    const lista = h("div", {class:"lista"}, ps.length ? ps.map(p => tarjeta(p, c)) : h("p", {class:"vacia"}, "Nada por aquí"));
+    const id = "col-" + c.estados[0];
+    cols.push(h("section", {class:"col" + (c.acento ? " " + c.acento : "") + (c.destacada ? " destacada" : "") + (c.estrecha ? " estrecha" : "") + (ps.length ? "" : " vacio"), "aria-labelledby":id},
+      h("header", {}, h("h2", {id}, c.titulo), h("span", {class:"cuenta num", "aria-label":ps.length + " pedidos"}, ps.length), c.pista && h("span", {class:"pista"}, c.pista)),
+      lista));
+  }
+  const antes = posTarjetas();
+  tablero.replaceChildren(...cols);
+  animarTarjetas(antes);
+  if (foco) { const e = document.querySelector(`[data-clave="${foco}"]`); if (e) e.focus(); }
+  // contadores y título de la pestaña
+  const n = st.nuevos.size;
+  $("#btn-nuevos").hidden = !n; $("#n-nuevos").textContent = n; globo(n);
+  $("#n-nav").hidden = !n || st.vista === "pedidos"; $("#n-nav").textContent = n; // pedidos nuevos mientras se está en Menú o Equipo
+  $("#n-avisos").hidden = !st.sinLeer; $("#n-avisos").textContent = st.sinLeer;
+  document.title = (n + st.sinLeer ? `(${n + st.sinLeer}) ` : "") + "Panel · " + MARCA;
+  if (!$("#bandeja").hidden) pintarAvisos();
+}
+
+function tarjeta(p, col) {
+  const nuevo = st.nuevos.has(p.id);
+  const m = minutos(p.estado_at || p.creado_at);
+  const tarde = col.tarde && m >= col.tarde;
+  const ver = () => { if (st.nuevos.delete(p.id)) pintar(); };
+  const abrir = h("button", {class:"t-abrir", "data-clave":"ab" + p.id, "aria-label":`Ver detalle del pedido ${p.id} de ${p.nombre}`, on:{click:() => abrirDetalle(p)}},
+    h("span", {class:"t-num num", id:"tn-" + p.id}, "#" + p.id), h("span", {class:"t-nombre"}, p.nombre));
+  if (col.estrecha) return h("article", {class:"tarjeta compacta", "aria-labelledby":"tn-" + p.id},
+    h("div", {class:"t-cab"}, abrir, h("span", {class:"chip num"}, p.estado === "caducado" ? "Caducó" : p.estado === "cancelado" ? "Cancelado" : hora(p.estado_at || p.creado_at))),
+    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, lugarDe(p)), h("span", {class:"t-total num", style:"font-size:1rem"}, dinero(p.total))));
+
+  const entrega = p.modalidad === "entrega";
+  const lugar = entrega ? p.zona || "" : ""; // en la lista solo la zona; la dirección completa está en el detalle
+  return h("article", {class:"tarjeta" + (nuevo ? " nuevo" : "") + (st.abierto === p.id ? " foco" : ""), id:"pedido-" + p.id, "aria-labelledby":"tn-" + p.id, on:{click:ver, focusin:ver}},
+    h("div", {class:"t-cab"},
+      abrir,
+      nuevo ? h("span", {class:"chip nuevo"}, "Nuevo")
+            : h("span", {class:"chip num" + (tarde ? " tarde" : ""), title:"Tiempo en este estado"}, icono("reloj"), tarde ? "Tarde · " + hace(m) : hace(m) + (col.destacada ? " / meta " + col.tarde : ""))),
+    col.tarde && h("div", {class:"t-urg " + (tarde ? "tarde" : m >= col.tarde * .6 ? "atento" : "ok"), "aria-hidden":"true", style:"--p:" + Math.min(1, m / col.tarde).toFixed(2)}, h("i")),
+    h("div", {class:"t-modo"}, icono(entrega ? "moto" : "bolsa"),
+      h("div", {}, h("b", {}, lugarDe(p)), p.hora_deseada ? ` · ${p.hora_deseada}` : "", lugar && h("div", {}, lugar))),
+    entrega && (ASIGNABLE.has(p.estado) || p.estado === "en_camino") && h("div", {class:"t-rep" + (repNombre(p.repartidor) ? "" : " falta")}, repNombre(p.repartidor) ? h("span", {class:"ini-rep", "aria-hidden":"true"}, repNombre(p.repartidor).split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()) : icono("persona"),
+      repNombre(p.repartidor) || "Sin repartidor",
+      // con pocos repartidores se asigna desde la tarjeta, sin abrir el detalle
+      !repNombre(p.repartidor) && ASIGNABLE.has(p.estado) && st.repartidores.length <= 3 && st.repartidores.map(n =>
+        h("button", {class:"chip-rep", type:"button", "data-clave":"rp" + p.id + n, "aria-label":`Asignar el pedido ${p.id} a ${n}`, on:{click:async () => { await asignar(p, n); pintar(); }}}, n)),
+      (p.tiene_ubicacion || p.ubicacion) && h("span", {class:"t-ubic"}, icono("pin"), "Ubicación")),
+    h("ul", {class:"t-items"}, (p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre, i.nota ? ` (${i.nota})` : ""))),
+    p.notas && h("div", {class:"t-nota"}, "Nota: " + p.notas),
+    h("div", {class:"t-pie"}, h("span", {class:"t-espera"}, estadoCorto(p)), h("span", {class:"t-total num"}, dinero(p.total))),
+    acciones(p));
+}
+function estadoCorto(p) {
+  if (p.estado === "en_camino") return "En camino" + (repNombre(p.repartidor) ? " con " + repNombre(p.repartidor) : "");
+  if (p.modalidad === "mesa" && p.espera_personal) return "Acepta el pedido: pagará en la mesa o en caja " + dinero(p.total);
+  if (p.modalidad === "mesa" && p.por_cobrar && p.estado !== "entregado") return "Cobrar en la mesa o en caja " + dinero(p.total);
+  if (p.por_cobrar && p.estado !== "entregado") return "Efectivo: cobra el repartidor " + dinero(p.total);
+  if (p.estado === "entregado" && p.cobrado_por) return "Efectivo cobrado por " + (repNombre(p.cobrado_por) || p.cobrado_por);
+  return {por_confirmar:"El cliente aún no confirma", confirmado:"Esperando pago", pago_reportado:p.metodo ? `Pagó por ${p.metodo}` : "Dice que pagó"}[p.estado] || "";
+}
+const permite = (p, e) => !p.acciones || p.acciones.includes(e); // el servidor dice qué botones tocan
+function acciones(p) {
+  const k = p.id;
+  if (p.estado === "pago_reportado") return h("div", {class:"acciones"},
+    p.comprobante ? h("button", {class:"miniatura", "data-clave":"ver" + k, on:{click:() => abrirDetalle(p)}},
+        icono("recibo"), h("span", {}, "Comprobante recibido", h("small", {}, (p.referencia ? "Ref. " + p.referencia + " · " : "") + "Toca para verlo")))
+      : h("p", {class:"t-espera", style:"margin:0"}, "Sin foto · Ref. " + (p.referencia || "—")),
+    h("div", {class:"acciones"},
+      permite(p, "pagado") && h("button", {class:"btn ok", "data-clave":"ok" + k, on:{click:() => marcar(p, "pagado")}}, icono("check"), "Pago correcto"),
+      permite(p, "pago_rechazado") && h("button", {class:"btn sec", "data-clave":"no" + k, on:{click:() => abrirDetalle(p, true)}}, "No válido")));
+  if (p.estado === "confirmado") return permite(p, "pagado") ? h("div", {class:"acciones"},
+    h("button", {class:"btn suave", "data-clave":"pc" + k, on:{click:() => marcar(p, "pagado")}}, p.espera_personal ? "Aceptar pedido de mesa" : "Ya pagó (efectivo o banco)")) : null;
+  const s = siguiente(p);
+  return s ? h("div", {class:"acciones"}, h("button", {class:"btn", "data-clave":"sg" + k, on:{click:() => marcar(p, s[0])}}, s[1])) : null;
+}
+
+async function asignar(p, nombre) {
+  const sel = $("#dlg-rep"); sel.disabled = true;
+  try {
+    if (st.demo) st.pedidos.get(p.id).repartidor = nombre || null;
+    else { const r = await api("POST", "/panel/asignar", {pedido_id:p.id, repartidor:nombre}); st.pedidos.set(p.id, r.pedido || {...p, repartidor:nombre || null}); }
+    aviso(nombre ? `#${p.id}: lo lleva ${nombre}` : `#${p.id}: sin repartidor`);
+  } catch (e) { aviso(e.message, true); sel.value = repNombre(p.repartidor); }
+  sel.disabled = false;
+}
+async function marcar(p, estado) {
+  st.nuevos.delete(p.id);
+  try {
+    if (st.demo) Object.assign(p, {estado:estado === "pago_rechazado" ? "confirmado" : estado, estado_at:new Date().toISOString()});
+    else { const r = await api("POST", "/panel/marcar", {pedido_id:p.id, estado}); if (r.pedido) st.pedidos.set(p.id, r.pedido); }
+    aviso(estado === "pago_rechazado" ? `#${p.id}: pago no válido, avisamos al cliente` : `#${p.id} → ${NOMBRE_ESTADO[estado]}`);
+  } catch (e) { aviso(e.message, true); sondear(); }
+  pintar();
+}
+
+/* ---------- Comprobante en grande ---------- */
+const urlComprobante = p => st.demo ? DEMO_IMG : `/panel/comprobante/${p.id}`;
+async function abrirDetalle(p, rechazar) {
+  st.nuevos.delete(p.id); st.abierto = p.id;
+  if (!st.demo) { // teléfono completo y dirección solo en el detalle (legal)
+    try { p = {...p, ...(await api("GET", `/panel/pedido/${p.id}`)).pedido}; }
+    catch (e) { st.abierto = null; return aviso(e.message, true); }
+  }
+  const abierto = !CERRADOS.has(p.estado), conImg = p.estado === "pago_reportado" && p.comprobante; // comprobante solo con el pago pendiente
+  const img = $("#dlg-img"); if (conImg) img.src = urlComprobante(p); else img.removeAttribute("src");
+  $("#dlg-img-caja").hidden = !conImg; $("#dlg-caja").classList.toggle("sin-img", !conImg); $("#dlg").classList.toggle("chico", !conImg);
+  $("#dlg-titulo").textContent = `Pedido #${p.id}`;
+  $("#dlg-total").textContent = dinero(p.total);
+  $("#dlg-cliente").textContent = p.nombre + (p.telefono ? " · " + (abierto ? telLocal(p.telefono) : mascara(p.telefono)) : "");
+  $("#dlg-contacto").hidden = !(abierto && p.telefono);
+  if (p.telefono) { const d = String(p.telefono).replace(/\D/g, ""); $("#dlg-llamar").href = "tel:+" + d; $("#dlg-wa").href = "whatsapp://send?phone=" + d; }
+  const entrega = p.modalidad === "entrega";
+  $("#dlg-modo").textContent = p.modalidad === "mesa" ? "Mesa " + p.mesa : entrega ? "Entrega" : "Recoger en el local";
+  const mapa = p.mapa || p.mapa_url;
+  $("#dlg-ubic-caja").hidden = !(entrega && abierto);
+  const ub = !!(p.tiene_ubicacion || p.ubicacion);
+  $("#dlg-ubic").textContent = ub ? "Recibida" : "No la compartió: el mapa usa la dirección escrita";
+  $("#dlg-fuera").hidden = !p.fuera_de_zona;
+  $("#dlg-mapa").hidden = !mapa; if (mapa) $("#dlg-mapa").href = mapa;
+  const sel = $("#dlg-rep"), actual = repNombre(p.repartidor);
+  $("#dlg-rep-caja").hidden = !(entrega && ASIGNABLE.has(p.estado));
+  sel.replaceChildren(h("option", {value:""}, "Sin asignar"), ...[...new Set([...st.repartidores, actual].filter(Boolean))].map(n => h("option", {value:n, selected:n === actual}, n)));
+  sel.onchange = () => asignar(p, sel.value);
+  $("#dlg-lugar").textContent = [p.hora_deseada, entrega && p.zona, entrega && abierto && p.direccion, p.notas && "Nota: " + p.notas].filter(Boolean).join(" · ") || "—";
+  $("#dlg-ref-caja").hidden = !(p.metodo || p.referencia);
+  $("#dlg-ref").textContent = [p.metodo, p.referencia && "Ref. " + p.referencia].filter(Boolean).join(" · ");
+  $("#dlg-items").replaceChildren(...(p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre)));
+  $("#dlg-pista").hidden = !conImg;
+  const acc = [];
+  const hacer = e => () => { $("#dlg").close(); marcar(p, e); };
+  if (p.estado === "pago_reportado") acc.push(
+    permite(p, "pagado") && h("button", {class:"btn ok", on:{click:hacer("pagado")}}, icono("check"), "Pago correcto"),
+    permite(p, "pago_rechazado") && h("button", {class:"btn sec", on:{click:() => mostrarConfirmar(true)}}, "Pago no válido"));
+  else if (p.estado === "confirmado") acc.push(permite(p, "pagado") && h("button", {class:"btn suave", on:{click:hacer("pagado")}}, "Ya pagó (efectivo o banco)"));
+  else if (siguiente(p)) { const [e, t] = siguiente(p); acc.push(h("button", {class:"btn", on:{click:hacer(e)}}, t)); }
+  if (p.acciones && p.acciones.includes("cancelado")) acc.push(h("button", {class:"btn suave", on:{click:() => confirm(`¿Cancelar el pedido #${p.id}?`) && hacer("cancelado")()}}, "Cancelar pedido"));
+  const accs = acc.filter(Boolean);
+  $("#dlg-acciones").replaceChildren(...accs);
+  mostrarConfirmar(!!rechazar && p.estado === "pago_reportado");
+  $("#dlg").showModal();
+  (rechazar ? $("#dlg-no-volver") : accs[0] || $("#dlg-cerrar")).focus();
+}
+function mostrarConfirmar(on) { $("#dlg-acciones").hidden = on; $("#dlg-confirmar").hidden = !on; if (on) $("#dlg-no-volver").focus(); }
+$("#dlg").addEventListener("close", () => { st.abierto = null; $("#dlg-img").removeAttribute("src"); pintar(); });
+$("#dlg-cerrar").onclick = () => $("#dlg").close();
+$("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
+$("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
+$("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+
+/* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
+const TITULO = {pedidos:"Pedidos de hoy", menu:"Menú", promos:"Promociones", stats:"Estadísticas", qr:"Códigos QR", equipo:"Equipo", config:"Configuración"};
+function irA(v) {
+  if (((v === "equipo" || v === "config") && st.rol !== "dueno") || (v === "stats" && $("#nav-stats").hidden) || (v === "qr" && $("#nav-qr").hidden)) v = "pedidos";
+  st.vista = v;
+  for (const b of document.querySelectorAll(".lado [data-vista]")) b.dataset.vista === v ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current");
+  for (const k of Object.keys(TITULO)) $("#v-" + k).hidden = k !== v;
+  $("#modo").textContent = (st.demo ? "Demostración · " : "") + TITULO[v];
+  $("#n-nav").hidden = v === "pedidos" || !st.nuevos.size;
+  if (v === "menu") pintarMenu();
+  if (v === "equipo") pintarEquipo();
+  if (v === "promos") pintarPromos();
+  if (v === "config") pintarConfig();
+  if (v === "stats") pintarStats();
+  if (v === "qr" && !$("#qr-marco").src) $("#qr-marco").src = "/panel/qr?embed=1"; // la gestión de QR es la misma página, dentro de la pestaña
+}
+document.querySelector(".lado").addEventListener("click", e => { const b = e.target.closest("[data-vista]"); if (b) irA(b.dataset.vista); });
+
+/* Piezas comunes: interruptor de un toque y botón que pide confirmar con un segundo toque */
+function interruptor(on, texto, alCambiar, etiqueta) {
+  const b = h("button", {class:"sw", type:"button", role:"switch", "aria-checked":String(on), "aria-label":etiqueta}, h("i", {"aria-hidden":"true"}), h("span", {}, texto(on)));
+  b.onclick = async () => {
+    const nuevo = b.getAttribute("aria-checked") !== "true"; b.disabled = true;
+    try { if (await alCambiar(nuevo) !== false) { b.setAttribute("aria-checked", String(nuevo)); b.lastChild.textContent = texto(nuevo); } }
+    catch (e) { aviso(e.message, true); }
+    b.disabled = false;
+  };
+  return b;
+}
+function botonSeguro(texto, etiqueta, hacer) {
+  const b = h("button", {class:"mini peligro", type:"button", "aria-label":etiqueta}, texto); let espera = 0;
+  b.onclick = async () => {
+    if (!espera) { b.textContent = "¿Seguro?"; espera = setTimeout(() => { b.textContent = texto; espera = 0; }, 3000); return; }
+    clearTimeout(espera); espera = 0; b.disabled = true;
+    try { await hacer(); } catch (e) { aviso(e.message, true); b.disabled = false; b.textContent = texto; }
+  };
+  return b;
+}
+
+/* ---------- Menú: el dueño edita en la misma fila y se guarda solo; el personal solo marca lo agotado (el servidor responde 403 a lo demás) ---------- */
+async function pintarMenu(recargar = true) {
+  if (recargar) { try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); } }
+  const dueno = st.rol === "dueno", q = plano(st.qMenu), carta = st.menu.filter(x => !esPromo(x)), cats = [...new Set(carta.map(x => x.categoria || ""))], filas = [];
+  $("#f-plato").hidden = $("#btn-carta").hidden = !dueno; $("#menu-pista").hidden = dueno;
+  $("#cats-lista").replaceChildren(...cats.filter(Boolean).map(c => h("option", {value:c})));
+  for (const c of cats) {
+    const items = carta.filter(x => (x.categoria || "") === c && (!q || plano(x.nombre).includes(q))); if (!items.length) continue;
+    filas.push(h("h3", {class:"grupo"}, c || "Sin categoría", h("span", {}, " · " + items.length)), ...items.map(x => filaPlato(x, dueno)));
+  }
+  $("#lista-platos").replaceChildren(...(filas.length ? filas : [h("p", {class:"vacia"}, q ? "Ningún plato con ese nombre." : "Aún no hay platos. Agrega el primero arriba.")]));
+}
+/* Promociones: son platos de la categoría "promociones" con su descripción; aquí se ven aparte del menú */
+const esPromo = x => plano(x.categoria) === "promociones";
+const repintarCarta = () => st.vista === "promos" ? pintarPromos() : pintarMenu();
+async function pintarPromos() {
+  try { st.menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); }
+  const dueno = st.rol === "dueno", ps = st.menu.filter(esPromo);
+  $("#f-promo").hidden = !dueno;
+  $("#lista-promos").replaceChildren(...(ps.length ? ps.map(x => filaPlato(x, dueno, true)) : [h("p", {class:"vacia"}, dueno ? "Aún no hay promociones. Agrega la primera arriba." : "No hay promociones ahora.")]));
+}
+$("#f-promo").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target;
+  try {
+    await api("POST", "/panel/dueno/plato", {nombre:f.nombre.value.trim(), precio:f.precio.value, descripcion:f.descripcion.value.trim(), categoria:"promociones"});
+    aviso("Promoción agregada: ya sale en la página de pedidos"); f.reset(); await pintarPromos(); f.nombre.focus();
+  } catch (e) { aviso(e.message, true); }
+};
+function filaPlato(x, dueno, promo) {
+  const precio = () => Number(x.precio).toFixed(2);
+  const campo = (clave, actual, attrs) => { // se guarda al salir del campo o con Enter; si falla, vuelve el valor anterior
+    const i = h("input", {class:"campo-aj", value:actual(), disabled:!dueno, ...attrs});
+    i.addEventListener("keydown", e => { if (e.key === "Enter") i.blur(); });
+    i.addEventListener("change", async () => {
+      const v = i.value.trim();
+      if (v === actual() || (!v && clave !== "categoria" && clave !== "descripcion")) { i.value = actual(); return; }
+      try {
+        await api("POST", "/panel/dueno/plato", {id:x.id, [clave]:v}); x[clave] = clave === "precio" ? Number(v) : v; i.value = actual(); aviso("Guardado");
+        if (clave === "categoria") pintarMenu(false); // cambia de grupo
+      } catch (e) { aviso(e.message, true); i.value = actual(); }
+    });
+    return i;
+  };
+  const sel = h("input", {type:"file", accept:"image/jpeg,image/png,image/webp", hidden:true});
+  const foto = h("button", {class:"foto-btn" + (x.foto ? " con" : ""), type:"button", disabled:!dueno, "aria-label":(x.foto ? "Cambiar la foto de " : "Subir foto de ") + x.nombre, on:{click:() => sel.click()}},
+    x.foto ? h("img", {alt:"", width:56, height:56, loading:"lazy", src:x.foto, srcset:x.foto2x ? `${x.foto} 1x, ${x.foto2x} 2x` : null}) : icono("camara"));
+  sel.onchange = () => { if (sel.files[0]) subirFoto(x, sel.files[0], foto); };
+  const cPrecio = campo("precio", precio, {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + x.nombre});
+  const fila = h("div", {class:"fila-aj fila-plato" + (promo ? " fila-promo" : "") + (x.disponible ? "" : " apagada")},
+    h("span", {class:"foto-c"}, sel, foto),
+    campo("nombre", () => x.nombre, {maxlength:80, class:"campo-aj nom", "aria-label":promo ? "Nombre de la promoción" : "Nombre del plato"}),
+    promo && campo("descripcion", () => x.descripcion || "", {maxlength:200, placeholder:"Qué incluye", class:"campo-aj cat", "aria-label":"Qué incluye " + x.nombre}),
+    cPrecio,
+    !promo && campo("categoria", () => x.categoria || "", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + x.nombre}),
+    interruptor(x.disponible, on => promo ? (on ? "Activa" : "Apagada") : on ? "Disponible" : "Agotado", async on => {
+      await api("POST", "/panel/agotado", {plato:x.id, disponible:on}); x.disponible = on; fila.classList.toggle("apagada", !on);
+    }, x.nombre + ": disponible hoy"),
+    dueno && h("div", {class:"aj-acc"},
+      !promo && h("label", {class:"mini", title:"Se ofrece como complemento mientras no haya historial suficiente"},
+        h("input", {type:"checkbox", checked:!!x.complemento, on:{change:async ev => {
+          try { await api("POST", "/panel/dueno/plato", {id:x.id, complemento:ev.target.checked}); x.complemento = ev.target.checked; aviso(ev.target.checked ? "Se sugerirá " + x.nombre : "Ya no se sugiere " + x.nombre); }
+          catch (e) { ev.target.checked = !ev.target.checked; aviso(e.message, true); } }}}), " Sugerir"),
+      x.foto && botonSeguro("Quitar foto", "Quitar la foto de " + x.nombre, async () => { await api("POST", "/panel/dueno/foto_borrar", {plato:x.id}); aviso("Foto quitada"); repintarCarta(); }),
+      botonSeguro("Borrar", "Borrar el plato " + x.nombre, async () => { await api("POST", "/panel/dueno/plato_borrar", {plato:x.id}); aviso(x.nombre + " borrado"); repintarCarta(); })));
+  return fila;
+}
+$("#buscar-plato").addEventListener("input", e => { st.qMenu = e.target.value.trim(); pintarMenu(false); });
+$("#f-plato").onsubmit = async ev => { // sin id: el servidor lo saca del nombre
+  ev.preventDefault(); const f = ev.target;
+  try {
+    await api("POST", "/panel/dueno/plato", {nombre:f.nombre.value.trim(), precio:f.precio.value, categoria:f.categoria.value.trim().toLowerCase()});
+    aviso("Plato agregado"); const cat = f.categoria.value; f.reset(); f.categoria.value = cat; await pintarMenu(); f.nombre.focus(); // listo para el siguiente de la misma categoría
+  } catch (e) { aviso(e.message, true); }
+};
+// Reduce la foto en el teléfono (la del celular pesa más de 3 MB): recorte cuadrado de 640 px, WebP o JPEG.
+async function reducirFoto(archivo) {
+  const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), lado = Math.min(bmp.width, bmp.height), T = 640;
+  const c = document.createElement("canvas"); c.width = c.height = T;
+  c.getContext("2d").drawImage(bmp, (bmp.width - lado) / 2, (bmp.height - lado) / 2, lado, lado, 0, 0, T, T);
+  bmp.close && bmp.close();
+  for (const tipo of ["image/webp", "image/jpeg"]) { // Safari viejo no sabe WebP y devuelve PNG: se pide JPEG
+    const b = await new Promise(ok => c.toBlob(ok, tipo, .85));
+    if (b && b.type === tipo) return b;
+  }
+  throw new Error("No se pudo preparar la foto. Prueba con otra.");
+}
+async function subirFoto(x, archivo, boton) {
+  if (st.demo) return aviso("En la demostración no se guardan fotos");
+  boton.disabled = true;
+  try {
+    const b = await reducirFoto(archivo);
+    const r = await fetch("/panel/dueno/foto?plato=" + encodeURIComponent(x.id), {method:"POST", headers:{"Content-Type":b.type}, body:b});
+    if (r.status === 401) return location.reload();
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || "No se pudo subir la foto.");
+    aviso("Foto guardada"); await repintarCarta();
+  } catch (e) { aviso(e.message || "No se pudo subir la foto.", true); boton.disabled = false; }
+}
+
+/* ---------- Carta por foto: 1 a 4 fotos de la carta de papel → la IA propone un borrador → el dueño corrige y pulsa Publicar (nada se publica solo) ---------- */
+async function reducirCarta(archivo) { // texto legible: lado máx. 1568 px en JPEG (~0,5 MB); el servidor vuelve a comprobar y limpiar
+  const bmp = await createImageBitmap(archivo, {imageOrientation:"from-image"}), k = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+  return c.toDataURL("image/jpeg", .85).split(",")[1];
+}
+$("#btn-carta").onclick = () => $("#carta-archivos").click();
+$("#carta-archivos").onchange = async ev => {
+  const fs = [...ev.target.files]; ev.target.value = "";
+  if (!fs.length) return;
+  if (fs.length > 4) return aviso("Máximo 4 fotos por carta", true);
+  if (st.demo) return aviso("En la demostración no se leen cartas");
+  const b = $("#btn-carta"); b.disabled = true; b.lastChild.textContent = "Leyendo tu carta…";
+  try {
+    const r = await api("POST", "/panel/dueno/carta_foto", {fotos:await Promise.all(fs.map(reducirCarta))});
+    st.carta = r.borrador.map(f => ({...f, incluir:true})); pintarCarta(r.descartados);
+  } catch (e) { aviso(e.message || "No se pudo leer la carta.", true); }
+  b.disabled = false; b.lastChild.textContent = "Subir mi carta";
+};
+function pintarCarta(descartados) {
+  const dup = st.carta.filter(f => f.actualizar).length;
+  $("#carta-pista").textContent = `${st.carta.length} platos leídos${dup ? `; ${dup} ya estaban en tu menú (solo se actualiza su precio)` : ""}${descartados ? `; ${descartados} líneas no se entendieron` : ""}. Corrige lo que haga falta, desmarca lo que sobre y pulsa Publicar.`;
+  $("#carta-filas").replaceChildren(...st.carta.map(f => {
+    const campo = (k, attrs) => { const i = h("input", {class:"campo-aj", value:f[k], ...attrs}); i.oninput = () => { f[k] = i.value.trim(); }; return i; };
+    const chk = h("input", {type:"checkbox", class:"incluir", checked:f.incluir, "aria-label":"Incluir " + f.nombre});
+    const fila = h("div", {class:"fila-aj fila-carta"}, chk,
+      campo("nombre", {maxlength:80, class:"campo-aj nom", "aria-label":"Nombre del plato"}),
+      campo("precio", {type:"number", inputmode:"decimal", min:0, max:999.99, step:"0.01", class:"campo-aj num pre", "aria-label":"Precio de " + f.nombre}),
+      campo("categoria", {maxlength:30, list:"cats-lista", placeholder:"Categoría", class:"campo-aj cat", "aria-label":"Categoría de " + f.nombre}),
+      f.actualizar && h("p", {class:"nota"}, `Ya está en tu menú a ${dinero(f.precio_actual)}: se actualizará solo el precio.`));
+    chk.onchange = () => { f.incluir = chk.checked; fila.classList.toggle("fuera", !chk.checked); };
+    return fila;
+  }));
+  $("#carta-rev").hidden = false; $("#carta-rev").scrollIntoView({block:"start"});
+}
+const cerrarCarta = () => { st.carta = null; $("#carta-rev").hidden = true; $("#carta-filas").replaceChildren(); };
+$("#carta-descartar").onclick = cerrarCarta;
+$("#carta-publicar").onclick = async () => {
+  const platos = st.carta.filter(f => f.incluir).map(({incluir, precio_actual, ...f}) => f);
+  if (!platos.length) return aviso("Marca al menos un plato", true);
+  const b = $("#carta-publicar"); b.disabled = true;
+  try {
+    const r = await api("POST", "/panel/dueno/carta_publicar", {platos});
+    aviso(`Carta publicada: ${r.creados} nuevos, ${r.actualizados} con precio actualizado`); cerrarCarta(); await pintarMenu();
+  } catch (e) { aviso(e.message, true); }
+  b.disabled = false;
+};
+
+/* ---------- Tienda abierta / cerrada a mano (todo el panel) ---------- */
+const swTienda = interruptor(true, on => on ? "Recibiendo pedidos" : "Tienda cerrada", async on => {
+  await api("POST", "/panel/tienda", {cerrado:!on}); st.cerrado = !on; pintarCierre(!on, null);
+  aviso(on ? "Tienda abierta: entran pedidos según el horario" : "Tienda cerrada: no entran pedidos hasta que la abras");
+}, "Recibir pedidos");
+swTienda.classList.add("tienda"); $("#tienda-caja").append(swTienda);
+function pintarTienda(cerrado) {
+  if (swTienda.disabled || st.cerrado === cerrado) return; // a medio cambiar manda el toque
+  st.cerrado = cerrado; swTienda.setAttribute("aria-checked", String(!cerrado)); swTienda.lastChild.textContent = cerrado ? "Tienda cerrada" : "Recibiendo pedidos";
+}
+
+/* Cierre temporal: «Cerrar por un rato» guarda la hora de reapertura y el servidor reabre solo */
+const f2 = n => String(n).padStart(2, "0"), fechaIso = d => `${d.getFullYear()}-${f2(d.getMonth() + 1)}-${f2(d.getDate())}`, horaIso = d => `${f2(d.getHours())}:${f2(d.getMinutes())}`;
+function pintarCierre(cerrado, hasta) {
+  $("#cierre-estado").textContent = cerrado && hasta ? `Se abre sola a las ${h12(hasta.slice(11, 16))}${hasta.slice(0, 10) === fechaIso(new Date()) ? "" : " del " + hasta.slice(8, 10) + "/" + hasta.slice(5, 7)}` : "";
+}
+async function cerrarHasta(d) {
+  try {
+    await api("POST", "/panel/tienda", {cerrado:true, hasta:`${fechaIso(d)} ${horaIso(d)}`});
+    st.cerrado = null; pintarTienda(true); pintarCierre(true, `${fechaIso(d)} ${horaIso(d)}`);
+    $("#dlg-cierre").close(); aviso("Tienda cerrada: se abre sola a las " + h12(horaIso(d)));
+  } catch (e) { aviso(e.message, true); }
+}
+$("#btn-cierre").onclick = () => $("#dlg-cierre").showModal();
+$("#cierre-x").onclick = () => $("#dlg-cierre").close();
+$("#cierre-op").onclick = ev => {
+  const m = ev.target.closest("[data-m]")?.dataset.m; if (!m) return;
+  const d = new Date(); if (m === "man") { d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); } else d.setMinutes(d.getMinutes() + Number(m));
+  cerrarHasta(d);
+};
+$("#cierre-hora-ok").onclick = () => {
+  const v = $("#cierre-hora").value; if (!v) return aviso("Elige la hora", true);
+  const d = new Date(); d.setHours(+v.slice(0, 2), +v.slice(3, 5), 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); cerrarHasta(d);
+};
+
+/* ---------- Configuración general (solo dueño): nombre, teléfono, anuncio, horario por día y datos de pago ---------- */
+const DIAS_H = [["lun", "Lunes"], ["mar", "Martes"], ["mie", "Miércoles"], ["jue", "Jueves"], ["vie", "Viernes"], ["sab", "Sábado"], ["dom", "Domingo"]];
+/* ---------- Módulo extra: Estadísticas (el dueño lo ve solo si el restaurante lo contrató) ---------- */
+function pintarModulos(m) {
+  $("#nav-stats").hidden = st.rol !== "dueno" || !m.includes("estadisticas");
+  $("#nav-qr").hidden = st.rol !== "dueno" || !m.includes("mesas"); // módulo «mesas»: códigos QR dinámicos (pestaña)
+  if ((st.vista === "stats" && $("#nav-stats").hidden) || (st.vista === "qr" && $("#nav-qr").hidden)) irA("pedidos");
+}
+const cambioTxt = c => c == null ? "" : (c > 0 ? "▲ " : c < 0 ? "▼ " : "= ") + Math.abs(c) + " % vs. periodo anterior";
+async function pintarStats(dias) {
+  if (dias) st.statsDias = dias;
+  const n = st.statsDias || 30;
+  for (const b of $("#stats-seg").children) b.setAttribute("aria-pressed", String(Number(b.dataset.d) === n));
+  let e; try { e = await api("POST", "/panel/dueno/estadisticas", {dias:n}); } catch (x) { return aviso(x.message, true); }
+  const kpi = (etq, valor, nota, clase) => h("div", {class:"kpi"}, h("small", {}, etq), h("b", {}, valor), nota ? h("small", {class:clase || ""}, nota) : null);
+  const clase = c => c > 0 ? "sube" : c < 0 ? "baja" : "";
+  const grupo = (titulo, ...c) => h("section", {class:"caja-aj"}, h("h3", {class:"grupo"}, titulo), ...c);
+  const barras = (vals, etiquetas, resaltar) => {
+    const tope = Math.max(...vals, 1), cont = h("div", {class:"barras", role:"img", "aria-label":etiquetas.join(", ")});
+    vals.forEach((v, i) => { const b = h("i", {title:etiquetas[i]}); b.style.height = Math.max(v * 100 / tope, 1.5) + "%"; if (i === resaltar) b.className = "pico"; b.style.animationDelay = Math.min(i * 10, 200) + "ms"; cont.append(b); });
+    return cont;
+  };
+  const rank = (filas, tope) => h("ul", {class:"rank"}, ...filas.map(([nom, dato, v]) => { const f = h("i", {}); f.style.width = (v * 100 / tope) + "%"; return h("li", {}, nom, h("span", {}, dato), h("div", {class:"fondo"}, f)); }));
+  const cuerpo = [h("div", {class:"kpis"},
+    kpi("Ventas", e.ventas, cambioTxt(e.ventas_cambio), clase(e.ventas_cambio)),
+    kpi("Pedidos entregados", String(e.pedidos), cambioTxt(e.pedidos_cambio), clase(e.pedidos_cambio)),
+    kpi("Ticket medio", e.ticket),
+    kpi("Tiempo medio", e.minutos_medio == null ? "—" : e.minutos_medio + " min", "del pedido a la entrega"),
+    kpi("Clientes", String(e.clientes), e.clientes_repiten + " ya habían comprado antes"),
+    kpi("Cancelados o caducados", String(e.perdidos)),
+    e.sugerencias && e.sugerencias.ofrecidas ? kpi("Venta sugerida", e.sugerencias.pct_ticket == null ? "—" : `+${e.sugerencias.pct_ticket} %`,
+      `de ticket · ${e.sugerencias.aceptadas} de ${e.sugerencias.ofrecidas} aceptadas · +${e.sugerencias.extra}`, "sube") : null)];
+  $("#stats-arriba").replaceChildren(...(e.comision ? [h("div", {class:"ahorro"}, h("small", {}, "Lo que te habrías ahorrado en comisión"), h("b", {}, e.comision.ahorro),
+    h("small", {}, `Estimado: tus ventas propias × ${e.comision.pct} % que cobraría una app de delivery. Ajusta tu % con tu operador.`))] : []));
+  if (!e.pedidos) cuerpo.push(h("p", {class:"t-espera"}, "Aún no hay pedidos entregados en este periodo. Las estadísticas se llenan solas a medida que se entregan pedidos."));
+  else {
+    const pico = e.por_hora.indexOf(Math.max(...e.por_hora));
+    cuerpo.push(
+      grupo("Ventas por día", barras(e.por_dia.map(x => x.centavos), e.por_dia.map(x => `${x.fecha}: ${x.ventas} (${x.pedidos} pedidos)`)),
+        h("div", {class:"eje"}, h("span", {}, e.por_dia[0].fecha), h("span", {}, e.por_dia[e.por_dia.length - 1].fecha))),
+      grupo("Horas con más pedidos", barras(e.por_hora, e.por_hora.map((v, i) => `${i}:00 — ${v} pedidos`), pico),
+        h("div", {class:"eje"}, h("span", {}, "0 h"), h("span", {}, "6 h"), h("span", {}, "12 h"), h("span", {}, "18 h"), h("span", {}, "23 h")),
+        h("p", {class:"t-espera"}, `Hora pico: ${pico}:00 a ${pico + 1}:00.`)),
+      h("div", {class:"dos-col"},
+        grupo("Lo más pedido", rank(e.platos.map(p => [p.nombre, `${p.cantidad} · ${p.ingresos}`, p.cantidad]), e.platos[0].cantidad)),
+        grupo("Cómo piden", rank(Object.entries(e.modalidad).map(([k, v]) => [k === "entrega" ? "A domicilio" : k === "recogida" ? "Para recoger" : k === "mesa" ? "En mesa" : k, String(v), v]), e.pedidos),
+          ...(e.zonas.length ? [h("h3", {class:"grupo"}, "Zonas de entrega"), rank(e.zonas.map(z => [z.zona, String(z.pedidos), z.pedidos]), e.zonas[0].pedidos)] : []))));
+  }
+  $("#stats-cuerpo").replaceChildren(...cuerpo);
+}
+$("#stats-seg").onclick = ev => { const b = ev.target.closest("[data-d]"); if (b) pintarStats(Number(b.dataset.d)); };
+
+/* Preguntas del dueño: «¿Cuánto vendí el viernes?». La respuesta del modelo se pinta solo como texto. */
+async function preguntar(texto) {
+  const caja = $("#preg-resp"), boton = $("#f-preguntar .btn");
+  texto = texto.trim(); if (!texto || boton.disabled) return;
+  boton.disabled = true; caja.classList.remove("error");
+  caja.replaceChildren(h("span", {class:"quien"}, texto), h("span", {class:"pensando", "aria-label":"Pensando"}, h("i", {}), h("i", {}), h("i", {}), " Pensando…"));
+  try { caja.replaceChildren(h("span", {class:"quien"}, texto), (await api("POST", "/panel/dueno/preguntar", {texto})).respuesta); }
+  catch (e) { caja.classList.add("error"); caja.replaceChildren(h("span", {class:"quien"}, texto), e.message); }
+  boton.disabled = false;
+}
+$("#f-preguntar").onsubmit = ev => { ev.preventDefault(); preguntar(ev.target.texto.value); };
+$("#preg-ejemplos").onclick = ev => { const b = ev.target.closest("button"); if (b) { $("#f-preguntar").texto.value = b.textContent; preguntar(b.textContent); } };
+(() => { // micrófono: solo si el navegador trae reconocimiento de voz (Chrome, Edge, Safari); si no, el botón no aparece
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition, mic = $("#preg-mic");
+  if (!SR) return;
+  mic.hidden = false; let rec = null;
+  mic.onclick = () => {
+    if (rec) return rec.stop();
+    rec = new SR(); rec.lang = "es-PA"; rec.interimResults = false; rec.maxAlternatives = 1;
+    rec.onresult = ev => { const t = ev.results[0][0].transcript; $("#f-preguntar").texto.value = t; preguntar(t); };
+    rec.onerror = ev => { if (ev.error !== "aborted" && ev.error !== "no-speech") aviso("No pude usar el micrófono. Escribe tu pregunta.", true); };
+    rec.onend = () => { rec = null; mic.setAttribute("aria-pressed", "false"); };
+    try { rec.start(); mic.setAttribute("aria-pressed", "true"); } catch (e) { rec = null; }
+  };
+})();
+
+function filaZona(z = {}) {
+  const nombre = h("input", {maxlength:40, placeholder:"Zona (ej.: Chitré)", "aria-label":"Nombre de la zona"}), precio = h("input", {type:"number", min:0, max:100, step:"0.25", placeholder:"B/.", "aria-label":"Precio de envío"}),
+    inc = h("input", {maxlength:900, placeholder:"Lugares: La Arena, Monagrillo…", "aria-label":"Lugares de la zona"}), quitar = h("button", {type:"button", class:"btn", "aria-label":"Quitar zona"}, "Quitar");
+  nombre.value = z.nombre || ""; precio.value = z.precio ?? ""; inc.value = (z.incluye || []).join(", ");
+  const fila = h("div", {class:"dia-h zona-fila"}, nombre, precio, inc, quitar); quitar.onclick = () => fila.remove(); return fila;
+}
+$("#zona-nueva").onclick = () => { const f = filaZona(); $("#zonas-envio").append(f); f.querySelector("input").focus(); };
+/* Horario: estado en HOR (días con turnos + días especiales); todo se vuelve a pintar desde ahí y el servidor valida de nuevo al guardar */
+const HORAS = [...Array.from({length:48}, (_, i) => f2(i >> 1) + ":" + (i % 2 ? "30" : "00")), "23:59"];
+const h12 = v => { const [H, M] = v.split(":").map(Number); return `${H % 12 || 12}:${f2(M)} ${H < 12 ? "a. m." : "p. m."}`; };
+const rango = t => `${h12(t[0])} – ${h12(t[1])}`, TXT_D = {lun:"Lun", mar:"Mar", mie:"Mié", jue:"Jue", vie:"Vie", sab:"Sáb", dom:"Dom"};
+const HOR = {dias:{}, exc:[]}, DEF = [["11:00", "22:00"]], copia = t => t.map(x => [...x]);
+function turnoNuevo(ts) { const u = ts[ts.length - 1]; return !u ? [...DEF[0]] : u[1] <= "15:00" ? ["18:00", "22:00"] : [u[1], u[1] < "22:00" ? "22:00" : "23:59"]; }
+function erroresTurnos(ts, quien) {
+  const e = [], v = copia(ts).sort();
+  if (ts.some(([a, b]) => a >= b)) e.push(`${quien}: un turno cierra antes (o a la misma hora) de abrir. Si pasas de medianoche, cierra a las 11:59 p. m. y abre el día siguiente.`);
+  else if (v.some((t, i) => i && v[i - 1][1] > t[0])) e.push(`${quien}: dos turnos se pisan.`);
+  return e;
+}
+function horarioErrores() {
+  const e = [], hoy = fechaIso(new Date()), vistos = new Set();
+  for (const [d, n] of DIAS_H) { const x = HOR.dias[d]; if (x.abierto) e.push(...(x.turnos.length ? erroresTurnos(x.turnos, n) : [`${n}: está abierto pero sin horas. Agrega un turno o ciérralo.`])); }
+  HOR.exc.forEach((x, i) => {
+    const q = x.fecha ? "Día especial " + x.fecha.split("-").reverse().join("/") : `Día especial ${i + 1}`;
+    if (!x.fecha) e.push(`${q}: falta la fecha.`); else if (x.fecha < hoy) e.push(`${q}: esa fecha ya pasó.`); else if (vistos.has(x.fecha)) e.push(`${q}: la fecha está repetida.`);
+    vistos.add(x.fecha);
+    if (x.turnos) e.push(...(x.turnos.length ? erroresTurnos(x.turnos, q) : [`${q}: sin horas. Agrega un turno o márcalo cerrado.`]));
+  });
+  return e;
+}
+function resumenHorario() {
+  const tx = d => HOR.dias[d].abierto ? HOR.dias[d].turnos.map(rango).join(", ") : "cerrado", g = [];
+  DIAS_H.forEach(([d]) => { const u = g[g.length - 1]; if (u && u.t === tx(d)) u.f = d; else g.push({d, f:d, t:tx(d)}); });
+  const hoy = new Date(), ex = HOR.exc.find(x => x.fecha === fechaIso(hoy)), dia = DIAS_H[(hoy.getDay() + 6) % 7][0];
+  const ts = ex ? (ex.turnos || []) : HOR.dias[dia].abierto ? HOR.dias[dia].turnos : [], min = hoy.getHours() * 60 + hoy.getMinutes(), m = v => +v.slice(0, 2) * 60 + +v.slice(3, 5);
+  const en = ts.find(([a, b]) => m(a) <= min && min < m(b)), sig = ts.filter(([a]) => m(a) > min).sort()[0];
+  const ahora = st.cerrado ? ["cerrado", "Ahora: cerrado a mano (la tienda no recibe pedidos)."] : en ? ["abierto", `Ahora: abierto, cierra a las ${h12(en[1])}.`]
+    : sig ? ["cerrado", `Ahora: cerrado, abre hoy a las ${h12(sig[0])}.`] : ["cerrado", "Ahora: cerrado, hoy ya no abre."];
+  return [h("b", {}, g.map(x => `${TXT_D[x.d]}${x.d === x.f ? "" : "–" + TXT_D[x.f]} ${x.t}`).join(" · ") + (HOR.exc.some(x => x.fecha >= fechaIso(hoy)) ? " · más los días especiales" : "")), h("span", {class:"ahora " + ahora[0]}, ahora[1])];
+}
+function pintarHorario(foco) {
+  const sel = (v, etq, ts, i, k) => {
+    const o = HORAS.includes(v) ? HORAS : [...HORAS, v].sort(), e = h("select", {"aria-label":etq, "data-foco":etq}, ...o.map(x => h("option", {value:x}, x === "23:59" ? "11:59 p. m. (fin del día)" : h12(x))));
+    e.value = v; e.onchange = () => { ts[i][k] = e.value; pintarHorario(etq); }; return e;
+  };
+  const turnos = (ts, quien) => h("div", {}, ...ts.map((t, i) => h("div", {class:"turno", role:"group", "aria-label":`${quien}, turno ${i + 1}`},
+    sel(t[0], `${quien}, turno ${i + 1}: abre`, ts, i, 0), "a", sel(t[1], `${quien}, turno ${i + 1}: cierra`, ts, i, 1),
+    h("button", {type:"button", class:"btn suave", "aria-label":`Quitar turno ${i + 1} de ${quien}`, on:{click:() => { ts.splice(i, 1); pintarHorario(); }}}, "✕"))));
+  const agregar = (ts, quien) => ts.length < 3 ? h("button", {type:"button", class:"btn suave", "data-foco":"mas " + quien, on:{click:() => { ts.push(turnoNuevo(ts)); pintarHorario("mas " + quien); }}}, "+ Agregar turno") : null;
+  const sw = (on, txt, alt, fn) => { const b = h("button", {class:"sw", type:"button", role:"switch", "aria-checked":String(on), "aria-label":alt, "data-foco":"sw " + alt}, h("i", {"aria-hidden":"true"}), h("span", {}, txt)); b.onclick = fn; return b; };
+  $("#horario-dias").replaceChildren(...DIAS_H.map(([d, n]) => {
+    const x = HOR.dias[d], todos = fn => () => { DIAS_H.forEach(([k]) => { if (fn(k)) HOR.dias[k] = {abierto:x.abierto, turnos:copia(x.turnos)}; }); pintarHorario(); aviso("Horario copiado"); };
+    const atajo = (txt, ts) => h("button", {type:"button", class:"btn suave", on:{click:() => { x.turnos = copia(ts); x.abierto = true; pintarHorario(); }}}, txt);
+    return h("div", {class:"dh" + (x.abierto ? "" : " cerrado")},
+      h("div", {class:"dh-cab"}, h("b", {}, n), sw(x.abierto, x.abierto ? "Abierto" : "Cerrado", `${n}: abierto`, () => { x.abierto = !x.abierto; if (x.abierto && !x.turnos.length) x.turnos = copia(DEF); pintarHorario(`sw ${n}: abierto`); })),
+      ...(x.abierto ? [turnos(x.turnos, n), h("div", {class:"dh-acc"}, agregar(x.turnos, n)),
+        h("details", {}, h("summary", {}, "Atajos y copiar"), h("div", {class:"dh-acc"}, atajo("24 horas", [["00:00", "23:59"]]), atajo("Almuerzo y cena", [["11:00", "15:00"], ["18:00", "22:00"]]),
+          h("button", {type:"button", class:"btn suave", on:{click:todos(() => true)}}, "Copiar a todos los días"), h("button", {type:"button", class:"btn suave", on:{click:todos(k => "lun mar mie jue vie".includes(k))}}, "Copiar a lun–vie")))] : []));
+  }));
+  $("#hor-exc").replaceChildren(...HOR.exc.map((x, i) => {
+    const q = `Día especial ${i + 1}`, f = h("input", {type:"date", min:fechaIso(new Date()), "aria-label":q + ": fecha", "data-foco":q}), modo = h("select", {"aria-label":q + ": cómo abre"}, h("option", {value:"c"}, "Cerrado todo el día"), h("option", {value:"t"}, "Abre con horario propio"));
+    f.value = x.fecha; f.onchange = () => { x.fecha = f.value; pintarHorario(q); }; modo.value = x.turnos ? "t" : "c"; modo.onchange = () => { x.turnos = modo.value === "t" ? copia(DEF) : null; pintarHorario(q); };
+    return h("div", {class:"dh dh-esp"}, h("div", {class:"turno"}, f, h("button", {type:"button", class:"btn suave", "aria-label":`Quitar ${q}`, on:{click:() => { HOR.exc.splice(i, 1); pintarHorario(); }}}, "✕")),
+      h("div", {class:"turno"}, modo), ...(x.turnos ? [turnos(x.turnos, q), h("div", {class:"dh-acc"}, agregar(x.turnos, q))] : []));
+  }));
+  $("#hor-exc-nuevo").hidden = HOR.exc.length >= 60;
+  const er = horarioErrores(); $("#hor-err").replaceChildren(...er.map(t => h("li", {}, t))); $("#hor-res").replaceChildren(...resumenHorario());
+  if (foco) document.querySelector(`[data-foco="${CSS.escape(foco)}"]`)?.focus();
+}
+const PLANT = [["Lunes a viernes", d => "lun mar mie jue vie".includes(d)], ["Todos los días", () => true], ["Fin de semana", d => "sab dom".includes(d)], ["Cerrar los domingos", null]];
+$("#hor-plant").replaceChildren(...PLANT.map(([txt, abre]) => h("button", {type:"button", class:"btn suave", on:{click:() => {
+  if (!abre) HOR.dias.dom.abierto = false;
+  else { const base = DIAS_H.map(([d]) => HOR.dias[d]).find(x => x.abierto && x.turnos.length)?.turnos || DEF; DIAS_H.forEach(([d]) => HOR.dias[d] = abre(d) ? {abierto:true, turnos:copia(base)} : {abierto:false, turnos:[]}); }
+  pintarHorario();
+}}}, txt)));
+$("#hor-exc-nuevo").onclick = () => { HOR.exc.push({fecha:"", turnos:null}); pintarHorario(`Día especial ${HOR.exc.length}`); };
+async function pintarConfig() {
+  let a; try { a = (await api("GET", "/panel/dueno/ajustes")).ajustes; } catch (e) { return aviso(e.message, true); }
+  const f = $("#f-config");
+  f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo; f.sugerencias.checked = a.sugerencias !== false;
+  $("#config-nota").textContent = "";
+  $("#zonas-envio").replaceChildren(...(a.envio || []).map(filaZona));
+  for (const [d] of DIAS_H) HOR.dias[d] = {abierto:(a.horario[d] || []).length > 0, turnos:copia(a.horario[d] || [])};
+  HOR.exc = Object.entries(a.excepciones || {}).map(([fecha, t]) => ({fecha, turnos:t.length ? copia(t) : null}));
+  pintarHorario(); pintarCierre(a.cerrado, a.cerrado_hasta);
+}
+$("#f-config").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target, horario = {}, nota = $("#config-nota");
+  if (!f.marca.value.trim()) { nota.textContent = "Pon el nombre del restaurante."; return f.marca.focus(); }
+  const er = horarioErrores(); pintarHorario();
+  if (er.length) { nota.textContent = "No se guardó. Corrige el horario: " + er[0]; return $("#hor-res").scrollIntoView({block:"center"}); }
+  for (const [d] of DIAS_H) horario[d] = HOR.dias[d].abierto ? HOR.dias[d].turnos : [];
+  const excepciones = Object.fromEntries(HOR.exc.map(x => [x.fecha, x.turnos || []]));
+  const envio = [];
+  for (const fila of document.querySelectorAll("#zonas-envio .zona-fila")) {
+    const [n, v, i] = fila.querySelectorAll("input");
+    if (!n.value.trim() && !v.value && !i.value.trim()) continue;
+    if (!n.value.trim() || v.value === "" || +v.value < 0) { nota.textContent = "Cada zona necesita nombre y precio."; return n.focus(); }
+    envio.push({nombre:n.value.trim(), precio:+v.value, incluye:i.value.split(",").map(x => x.trim()).filter(Boolean)});
+  }
+  try {
+    await api("POST", "/panel/dueno/ajustes", {envio, marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, excepciones, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
+    nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
+  } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
+};
+
+/* ---------- Equipo (solo dueño): una fila por persona, agrupadas por rol ---------- */
+const ROLES = [["dueno", "Dueños"], ["personal", "Personal del local"], ["repartidor", "Repartidores"]];
+async function pintarEquipo() {
+  let us; try { us = (await api("GET", "/panel/dueno/usuarios")).usuarios; } catch (e) { return aviso(e.message, true); }
+  const filas = [];
+  for (const [rol, titulo] of ROLES) {
+    const g = us.filter(u => u.rol === rol); if (!g.length) continue;
+    filas.push(h("h3", {class:"grupo"}, titulo, h("span", {}, " · " + g.length)), ...g.map(filaPersona));
+  }
+  $("#lista-equipo").replaceChildren(...filas);
+}
+function filaPersona(u) {
+  const guardar = async (cambios, ok) => { await api("POST", "/panel/dueno/usuario", {nombre:u.nombre, ...cambios}); aviso(ok); pintarEquipo(); };
+  let reactivar = false;
+  const pinIn = h("input", {type:"password", inputmode:"numeric", maxlength:6, autocomplete:"new-password", placeholder:"6 números", "aria-label":"PIN nuevo de " + u.nombre});
+  const pinNota = h("span", {class:"t-espera", role:"status"});
+  const enviarPin = async () => {
+    if (!/^\d{6}$/.test(pinIn.value)) { pinNota.textContent = "El PIN tiene 6 números."; return pinIn.focus(); }
+    try { await guardar({pin:pinIn.value, ...(reactivar ? {activo:true} : {})}, reactivar ? u.nombre + " vuelve a estar activo" : "PIN de " + u.nombre + " cambiado"); }
+    catch (e) { pinNota.textContent = e.message; pinIn.focus(); }
+  };
+  pinIn.addEventListener("keydown", e => { if (e.key === "Enter") enviarPin(); });
+  const pinCaja = h("div", {class:"pin-linea", hidden:true}, pinIn, h("button", {class:"btn ok", type:"button", on:{click:enviarPin}}, "Guardar PIN"), pinNota);
+  const pedirPin = nota => { pinNota.textContent = nota; pinCaja.hidden = false; pinIn.focus(); };
+  const rol = h("select", {class:"campo-aj rol", "aria-label":"Rol de " + u.nombre}, ROLES.map(([v]) => h("option", {value:v, selected:v === u.rol}, NOMBRE_ROL[v])));
+  rol.onchange = async () => { try { await guardar({rol:rol.value}, u.nombre + " ahora es " + NOMBRE_ROL[rol.value].toLowerCase()); } catch (e) { aviso(e.message, true); rol.value = u.rol; } };
+  return h("div", {class:"fila-aj fila-persona" + (u.activo ? "" : " apagada")},
+    h("span", {class:"ini-persona", "aria-hidden":"true"}, u.nombre.charAt(0).toUpperCase()),
+    h("span", {class:"nombre-aj"}, u.nombre),
+    rol,
+    interruptor(u.activo, on => on ? "Activo" : "Inactivo", async on => {
+      if (on) { reactivar = true; pedirPin("Para reactivar, ponle un PIN nuevo."); return false; } // el servidor lo exige
+      await guardar({activo:false}, u.nombre + " ya no puede entrar");
+    }, u.nombre + ": puede entrar"),
+    h("div", {class:"aj-acc"},
+      h("button", {class:"mini", type:"button", on:{click:() => { reactivar = false; pedirPin(""); }}}, "Cambiar PIN"),
+      botonSeguro("Borrar", "Borrar a " + u.nombre, async () => { await api("POST", "/panel/dueno/usuario_borrar", {nombre:u.nombre}); aviso(u.nombre + " borrado"); pintarEquipo(); })),
+    pinCaja);
+}
+const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
+$("#f-usuario").onsubmit = async ev => {
+  ev.preventDefault(); const f = ev.target;
+  try { await api("POST", "/panel/dueno/usuario", {nombre:f.nombre.value.trim(), rol:f.rol.value, pin:f.pin.value.trim()}); aviso(f.nombre.value.trim() + " agregado"); const r = f.rol.value; f.reset(); f.rol.value = r; await pintarEquipo(); f.nombre.focus(); }
+  catch (e) { aviso(e.message, true); }
+};
+
+/* ---------- Mapa de repartidores en camino (Leaflet autoalojado, carga diferida) ----------
+   Solo el punto actual de cada repartidor, sin estela. Siempre con "© OpenStreetMap" a la vista y una lista en texto como alternativa. */
+let leaflet = null;
+function cargarLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leaflet = leaflet || new Promise((ok, mal) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "/estatico/leaflet-1.9.4.css"; document.head.append(css);
+    const js = document.createElement("script"); js.src = "/estatico/leaflet-1.9.4.js"; js.onload = () => ok(window.L); js.onerror = () => { leaflet = null; mal(new Error("mapa")); };
+    document.head.append(js);
+  });
+  return leaflet;
+}
+/* ruta de cada repartidor: color propio, estable por orden de nombre */
+const COLORES = ["#c8102e", "#1769aa", "#2e7d32", "#b26a00", "#6a1b9a", "#00838f"];
+const colorDe = n => COLORES[Math.max(0, Object.keys(st.rutas || {}).sort().indexOf(n)) % COLORES.length];
+const resumenRuta = r => r && r.paradas && r.paradas.length ? `${r.paradas.length} ${r.paradas.length === 1 ? "parada" : "paradas"}${r.total_min != null ? " · ~" + Math.round(r.total_min) + " min" : ""}` : "";
+const MAPA = {rutas:[], mapa:null, marcas:new Map(), rest:null, ajustado:false, datos:{restaurante:null, repartidores:[]}};
+const inicialesDe = n => String(n || "?").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+async function pedirFlota() {
+  if (st.demo) return {restaurante:{lat:7.9667, lon:-80.4333, nombre:MARCA}, repartidores:[{repartidor:"Pedro", pedido_id:31, lat:7.9712, lon:-80.4251, precision:12, edad_s:8 + Math.floor((Date.now() / 1000) % 20), viejo:false}]};
+  return api("GET", "/panel/repartidores_mapa");
+}
+function pintarListaMapa() {
+  const d = MAPA.datos;
+  $("#n-mapa").textContent = d.repartidores.length; $("#n-mapa").hidden = !d.repartidores.length;
+  $("#mapa-lista").replaceChildren(...(d.repartidores.length ? d.repartidores.map(r => h("li", {class:r.viejo ? "viejo" : ""},
+    h("span", {class:"ini-rep", "aria-hidden":"true"}, inicialesDe(r.repartidor)),
+    h("span", {}, h("b", {}, r.repartidor), ` · pedido #${r.pedido_id}`, resumenRuta((st.rutas || {})[r.repartidor]) ? h("span", {class:"num", style:"display:block;font-size:.8125rem;color:var(--on-variant)"}, h("i", {class:"punto-rep", style:"--c:" + colorDe(r.repartidor) + ";margin-right:6px"}), resumenRuta(st.rutas[r.repartidor])) : null),
+    h("span", {class:"edad num"}, r.viejo ? `Dato viejo · hace ${Math.round(r.edad_s / 60)} min` : `hace ${r.edad_s} s`)))
+    : [h("li", {class:"vacia"}, "Nadie va en camino ahora.")]));
+}
+async function actualizarMapa() {
+  try { MAPA.datos = await pedirFlota(); } catch (e) { return; }
+  pintarListaMapa();
+  if (!$("#dlg-flota").open || !MAPA.mapa) return;
+  const L = window.L, d = MAPA.datos, vistos = new Set(), pts = [];
+  if (d.restaurante && !MAPA.rest) {
+    MAPA.rest = L.marker([d.restaurante.lat, d.restaurante.lon], {title:d.restaurante.nombre || "Restaurante", icon:L.divIcon({className:"pin-rest", html:h("span", {}, "★"), iconSize:[32, 32]})}).addTo(MAPA.mapa);
+  }
+  if (d.restaurante) pts.push([d.restaurante.lat, d.restaurante.lon]);
+  for (const r of d.repartidores) {
+    const k = r.repartidor + r.pedido_id; vistos.add(k); pts.push([r.lat, r.lon]);
+    let m = MAPA.marcas.get(k);
+    if (!m) { m = L.marker([r.lat, r.lon], {title:r.repartidor, icon:L.divIcon({className:"pin-rep", html:h("span", {}, inicialesDe(r.repartidor)), iconSize:[34, 34]})}).addTo(MAPA.mapa); MAPA.marcas.set(k, m); }
+    m.setLatLng([r.lat, r.lon]); m.getElement().classList.toggle("viejo", !!r.viejo);
+  }
+  for (const [k, m] of MAPA.marcas) if (!vistos.has(k)) { m.remove(); MAPA.marcas.delete(k); }
+  // rutas: línea origen -> 1 -> 2 ... y marcadores numerados, un color por repartidor (se redibuja entera; son pocas paradas)
+  MAPA.rutas.forEach(x => x.remove()); MAPA.rutas = [];
+  for (const [nom, ru] of Object.entries(st.rutas || {})) {
+    const c = colorDe(nom), ps = (ru.paradas || []).filter(x => x.lat != null && x.lon != null && !x.fuera_de_viaje);
+    const linea = (ru.origen ? [[ru.origen.lat, ru.origen.lon]] : []).concat(ps.map(x => [x.lat, x.lon]));
+    if (linea.length > 1) MAPA.rutas.push(L.polyline(linea, {color:c, weight:4, opacity:.8, dashArray:"2 8", lineCap:"round"}).addTo(MAPA.mapa));
+    for (const x of ps) { MAPA.rutas.push(L.marker([x.lat, x.lon], {title:`${nom}: parada ${x.n}`, icon:L.divIcon({className:"pin-par", html:h("span", {style:"--c:" + c}, String(x.n)), iconSize:[26, 26]})}).addTo(MAPA.mapa)); pts.push([x.lat, x.lon]); }
+  }
+  if (pts.length && !MAPA.ajustado) { MAPA.mapa.fitBounds(pts, {padding:[40, 40], maxZoom:16}); MAPA.ajustado = true; }
+}
+$("#btn-mapa").onclick = async () => {
+  $("#dlg-flota").showModal(); $("#mapa-aviso").hidden = true; $("#mapa").hidden = false; MAPA.ajustado = false;
+  await actualizarMapa();
+  try {
+    if (st.demo) throw new Error("demo");
+    const L = await cargarLeaflet();
+    if (!MAPA.mapa) {
+      MAPA.mapa = L.map("mapa", {zoomControl:true, attributionControl:true}).setView([7.9667, -80.4333], 13);
+      MAPA.mapa.attributionControl.setPrefix(false);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom:19, attribution:"© OpenStreetMap"}).addTo(MAPA.mapa);
+    }
+    setTimeout(() => { MAPA.mapa.invalidateSize(); actualizarMapa(); }, 50);
+  } catch (e) { $("#mapa").hidden = true; $("#mapa-aviso").hidden = false; }
+};
+$("#mapa-cerrar").onclick = () => $("#dlg-flota").close();
+$("#dlg-flota").addEventListener("click", e => { if (e.target === $("#dlg-flota")) $("#dlg-flota").close(); });
+setInterval(() => { if (!$("#panel").hidden && !st.bloqueado && document.visibilityState === "visible") actualizarMapa(); }, 6000);
+
+/* ---------- Bandeja de avisos ---------- */
+function abrirBandeja(on) {
+  const b = $("#bandeja");
+  if (on) { b.hidden = false; requestAnimationFrame(() => b.classList.add("abierta")); pintarAvisos(); $("#bandeja-cerrar").focus(); }
+  else { b.classList.remove("abierta"); setTimeout(() => b.hidden = true, 250); st.avisos.forEach(a => a.leido = true); st.sinLeer = 0; pintar(); $("#btn-avisos").focus(); }
+  $("#btn-avisos").setAttribute("aria-expanded", on);
+}
+$("#btn-avisos").onclick = () => abrirBandeja($("#bandeja").hidden);
+$("#bandeja-cerrar").onclick = () => abrirBandeja(false);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#bandeja").hidden) abrirBandeja(false); });
+const ICONO_AVISO = {pedido:"recibo", pago:"recibo", escalado:"persona", sistema:"alerta"};
+function pintarAvisos() {
+  const irA = id => () => { abrirBandeja(false); verPedido(id); };
+  const esc = st.escalados.map(e => h("div", {class:"aviso urgente"}, icono("persona"),
+    h("p", {}, h("b", {}, "Necesita una persona: "), e.motivo),
+    h("small", {}, [e.nombre, e.telefono && telLocal(e.telefono), e.creado_at && hora(e.creado_at)].filter(Boolean).join(" · ")),
+    h("div", {class:"fila"},
+      e.telefono && !/\*/.test(e.telefono) && h("a", {class:"btn suave", href:"tel:+" + String(e.telefono).replace(/\D/g, "")}, "Llamar"),
+      e.telefono && !/\*/.test(e.telefono) && h("a", {class:"btn suave", href:"whatsapp://send?phone=" + String(e.telefono).replace(/\D/g, "")}, "WhatsApp"),
+      e.pedido_id && h("button", {class:"btn suave", on:{click:irA(e.pedido_id)}}, "Ver pedido #" + e.pedido_id),
+      h("button", {class:"btn ok", on:{click:() => atendido(e)}}, icono("check"), "Atendido"))));
+  const avs = st.avisos.slice(0, 50).map(a => h("div", {class:"aviso" + (a.leido ? "" : " sin-leer") + (a.tipo === "sistema" ? " urgente" : "")}, icono(ICONO_AVISO[a.tipo] || "campana"),
+    h("p", {}, a.texto), h("small", {}, a.creado_at ? hora(a.creado_at) : ""),
+    a.pedido_id && st.pedidos.has(a.pedido_id) && h("div", {class:"fila"}, h("button", {class:"btn suave", on:{click:irA(a.pedido_id)}}, "Ver pedido #" + a.pedido_id))));
+  $("#lista-avisos").replaceChildren(
+    ...(esc.length ? [h("h3", {}, "Para atender"), ...esc] : []),
+    h("h3", {}, "Últimos avisos"), ...(avs.length ? avs : [h("p", {class:"vacia"}, "Sin avisos")]));
+}
+async function atendido(e) {
+  try { if (!st.demo) await api("POST", `/panel/escalado/${e.id}/atendido`); st.escalados = st.escalados.filter(x => x !== e); pintarAvisos(); aviso("Marcado como atendido"); }
+  catch (err) { aviso(err.message, true); }
+}
+function verPedido(id) {
+  if (st.vista !== "pedidos") irA("pedidos");
+  const t = $("#pedido-" + id); if (!t) return;
+  t.scrollIntoView({behavior:"smooth", block:"center", inline:"center"}); t.classList.add("foco");
+  const b = t.querySelector("button"); (b || t).focus({preventScroll:true});
+  setTimeout(() => t.classList.remove("foco"), 2500);
+}
+$("#btn-nuevos").onclick = () => { const id = Math.min(...st.nuevos); verPedido(id); };
+$("#btn-cerrados").onclick = () => { st.cerrados = !st.cerrados; $("#btn-cerrados").setAttribute("aria-pressed", st.cerrados); pintar(); };
+
+/* ---------- Banda roja (IA sin saldo, WhatsApp caído) y mensaje corto ---------- */
+function mostrarBanda(t) { $("#banda-texto").textContent = t; $("#banda").hidden = false; }
+$("#banda-ok").onclick = () => { $("#banda").hidden = true; };
+let tToast;
+function aviso(t, mal) { const e = $("#toast"); e.textContent = t; e.classList.toggle("mal", !!mal); e.classList.add("ver"); clearTimeout(tToast); tToast = setTimeout(() => e.classList.remove("ver"), mal ? 6000 : 3000); }
+
+/* Reloj y "hace X min" */
+setInterval(() => { $("#reloj").textContent = new Date().toLocaleTimeString("es-PA", {hour:"numeric", minute:"2-digit"}); }, 1000);
+setInterval(() => { if (!$("#panel").hidden && !document.activeElement.closest(".bandeja")) pintar(); }, 30000);
+
+/* ---------- Demostración (sin servidor) ---------- */
+// ponytail: datos de ejemplo para el prototipo; con servidor todo sale de /panel/estado.
+let DEMO_IMG = "";
+const DEMO = {
+  menu:[["sancocho", "Sancocho de gallina", 5, "platos"], ["tasajo", "Tasajo con arroz, ensalada y patacones", 7, "platos"], ["guandu", "Arroz con guandú y cerdo", 5.5, "platos"],
+        ["empanadas", "Empanadas de carne (3 u.)", 3, "entradas"], ["chicheme", "Chicheme", 1.75, "bebidas"], ["saril", "Chicha de saril", 1.5, "bebidas"], ["tres-leches", "Tres leches", 3.5, "postres"]]
+    .map(([id, nombre, precio, categoria]) => ({id, nombre, precio, categoria, disponible:id !== "tres-leches", foto:null})),
+  usuarios:[["Dueno", "dueno"], ["Personal", "personal"], ["Juan", "repartidor"], ["Pedro", "repartidor"]].map(([nombre, rol]) => ({nombre, rol, activo:true})),
+  ajustes:{envio:[{nombre:"Chitré", precio:2, incluye:["La Arena", "Monagrillo"]}], marca:MARCA, telefono:"", anuncio:"", cerrado:false, pago:{yappy:"@delifood (ejemplo)", transferencia:"", efectivo:true},
+           horario:Object.fromEntries(["lun", "mar", "mie", "jue", "vie", "sab", "dom"].map(d => [d, d === "lun" ? [] : [["11:00", "15:00"], ["18:00", "22:00"]]]))}
+};
+function demoAjustes(ruta, d) { // ponytail: menú y equipo de mentira para la demostración sin servidor; no valida nada (eso lo hace el servidor)
+  const M = DEMO.menu, U = DEMO.usuarios, fin = ruta.split("/").pop(), plato = M.find(x => x.id === (d.id || d.plato)), persona = U.find(x => x.nombre === d.nombre);
+  if (fin === "menu") return {menu:M.map(x => ({...x}))};
+  if (fin === "usuarios") return {usuarios:U.map(x => ({...x}))};
+  if (fin === "estadisticas") { const n = d.dias || 30, v = i => 20 + ((i * 37) % 60); return {dias:n, ventas:"B/. 1,240.50", ventas_cambio:12.4, pedidos:96, pedidos_cambio:-3.1, ticket:"B/. 12.92", minutos_medio:34, perdidos:5, clientes:61, clientes_repiten:23,
+    por_dia:Array.from({length:n}, (_, i) => ({fecha:"2026-11-" + String(1 + i % 28).padStart(2, "0"), ventas:"B/. " + v(i), centavos:v(i) * 100, pedidos:v(i) % 9})), por_hora:[0,0,0,0,0,0,0,0,0,1,2,9,14,8,3,1,2,6,12,15,9,3,0,0],
+    modalidad:{entrega:58, recogida:38}, metodo:{}, zonas:[{zona:"Chitré", pedidos:41}, {zona:"La Villa de Los Santos", pedidos:17}], platos:[{nombre:"Sancocho", cantidad:48, ingresos:"B/. 216.00"}, {nombre:"Tasajo con arroz", cantidad:31, ingresos:"B/. 186.00"}],
+    comision:{pct:25, ahorro:"B/. 310.12"}, sugerencias:{ofrecidas:40, aceptadas:14, extra:"B/. 31.50", pct_ticket:2.6}}; }
+  if (fin === "preguntar") return new Promise(ok => setTimeout(() => ok({respuesta:"El viernes vendiste B/. 186.50 en 14 pedidos. Es un 12 % más que el viernes anterior (B/. 166.50). (Ejemplo de la demostración.)"}), 900));
+  if (fin === "ajustes") { const {horario, ...c} = d; Object.assign(DEMO.ajustes, c, horario ? {horario} : {}); return {ajustes:DEMO.ajustes}; }
+  if (fin === "agotado") plato.disponible = d.disponible;
+  if (fin === "plato") { const c = {...d, ...(d.precio != null ? {precio:Number(d.precio)} : {})}; plato ? Object.assign(plato, c) : M.push({id:"p" + Date.now(), categoria:"", disponible:true, foto:null, ...c}); }
+  if (fin === "plato_borrar") M.splice(M.indexOf(plato), 1);
+  if (fin === "usuario") { const {pin, ...c} = d; persona ? Object.assign(persona, c) : U.push({activo:true, ...c}); }
+  if (fin === "usuario_borrar") U.splice(U.indexOf(persona), 1);
+  return {ok:true};
+}
+function cargarDemo() {
+  const c = document.createElement("canvas"); c.width = 540; c.height = 960; const g = c.getContext("2d");
+  g.fillStyle = "#F4F6F8"; g.fillRect(0, 0, 540, 960); g.fillStyle = "#0B6E4F"; g.fillRect(0, 0, 540, 180);
+  g.fillStyle = "#fff"; g.font = "bold 56px sans-serif"; g.fillText("¡Pago enviado!", 40, 115);
+  g.fillStyle = "#222"; g.font = "36px sans-serif"; g.fillText("Para: @delifood", 40, 290);
+  g.font = "bold 88px sans-serif"; g.fillText("B/. 12.57", 40, 420);
+  g.font = "32px sans-serif"; g.fillStyle = "#555"; g.fillText("Ref. 88412", 40, 520); g.fillText("Hoy, 12:41 p. m.", 40, 575);
+  DEMO_IMG = c.toDataURL("image/png");
+  const ahora = Date.now(), t = min => new Date(ahora - min * 60000).toISOString();
+  const P = (id, estado, nombre, modalidad, items, total, min, extra) => ({id, estado, nombre, telefono:"50761234567", modalidad, items, total, creado_at:t(min + 5), estado_at:t(min), ...extra});
+  const S = ["Sancocho de gallina", 5], T = ["Tasajo con arroz, ensalada y patacones", 7], C = ["Chicheme", 1.75], E = ["Empanadas de carne (3 u.)", 3], A = ["Arroz con guandú y cerdo", 5.5], CH = ["Chicha de saril", 1.5];
+  const it = (...xs) => xs.map(([n, q]) => ({nombre:n[0], cantidad:q, precio:n[1]}));
+  recibir({ultimo:3, pedidos:[
+    P(41, "por_confirmar", "Luis", "recogida", it([S, 1]), "B/. 5.35", 2),
+    P(40, "confirmado", "Marta", "entrega", it([T, 2], [CH, 2]), "B/. 20.19", 6, {zona:"Chitré", direccion:"Calle Melitón Martín, casa azul junto a la farmacia"}),
+    P(39, "pago_reportado", "Yaritza", "recogida", it([S, 2], [C, 1]), "B/. 12.57", 3, {metodo:"Yappy", referencia:"88412", comprobante:true, hora_deseada:"12:30"}),
+    P(38, "pagado", "Don Abdiel", "entrega", it([A, 1], [E, 1]), "B/. 11.09", 7, {zona:"La Villa de Los Santos", direccion:"Frente al parque, 2.º piso", notas:"Sin cebolla"}),
+    P(37, "en_preparacion", "Keila", "recogida", it([T, 1], [C, 2]), "B/. 11.24", 31, {hora_deseada:"12:45"}),
+    P(36, "en_preparacion", "Ricardo", "entrega", it([S, 3]), "B/. 18.05", 12, {zona:"Chitré", direccion:"Barrio San Juan, calle 3", repartidor:"Juan", tiene_ubicacion:true, mapa:"geo:7.9612,-80.4297"}),
+    P(31, "en_camino", "Iris", "entrega", it([T, 1], [C, 1]), "B/. 11.37", 9, {zona:"Chitré", direccion:"Calle 4.ª, casa verde", repartidor:"Pedro", tiene_ubicacion:true, mapa:"geo:7.9655,-80.4251"}),
+    P(35, "listo", "Esther", "recogida", it([E, 2]), "B/. 6.42", 4),
+    P(34, "entregado", "Ana", "recogida", it([S, 1]), "B/. 5.35", 50),
+    P(33, "entregado", "José", "entrega", it([T, 1]), "B/. 9.49", 75, {zona:"Chitré"}),
+    P(32, "caducado", "Pedro", "recogida", it([C, 1]), "B/. 1.87", 90)],
+    avisos:[
+      {id:1, tipo:"pedido", texto:"Pedido #40 confirmado de Marta (entrega), total B/. 20.19.", pedido_id:40, creado_at:t(6)},
+      {id:2, tipo:"pago", texto:"Pago reportado en pedido #39: Yappy, ref 88412.", pedido_id:39, creado_at:t(3)},
+      {id:3, tipo:"pedido", texto:"Ricardo cambió la dirección del pedido #36 a Barrio San Juan, calle 3.", pedido_id:36, creado_at:t(10)}],
+    repartidores:["Juan", "Pedro"],
+    rutas:{Pedro:{origen:{lat:7.9667, lon:-80.4333}, total_min:25, paradas:[{id:31, n:1, lat:7.9712, lon:-80.4251, eta_min:9, dist_m:1200, fuera_de_viaje:false}, {id:36, n:2, lat:7.9612, lon:-80.4297, eta_min:25, dist_m:2900, fuera_de_viaje:false}]}},
+    escalados:[{id:1, nombre:"Carmen", telefono:"50766554433", motivo:"Pregunta si el sancocho lleva maní (alergia).", creado_at:t(4)}]});
+  st.nuevos.add(39); st.nuevos.add(40); pintar();
+  setTimeout(() => recibir({ultimo:4, pedidos:[P(42, "pago_reportado", "Rosa", "entrega", it([A, 2], [CH, 2]), "B/. 15.94", 0, {zona:"Chitré", direccion:"Urb. Los Ángeles, casa 14", metodo:"Yappy", referencia:"77120", comprobante:true})],
+    avisos:[{id:4, tipo:"pago", texto:"Pago reportado en pedido #42: Yappy, ref 77120.", pedido_id:42, creado_at:t(0)}]}), 12000);
+  setTimeout(() => recibir({ultimo:5, avisos:[{id:5, tipo:"sistema", texto:"El asistente de IA se quedó sin saldo: los clientes no reciben respuesta. Recarga la cuenta o atiende por WhatsApp.", creado_at:t(0)}]}), 40000);
+}
+</script>
+</body>
+</html>

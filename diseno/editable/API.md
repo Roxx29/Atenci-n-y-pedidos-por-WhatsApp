@@ -38,6 +38,7 @@ Sin sesión: lo público. Con sesión (`sesion`): añade `pago` (solo los métod
  "pago": {"yappy": "@fonda"}}
 ```
 `envio`: zona → costo (`{"": 2.5}` = costo fijo sin zonas; `{}` = sin envío). `cerrado`: el restaurante cerró a mano. `efectivo`: acepta pago en efectivo al recibir (solo entregas).
+**QR de mesa:** `GET /config?m=<codigo>` (8 letras/números, el de la URL `/?m=`) añade `"mesa": 4, "etiqueta": "Mesa 4"` si el código es de una mesa activa; si no, esas dos claves no salen. Con una sesión de mesa abierta, `mesa` sale aunque no se pase `?m=`. El QR impreso apunta a `/m/<codigo>`, que redirige a `/?m=<codigo>`: la página debe leer `m`, pedir `/config?m=` y, si trae `mesa`, ocultar el teléfono y mostrar «Estás en la Mesa N».
 
 ### `GET /menu` → platos (sin sesión)
 ```json
@@ -52,6 +53,7 @@ Sin sesión: lo público. Con sesión (`sesion`): añade `pago` (solo los métod
 ### `POST /entrar` → abre la sesión del cliente
 Entrada: `{"nombre": "Ana", "telefono": "50760001111", "acepta_privacidad": true, "version_aviso": "v1"}` (`consentimiento: true` también vale). Teléfono: 8–15 dígitos (se quitan espacios, `-` y `+`); la web estándar pide celular de Panamá y antepone 507.
 Salida: `{"ok": true, "nombre": "Ana"}` + cookie `sesion`. Errores 400: «Nombre inválido», «Teléfono inválido», «Se requiere el consentimiento», «El aviso cambió; vuelva a aceptarlo» (vuelva a pedir `/aviso`).
+**En una mesa (QR):** `{"nombre": "Ana", "codigo": "abcd1234", "acepta_privacidad": true, "version_aviso": "v1"}`, **sin `telefono`**. El nombre es obligatorio (1–60). Salida: `{"ok": true, "nombre": "Ana", "mesa": 4}` + cookie `sesion` (dura una visita; recargar conserva la misma sesión). Si el código no es de una mesa, o se manda teléfono, entra como pedido normal. En modo mesa no pida ni guarde el teléfono.
 
 ### `POST /chat` → hablar con el asistente (crea y cambia pedidos) — requiere `sesion`
 **No hay ruta para «crear pedido»:** la comanda se manda como texto al asistente (la estándar escribe `Quiero 2 Sancocho; 1 Chicha`), y él crea el pedido con las reglas del restaurante y pide confirmación; el cliente confirma respondiendo («Sí»).
@@ -63,6 +65,7 @@ Salida: `respuesta` (texto; puede traer `**negrita**` y `_cursiva_`) y `pedido` 
             "items": [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}, {"nombre": "Chicha", "cantidad": 1, "precio": "B/. 1.75"}],
             "ubicacion": false, "subtotal": "B/. 11.75", "impuesto": "B/. 0.82", "envio": "B/. 2.50", "total": "B/. 15.07", "por_cobrar": false}}
 ```
+Pedido de **mesa**: `"modalidad": "mesa"` y además `"mesa": 4, "espera_personal": false` (sin dirección, zona, ubicación ni repartidor; sin pasos de entrega/recogida, «listo» = va a la mesa; `espera_personal: true` oculta el pago en línea y se cobra en la mesa o en caja; `POST /efectivo` también vale para mesas). Esas dos claves solo salen en pedidos de mesa.
 Puede tardar (el asistente piensa): muestre «escribiendo…». Si falla por dentro, responde 200 con un texto genérico de disculpa.
 
 ### `GET /pedidos` → pedidos del cliente (sondeo cada 5 s) — requiere `sesion`

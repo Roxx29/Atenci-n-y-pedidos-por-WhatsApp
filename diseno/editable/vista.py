@@ -6,6 +6,7 @@ import copy
 import datetime as dt
 import html
 import json
+import re
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -69,6 +70,8 @@ class Estado:
     def para_cliente(self, p):  # = web.formato_pedido (+ seguimiento si va en camino)
         d = {"id": p["id"], "estado": p["estado"], "modalidad": p["modalidad"], "items": self.items(p), "ubicacion": p["ubicacion"], **self.totales(p),
              "por_cobrar": p["por_cobrar"]}
+        if p["modalidad"] == "mesa":
+            d.update(mesa=p["mesa"], espera_personal=False)
         if p["estado"] == "en_camino":
             d.update(repartidor=p["repartidor"], repartidor_pos=self.vista_pos(), mensaje=None, parada=1, eta_min=12)
         return d
@@ -126,9 +129,10 @@ class Estado:
                 antes = t[:i].split()[-1:] or ["1"]
                 items.append({"nombre": m["nombre"], "cantidad": int(antes[0]) if antes[0].isdigit() else 1, "precio": m["precio"]})
         items = items or [{"nombre": self.menu[0]["nombre"], "cantidad": 2, "precio": self.menu[0]["precio"]}]
-        entrega = "recog" not in t
+        mesa = getattr(self, "mesa", None)  # sesión de mesa (QR): sin entrega ni recogida
+        entrega = not mesa and "recog" not in t
         p = {"id": max(p["id"] for p in self.pedidos) + 1 if self.pedidos else 1, "estado": "por_confirmar", "nombre": nombre or "Cliente",
-             "telefono": "50760001111", "modalidad": "entrega" if entrega else "recogida", "zona": next(iter(self.d["config"]["envio"]), "") if entrega else "",
+             "telefono": "50760001111", "modalidad": "mesa" if mesa else "entrega" if entrega else "recogida", **({"mesa": mesa} if mesa else {}), "zona": next(iter(self.d["config"]["envio"]), "") if entrega else "",
              "direccion": "Calle de ejemplo 1" if entrega else "", "hora_deseada": "", "notas": "", "items": items, "metodo": None, "referencia": None,
              "comprobante": False, "repartidor": None, "ubicacion": False, "por_cobrar": False, "cliente": True, "cobrado_por": None, "fuera_de_zona": False,
              "creado_at": dt.datetime.now().astimezone().isoformat(timespec="seconds")}
@@ -212,7 +216,8 @@ def crear(carpeta, puerto=8090):
             if r == "/salud":
                 return self._enviar(200, {"ok": True})
             if r == "/config":
-                return self._enviar(200, {**est.d["config"], "cerrado": est.cerrado,
+                m = self._mesa((q.get("m") or [""])[0])
+                return self._enviar(200, {**est.d["config"], "cerrado": est.cerrado, **({"mesa": m, "etiqueta": f"Mesa {m}"} if m else {}),
                                           **({"pago": {k: v for k, v in est.d["pago"].items() if v}} if self._cookie("sesion") else {})})
             if r == "/menu":
                 return self._enviar(200, est.menu)
@@ -255,6 +260,11 @@ def crear(carpeta, puerto=8090):
                                           "aviso_ubicacion": self._aviso_rep()})
             self._err(404, "No encontrado")
 
+        @staticmethod
+        def _mesa(codigo):
+            """Vista previa: cualquier código de 8 letras/números es una mesa (la 1 a la 20 según el código); el motor real lo busca en la base."""
+            return int(codigo, 36) % 20 + 1 if re.fullmatch(r"[a-z0-9]{8}", codigo or "") else None
+
         def _aviso_rep(self):
             return {"version": "ejemplo", "texto": est.d["aviso_ubicacion"], "aceptado": est.aviso_ok}
 
@@ -264,14 +274,15 @@ def crear(carpeta, puerto=8090):
         def _post(self, r, d, q):
             ck = lambda: [("Set-Cookie", f"sesion=vista; HttpOnly; SameSite=Strict; Path=/; Max-Age=86400")]
             if r == "/entrar":
-                if not (isinstance(d.get("nombre"), str) and d["nombre"].strip()):
+                m = self._mesa(d.get("codigo")) if not d.get("telefono") else None  # QR de mesa: sin teléfono
+                if not (isinstance(d.get("nombre"), str) and (d["nombre"].strip() if not m else 1 <= len(d["nombre"].strip()) <= 60)):
                     return self._err(400, "Nombre inválido")
                 if not (d.get("consentimiento") is True or d.get("acepta_privacidad") is True):
                     return self._err(400, "Se requiere el consentimiento")
                 if d.get("version_aviso") != est.d["aviso"]["version"]:
                     return self._err(400, "El aviso cambió; vuelva a aceptarlo")
-                est.nombre = d["nombre"].strip()
-                return self._enviar(200, {"ok": True, "nombre": est.nombre}, extra=ck())
+                est.nombre, est.mesa = d["nombre"].strip(), m
+                return self._enviar(200, {"ok": True, "nombre": est.nombre, **({"mesa": m} if m else {})}, extra=ck())
             if r in ("/chat", "/ubicacion", "/efectivo", "/comprobante"):
                 if not self._cookie("sesion"):
                     return self._err(401, "Sesión inválida")

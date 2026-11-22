@@ -435,7 +435,7 @@ dialog.hoja::backdrop{background:rgba(26,28,30,.55)}
           <h3 id="pago-titulo">Paga y envía tu comprobante</h3>
           <div id="pago-datos"></div>
           <div id="efectivo-caja" hidden>
-            <p class="t-sub" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
+            <p class="t-sub" id="efectivo-p" style="margin:0 0 8px">¿Prefieres pagar al recibir? El repartidor cobra <b id="efectivo-monto"></b> en efectivo cuando llegue.</p>
             <button class="btn btn-sec btn-ancho" id="efectivo-boton" type="button">Pagar en efectivo al recibir</button>
             <p class="error" id="efectivo-error" role="alert"></p>
           </div>
@@ -525,6 +525,7 @@ const PASOS = [
 const ETIQUETA = {por_confirmar:"Por confirmar", entregado:"Entregado", cancelado:"Cancelado", caducado:"Caducó, pide de nuevo"};
 PASOS.forEach(([k, t]) => ETIQUETA[k] = t);
 ETIQUETA.en_camino = "En camino";
+const PASOS_MESA = [["confirmado", "Confirmado", "Recibimos tu pedido. Falta el pago."], ["pago_reportado", "Pago reportado", "Estamos verificando tu pago."], ["pagado", "Pagado", "Pago verificado. Pasa a cocina."], ["en_preparacion", "En preparación", "Tu comida se está cocinando."], ["listo", "Listo", "Va a tu mesa."]];
 const PASOS_ENTREGA = [...PASOS.slice(0, 4), ["listo", "Listo", "Sale enseguida con el repartidor."], ["en_camino", "En camino", "El repartidor va hacia ti."]];
 const AVISO = {
   pagado:"¡Pago verificado! Tu pedido pasa a cocina.",
@@ -577,8 +578,17 @@ function pintarConfig() {
   pintarAbierto();
 }
 async function cargarConfig() { // sin sesión no trae los datos de pago; se vuelve a pedir al entrar
-  if (!st.demo) try { CFG = await api("GET", "/config"); } catch (e) { return; }
+  if (!st.demo) try { CFG = await api("GET", "/config" + (st.codigo ? "?m=" + st.codigo : "")); } catch (e) { return; }
   pintarConfig();
+  if (st.codigo && CFG.mesa && !st.mesa) pintarMesa(CFG.mesa, CFG.etiqueta);
+}
+const params = new URLSearchParams(location.search);
+st.codigo = /^[a-z0-9]{8}$/.test(params.get("m") || "") ? params.get("m") : ""; // QR de mesa: /m/<codigo> lleva aquí con ?m=
+function pintarMesa(n, etiqueta) { // el servidor ya validó el código: sin teléfono y solo con el nombre
+  st.mesa = n;
+  form.telefono.closest("label").hidden = true; form.telefono.required = false;
+  $("#lema").textContent = `Estás en ${etiqueta || "la mesa " + n}: pide por chat y te lo llevamos a la mesa. No hace falta tu teléfono.`;
+  $("#hola").textContent = "· " + (etiqueta || "Mesa " + n);
 }
 
 /* ---------- Entrada ---------- */
@@ -590,7 +600,7 @@ form.addEventListener("submit", async ev => {
   const tel = form.telefono.value.replace(/\D/g, "").replace(/^507/, "");
   const errores = [
     [form.nombre, "#e-nombre", nombre ? "" : "Escribe tu nombre."],
-    [form.telefono, "#e-tel", /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
+    [form.telefono, "#e-tel", st.mesa || /^6\d{7}$/.test(tel) ? "" : "Escribe un celular de Panamá de 8 dígitos (empieza por 6)."],
     [form.privacidad, "#e-priv", form.privacidad.checked ? "" : "Necesitamos tu permiso para tomar el pedido."]
   ];
   let primero = null;
@@ -600,12 +610,12 @@ form.addEventListener("submit", async ev => {
     if (msg && !primero) primero = el;
   }
   if (primero) return primero.focus();
-  st.nombre = nombre; st.telefono = "507" + tel; guardar();
+  st.nombre = nombre; st.telefono = st.mesa ? "" : "507" + tel; if (!st.mesa) guardar();
   const btn = form.querySelector("button"); btn.disabled = true; btn.textContent = "Entrando…";
   if (!st.demo) {
     try {
       if (!st.aviso) await cargarAviso();
-      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version})});
+      const res = await fetch("/entrar", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nombre, telefono:st.telefono, acepta_privacidad:true, version_aviso:st.aviso.version, ...(st.mesa ? {codigo:st.codigo} : {})})});
       if (res.status === 400) {
         const err = (await res.json()).error || "Revisa tus datos.";
         btn.disabled = false; btn.textContent = "Empezar a pedir";
@@ -614,7 +624,7 @@ form.addEventListener("submit", async ev => {
           $("#e-priv").textContent = "Actualizamos el aviso de privacidad. Léelo y vuelve a marcar la casilla.";
           return form.privacidad.focus();
         }
-        $("#e-tel").textContent = err; return;
+        $(st.mesa ? "#e-nombre" : "#e-tel").textContent = err; return;
       }
       if (!res.ok) throw new Error(res.status);
     } catch (e) { st.demo = true; $("#modo-demo").hidden = false; if (!CFG.horario) CFG = DEMO_CFG; }
@@ -622,7 +632,8 @@ form.addEventListener("submit", async ev => {
   btn.disabled = false; btn.textContent = "Empezar a pedir";
   st.dentro = true; pestana("chat");
   $("#hola").textContent = "Hola, " + nombre;
-  if (!$("#mensajes").children.length) burbuja("bot", `¡Hola, ${nombre}! ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres y si es para recoger o para entrega.`);
+  if (!$("#mensajes").children.length) burbuja("bot", st.mesa ? `¡Hola, ${nombre}! Estás en la mesa ${st.mesa}. ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres.` : `¡Hola, ${nombre}! ¿Qué te provoca hoy? Elige del menú o escríbeme lo que quieres y si es para recoger o para entrega.`);
+  document.querySelectorAll(".sug").forEach(b => { if (st.mesa && /recoger|entrega/i.test(b.textContent)) b.hidden = true; }); // en mesa no hay entrega ni recogida
   cargarConfig(); // ahora sí con los datos de pago
   clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 5000); sondear();
   if ($("#texto").value.trim()) $("#componer").requestSubmit(); else $("#texto").focus(); // venía con el pedido armado desde el menú: se envía solo
@@ -762,8 +773,8 @@ $("#carro-enviar").onclick = () => {
   carro.clear(); pintarMenu();
   pestana("chat");
   if (!st.dentro) { // aún no sabemos quién pide: el pedido queda escrito y se envía solo al entrar
-    $("#lema").textContent = "Tu pedido ya está armado. Dinos tu nombre y teléfono y lo enviamos.";
-    return (form.nombre.value.trim() ? form.telefono.value.trim() ? form.privacidad : form.telefono : form.nombre).focus();
+    $("#lema").textContent = st.mesa ? "Tu pedido ya está armado. Dinos tu nombre y lo enviamos a tu mesa." : "Tu pedido ya está armado. Dinos tu nombre y teléfono y lo enviamos.";
+    return (form.nombre.value.trim() ? st.mesa || form.telefono.value.trim() ? form.privacidad : form.telefono : form.nombre).focus();
   }
   t.dispatchEvent(new Event("input")); // reajusta la altura de la caja (ya visible)
   t.focus();
@@ -895,9 +906,9 @@ function ponerPedido(p) {
 
   const enCurso = !["por_confirmar", "caducado"].includes(p.estado);
   $("#estado-vacio").hidden = enCurso; $("#estado-lleno").hidden = !enCurso;
-  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
+  $("#estado-meta").textContent = `Pedido #${p.id} · ${p.modalidad === "mesa" ? "Mesa " + p.mesa : p.modalidad === "entrega" ? "Entrega a domicilio" : "Para recoger"} · ${dinero(p.total)}`;
   pintarRepartidor(p);
-  const pasos = p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
+  const pasos = p.modalidad === "mesa" ? PASOS_MESA : p.modalidad === "entrega" ? PASOS_ENTREGA : PASOS;
   const idx = pasos.findIndex(([k]) => k === p.estado);
   const fin = p.estado === "entregado";
   $("#pasos").innerHTML = pasos.map(([k, t, d], i) => {
@@ -913,8 +924,11 @@ function ponerPedido(p) {
   $("#cp-ok-titulo").textContent = st.comprobante ? "Comprobante recibido" : "Pago reportado";
   $("#cp-ok").hidden = !reportado || !$("#cp-previa").hidden;
   if (reportado) $("#cp-elegir").hidden = true; else if ($("#cp-previa").hidden) $("#cp-elegir").hidden = false;
-  $("#r-pagar").hidden = p.estado !== "confirmado";
-  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && p.modalidad === "entrega" && CFG.efectivo); $("#efectivo-monto").textContent = dinero(p.total);
+  $("#r-pagar").hidden = p.estado !== "confirmado" || !!p.espera_personal;
+  const enMesa = p.modalidad === "mesa";
+  $("#efectivo-caja").hidden = !(p.estado === "confirmado" && (enMesa || p.modalidad === "entrega" && CFG.efectivo));
+  $("#efectivo-p").replaceChildren(enMesa ? "¿Prefieres pagar en la mesa o en caja? El personal cobra " : "¿Prefieres pagar al recibir? El repartidor cobra ", Object.assign(document.createElement("b"), {id:"efectivo-monto", textContent:dinero(p.total)}), enMesa ? "." : " en efectivo cuando llegue.");
+  $("#efectivo-boton").textContent = enMesa ? "Pagar en la mesa o en caja" : "Pagar en efectivo al recibir";
   const pide = p.modalidad === "entrega" && !["entregado", "cancelado", "caducado"].includes(p.estado);
   const ub = !!(p.ubicacion || p.tiene_ubicacion);
   $("#r-ubic").hidden = !pide || ub; $("#r-ubic-ok").hidden = !pide || !ub;

@@ -1,0 +1,168 @@
+/* Urban Sazón: capa de marca sobre la web de pedidos. Negro + naranja + amarillo, calle y fuego. */
+:root{
+  --primary:#ff6a13;--on-primary:#140c06;--primary-container:#ff8a3d;--primary-fixed:rgba(255,106,19,.16);
+  --surface:#0e0e10;--on-surface:#f7f2ea;--on-variant:#b9b2a8;--outline:#8a8378;--outline-variant:#3a3632;
+  --sc:#1c1b1a;--sc-low:#171615;--sc-lowest:#1a1918;--sc-high:#2a2826;--sc-highest:#3d3935;
+  --inverse:#050505;--on-inverse:#fff;
+  --secondary-fixed:#ffc21a;--secondary-container:#ffc21a;
+  --tertiary:#3ddc84;--tertiary-fixed:rgba(61,220,132,.16);--on-tertiary:#06210f;
+  --error:#ff7b7b;--error-container:#5a1d1d;
+  --sombra:0 2px 12px rgba(0,0,0,.5);--sombra-2:0 8px 26px rgba(0,0,0,.65);
+  --naranja:#ff6a13;--amarillo:#ffc21a;
+}
+body{background:var(--surface)}
+h1,h2,h3,.etq{font-family:var(--display)}
+.btn:hover,.carro .btn,.carro .btn:hover,.enviar:hover{color:#140c06}
+.btn{background:linear-gradient(180deg,var(--primary-container),var(--primary));box-shadow:0 4px 14px rgba(255,106,19,.35)}
+.btn-sec{background:transparent;box-shadow:none}
+.anuncio{color:#140c06}.anuncio.cerrado{color:#fff}
+.cats button[aria-pressed=true]{background:linear-gradient(180deg,var(--primary-container),var(--primary));border-color:var(--primary);color:#140c06}
+input[type=text],input[type=tel],input[type=search],textarea{color:var(--on-surface)}
+dialog.hoja::backdrop{background:rgba(0,0,0,.7)}
+
+/* ---------- Cabecera: la marca en llamas ---------- */
+.barra{position:relative;overflow:hidden;isolation:isolate;padding-bottom:30px;background:radial-gradient(120% 220% at 0 0,#3a1706 0,#0b0705 55%,#050505 100%)}
+.barra>*:not(.u-lluvia):not(.u-cinta){position:relative;z-index:1}
+.barra .logo{width:52px;height:52px;border-radius:14px;object-fit:cover;box-shadow:0 0 0 2px var(--primary),0 0 22px rgba(255,106,19,.55);animation:u-brillo 2.6s ease-in-out infinite}
+.barra h1{font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:.01em;font-size:1.25rem}
+.barra h1 small{font-style:normal;text-transform:none;color:var(--amarillo);opacity:1}
+.u-cinta{position:absolute;left:0;right:0;bottom:0;height:22px;display:flex;align-items:center;overflow:hidden;background:linear-gradient(90deg,var(--naranja),var(--amarillo));color:#140c06;z-index:1}
+.u-cinta div{display:flex;flex:none;white-space:nowrap;font:900 .6875rem/1 var(--display);letter-spacing:.14em;text-transform:uppercase;animation:u-cinta 22s linear infinite}
+.u-cinta span{padding:0 18px}
+.u-cinta span::after{content:"⚡";margin-left:36px}
+.llamar{border-color:var(--amarillo);color:var(--amarillo)}
+.llamar:hover{background:rgba(255,194,26,.14)}
+.chat-cab .logo{width:38px;height:38px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px var(--primary)}
+.chat-cab{background:linear-gradient(90deg,#2a1206,#050505)}
+.avatar{background:var(--primary);color:var(--on-primary)}
+
+/* ---------- Lluvia de papas, pollo y compañía ---------- */
+.u-lluvia{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
+.u-cae{position:absolute;top:0;left:var(--x);width:var(--s);height:var(--s);opacity:0;animation:u-cae var(--t) linear var(--d) infinite;will-change:transform}
+.u-cae svg{width:100%;height:100%;display:block}
+@keyframes u-cae{0%{opacity:0;transform:translate3d(0,-50px,0) rotate(0)}12%{opacity:.7}85%{opacity:.7}100%{opacity:0;transform:translate3d(0,var(--alto,200px),0) rotate(var(--r))}}
+@keyframes u-cinta{to{transform:translateX(-50%)}}
+@keyframes u-brillo{50%{box-shadow:0 0 0 2px var(--amarillo),0 0 30px rgba(255,194,26,.7)}}
+
+/* ---------- Pantalla de entrada ---------- */
+#entrada{position:relative;isolation:isolate}
+#entrada>*:not(.u-lluvia){position:relative;z-index:1}
+.u-hero{display:grid;justify-items:center;padding:6px 0 18px;text-align:center}
+.u-logo-g{position:relative;width:150px}
+.u-logo-g img{display:block;width:150px;height:150px;border-radius:28px;object-fit:cover;box-shadow:0 0 0 3px var(--primary),0 12px 40px rgba(255,106,19,.45);animation:u-flota 3.4s ease-in-out infinite}
+.u-vapor{position:absolute;left:50%;top:-6px;width:90px;height:60px;margin-left:-45px;pointer-events:none}
+.u-vapor path{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;opacity:0;animation:u-vapor 2.8s ease-out infinite}
+.u-vapor path:nth-child(2){animation-delay:.9s}.u-vapor path:nth-child(3){animation-delay:1.8s}
+.u-hero h2{margin-top:16px;font-size:1.75rem;font-weight:900;font-style:italic;text-transform:uppercase}
+.u-hero p{margin:6px 0 0;color:var(--amarillo);font-weight:700}
+@keyframes u-flota{50%{transform:translateY(-6px) rotate(-1.5deg)}}
+@keyframes u-vapor{0%{opacity:0;transform:translateY(14px) scaleY(.7)}35%{opacity:.75}100%{opacity:0;transform:translateY(-30px) scaleY(1.15)}}
+#entrada>h2{font-size:1.25rem}
+
+/* ---------- Menú ---------- */
+#menu h2{display:flex;align-items:center;gap:10px;font-weight:900;font-style:italic;text-transform:uppercase;letter-spacing:.02em;font-size:1.125rem}
+#menu h2::before{content:"";width:6px;height:1.1em;border-radius:3px;background:linear-gradient(180deg,var(--amarillo),var(--naranja))}
+.promo-cat{color:var(--amarillo)}
+.plato{position:relative;border:1px solid var(--sc-high);transition:transform .2s var(--m-out),border-color .2s,box-shadow .2s}
+.plato:hover{transform:translateY(-2px);border-color:var(--primary);box-shadow:0 8px 26px rgba(255,106,19,.18)}
+.plato h3{font-weight:700}
+.plato .precio{color:var(--amarillo);font-weight:600;font-size:1.0625rem}
+.plato .foto,.plato .u-ico{border-radius:16px}
+.u-ico{width:96px;height:96px;padding:12px;background:radial-gradient(circle at 50% 35%,#34190a,#161412 75%);border:1px solid var(--sc-highest)}
+.plato:hover .u-ico svg{animation:u-bota .7s var(--m-out)}
+.plato.agotado .u-ico{filter:grayscale(1);opacity:.5}
+@keyframes u-bota{40%{transform:translateY(-6px) rotate(-6deg) scale(1.08)}}
+.plato .paso{background:linear-gradient(180deg,var(--primary-container),var(--primary))}
+.pedir{border-width:2px}
+
+/* ---------- Carrito: la caja que se arma ---------- */
+.carro{background:linear-gradient(90deg,#2a1206,#050505 60%);border-top:2px solid var(--primary)}
+.carro .u-caja{width:52px;height:52px;flex:none;overflow:visible}
+.carro .u-caja .tapa{transform-box:fill-box;transform-origin:left bottom;transition:transform .3s var(--m-out)}
+.carro .u-caja.golpe{animation:u-rebote .5s var(--m-out)}
+.carro .u-caja.golpe .tapa{animation:u-tapa .5s var(--m-out)}
+.u-vuelo{position:fixed;left:0;top:0;width:40px;height:40px;z-index:60;pointer-events:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.5))}
+@keyframes u-rebote{30%{transform:scale(1.25) rotate(-6deg)}60%{transform:scale(.92)}}
+@keyframes u-tapa{30%{transform:rotate(-24deg)}}
+
+/* Estados y chat */
+.chip.ok{color:var(--tertiary)}
+.resumen{border-left:0;border:1px solid var(--primary)}
+.actual b{color:var(--amarillo)}
+.aviso{border:1px solid var(--primary)}
+
+@media (min-width:1024px){
+  .barra{padding-bottom:30px}
+  .u-logo-g,.u-logo-g img{width:170px}.u-logo-g img{height:170px}
+}
+@media (prefers-reduced-motion:reduce){
+  .u-lluvia,.u-vapor{display:none}
+  .u-cinta div,.barra .logo,.u-logo-g img,.carro .u-caja.golpe,.carro .u-caja.golpe .tapa,.plato:hover .u-ico svg{animation:none}
+  .plato:hover{transform:none}
+}
+
+/* «Pedir»: caja que se arma (≈1.8 s), encima de todo y sin atrapar clics */
+.u-armar{position:fixed;inset:0;z-index:100;display:grid;place-items:center;pointer-events:none;background:rgba(20,12,6,.9);animation:u-ar-fade 1.9s linear both}
+.u-armar p{margin:14px 0 0;text-align:center;font:900 1.5rem/1.1 var(--display);font-style:italic;text-transform:uppercase;color:var(--amarillo);animation:u-ar-txt 1.8s ease-out both}
+.u-estuche{display:grid;justify-items:center}
+.u-pop{position:relative;width:240px;height:180px;animation:u-ar-pop 1.8s cubic-bezier(.3,1.4,.5,1) both}
+.u-pop svg{display:block}.u-atras,.u-frente{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.u-it{position:absolute;top:0;width:56px;height:56px;opacity:0;animation:u-ar-cae .6s cubic-bezier(.5,0,.8,.5) both}
+.u-it svg{width:100%;height:100%}
+.u-it:nth-of-type(1){left:34px;animation-delay:.35s}.u-it:nth-of-type(2){left:92px;animation-delay:.5s}.u-it:nth-of-type(3){left:150px;animation-delay:.65s}
+.u-ti,.u-td{transform-box:view-box;animation:u-ar-ti 1.8s ease-in-out both}
+.u-ti{transform-origin:16px 47px}.u-td{transform-origin:144px 47px;--g:115deg}.u-ti{--g:-115deg}
+.u-rayo{opacity:0;animation:u-ar-rayo 1.8s linear both}
+.u-flash{position:absolute;left:50%;top:50%;width:300px;height:300px;margin:-150px 0 0 -150px;border-radius:50%;background:radial-gradient(circle,#ffd54a,rgba(255,106,19,0) 65%);opacity:0;animation:u-ar-flash 1.8s linear both}
+@keyframes u-ar-fade{0%{opacity:0}10%,85%{opacity:1}100%{opacity:0}}
+@keyframes u-ar-txt{0%,15%{opacity:0;transform:translateY(10px)}35%,100%{opacity:1;transform:none}}
+@keyframes u-ar-pop{0%{transform:scale(.3) rotate(-8deg);opacity:0}16%{transform:scale(1);opacity:1}75%{transform:scale(1)}82%{transform:scale(1.1,.9)}90%{transform:scale(.97,1.05)}100%{transform:scale(1)}}
+@keyframes u-ar-cae{0%{opacity:0;transform:translateY(-220px) rotate(-40deg)}12%{opacity:1}60%{opacity:1;transform:translateY(58px) rotate(0)}100%{opacity:1;transform:translateY(100px) rotate(0)}}
+@keyframes u-ar-ti{0%,10%{transform:rotate(0)}24%,60%{transform:rotate(var(--g))}74%,100%{transform:rotate(0)}}
+@keyframes u-ar-rayo{0%,76%{opacity:0}82%,92%{opacity:1}100%{opacity:1}}
+@keyframes u-ar-flash{0%,76%{opacity:0;transform:scale(.4)}82%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.4)}}
+@media (prefers-reduced-motion:reduce){.u-armar{animation:u-ar-fade .8s linear both}.u-armar p{animation:none}}
+
+/* ---------- 1. Hamburguesa que se arma ---------- */
+.barra .u-ham{flex:none;width:40px;height:40px;display:block}
+.u-ham-s,.u-pam-s{display:block;width:100%;height:100%;overflow:visible;transform-origin:50% 100%}
+.u-ham-s .c{animation:u-capa .5s cubic-bezier(.3,1.5,.5,1) both;animation-delay:calc(var(--i)*.22s + .15s)}
+.u-ham-s{animation:u-ham-bota .5s var(--m-out) 1.7s both}
+@keyframes u-capa{from{opacity:0;transform:translateY(-46px)}to{opacity:1;transform:none}}
+@keyframes u-ham-bota{30%{transform:scale(1.1,.88)}60%{transform:scale(.96,1.08)}}
+.u-pam{display:grid;justify-items:center;margin:20px auto 0;text-align:center}
+.u-pam-s{width:120px;height:120px}
+.u-pam p{margin:8px 0 0;font:700 .875rem var(--texto);color:var(--amarillo)}
+.u-pam .c{opacity:.14;transform:translateY(-16px);transition:opacity .4s,transform .55s cubic-bezier(.3,1.5,.5,1)}
+.u-pam .c.on{opacity:1;transform:none}
+/* ---------- 2. Lluvia al confirmar ---------- */
+.u-llu{position:fixed;inset:0;z-index:90;overflow:hidden;pointer-events:none}
+.u-llu span{position:absolute;top:0;left:var(--x);width:var(--s);height:var(--s);opacity:0;animation:u-llu 2.5s cubic-bezier(.4,0,.8,.6) var(--d) both;will-change:transform}
+.u-llu svg{display:block;width:100%;height:100%}
+@keyframes u-llu{0%{opacity:0;transform:translate3d(0,-60px,0) rotate(0)}8%{opacity:1}85%{opacity:1}100%{opacity:0;transform:translate3d(0,105vh,0) rotate(var(--r))}}
+/* ---------- 3. Skeleton con brillo ---------- */
+.u-sk{display:grid;gap:12px}
+.u-sk .t,.u-sk .f{position:relative;overflow:hidden;background:var(--sc-low);border:1px solid var(--sc-high);border-radius:14px}
+.u-sk .t{display:block;width:40%;height:22px;margin:12px 0 4px}
+.u-sk .f{display:flex;justify-content:space-between;gap:14px;align-items:center;min-height:116px;padding:14px}
+.u-sk .f>div{flex:1;display:grid;gap:10px}
+.u-sk i{display:block;height:12px;border-radius:6px;background:var(--sc-high)}
+.u-sk .f i:nth-child(1){width:60%}.u-sk .f i:nth-child(2){width:90%}.u-sk .f i:nth-child(3){width:35%}
+.u-sk b{flex:none;width:96px;height:96px;border-radius:16px;background:var(--sc-high)}
+.u-sk .t::after,.u-sk .f::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,194,26,.16) 50%,transparent 70%);transform:translateX(-100%);animation:u-brilla 1.4s ease-in-out infinite}
+@keyframes u-brilla{to{transform:translateX(100%)}}
+/* ---------- 4. Total que cuenta ---------- */
+#carro-total.u-real{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.u-cuenta{font:inherit;font-weight:700;font-variant-numeric:tabular-nums;display:inline-block;transform-origin:left center}
+.u-cuenta.sube{animation:u-pulso .45s var(--m-out)}
+@keyframes u-pulso{35%{transform:scale(1.12)}}
+/* ---------- 5. Categoría activa por scroll ---------- */
+.cats button{position:relative}
+.cats button.u-sigue:not([aria-pressed=true]){border-color:var(--amarillo);color:var(--amarillo);background:rgba(255,194,26,.1)}
+.cats button.u-sigue::after{content:"";position:absolute;left:22%;right:22%;bottom:5px;height:3px;border-radius:2px;background:currentColor}
+@media (prefers-reduced-motion:reduce){
+  .u-ham-s,.u-ham-s .c,.u-cuenta.sube,.u-sk .t::after,.u-sk .f::after{animation:none}
+  .u-llu{display:none}
+  .u-pam .c{transform:none;transition:opacity .3s}
+}
+@media (max-width:420px){.barra .u-ham{width:32px;height:32px;margin-left:-4px}}

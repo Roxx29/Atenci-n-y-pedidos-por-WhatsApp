@@ -457,6 +457,20 @@ class Kit(unittest.TestCase):
             self.assertTrue(mezclar(forma(real[k]), forma(falsa[k])), (k, forma(real[k]), forma(falsa[k])))
         self.assertEqual(falsa["sin_sesion"][0], 401)
 
+    def test_la_vista_previa_emula_la_mesa_por_qr(self):
+        """?m=<codigo> -> /config trae mesa y etiqueta; /entrar con codigo y sin teléfono; el pedido sale «mesa» (como el motor)."""
+        h = self.servir(KIT / "base")
+        self.assertNotIn("mesa", h("GET", "/config")[1])
+        self.assertNotIn("mesa", h("GET", "/config?m=malo")[1])
+        c = h("GET", "/config?m=abcd1234")[1]
+        self.assertEqual(c["etiqueta"], "Mesa %d" % c["mesa"])
+        v = h("GET", "/aviso")[1]["version"]
+        self.assertEqual(h("POST", "/entrar", {"nombre": "", "codigo": "abcd1234", "acepta_privacidad": True, "version_aviso": v})[0], 400)
+        self.assertEqual(h("POST", "/entrar", {"nombre": "Ana", "codigo": "abcd1234", "acepta_privacidad": True, "version_aviso": v})[1],
+                         {"ok": True, "nombre": "Ana", "mesa": c["mesa"]})
+        ped = h("POST", "/chat", {"texto": "quiero 2 sancochos para recoger"})[1]["pedido"]
+        self.assertEqual((ped["modalidad"], ped["mesa"]), ("mesa", c["mesa"]))
+
     def test_el_comando_arranca_y_responde(self):
         import subprocess
         import sys

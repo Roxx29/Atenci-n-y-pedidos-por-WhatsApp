@@ -79,6 +79,15 @@ class Consola(unittest.TestCase):
         with self.assertRaises(SystemExit):
             operador.Operador(self.ruta, "a" * 11)
 
+    def test_cambiar_la_clave_cierra_las_sesiones(self):
+        ck = self.op.entrar(CLAVE).split(";")[0]
+        self.assertTrue(self.op.valida(ck))
+        with unittest.mock.patch.dict(os.environ, {"WEB_SECRET": "fijo"}):
+            a, b = operador.Operador(self.ruta, CLAVE), operador.Operador(self.ruta, CLAVE + "-nueva")
+        ck = a.entrar(CLAVE).split(";")[0]
+        self.assertTrue(a.valida(ck))
+        self.assertFalse(b.valida(ck))  # mismo WEB_SECRET, otra clave: la sesión vieja no vale
+
     def test_cookie_secure_y_salir(self):
         self.assertNotIn("Secure", self.req("POST", "/api/entrar", {"clave": CLAVE})[2])
         self.op.seguro = True
@@ -162,7 +171,7 @@ class Consola(unittest.TestCase):
         for t in (-1, 100001, "5", True, 1.5):
             self.assertEqual(self.req("POST", ruta + "config", {"tope_ia_dia": t}, ck)[0], 400)
         j = cl(); c = j["clientes"][0]
-        self.assertEqual((c["prueba_dias"], c["uso_ia"], c["tope_ia"], j["resumen"]["en_prueba"]), (None, 0, 0, 0))  # sin tabla uso_ia: 0
+        self.assertEqual((c["prueba_dias"], c["uso_ia"], c["tope_ia"], j["resumen"]["en_prueba"]), (None, 0, 1000, 0))  # sin tabla uso_ia: 0; sin tope propio: 1000 por defecto
         self.assertEqual(self.req("POST", ruta + "prueba", {"accion": "iniciar", "dias": 7}, ck)[1]["hasta"], (hoy + dt.timedelta(days=7)).isoformat())
         j = cl(); c = j["clientes"][0]
         self.assertEqual((c["prueba_dias"], c["etiqueta_prueba"], c["tope_ia"]), (7, "Prueba: quedan 7 días", 300))  # defecto en prueba

@@ -103,9 +103,27 @@ def actualizar_registro(sv, id, cambios):
     return {"ok": True}
 
 
+def contacto_de(sv, cid):
+    """Teléfono de contacto de quien escribe. El cid es la identidad: en WhatsApp (y en pedidos viejos) es el propio teléfono; en la web es
+    una sesión aleatoria y el teléfono es solo el dato que dio al entrar (sin verificar: sirve para llamarle, nunca para identificarle)."""
+    if str(cid or "").isdigit():
+        return str(cid)
+    f = sv._q("SELECT json_extract(datos, '$.contacto') FROM registros WHERE tipo='consentimiento' AND json_extract(datos, '$.telefono') = ? ORDER BY id DESC LIMIT 1", (cid,))
+    return f[0][0] if f else None
+
+
+def tel_de(r):
+    """Teléfono para mostrar al personal: el contacto guardado o, en registros viejos y de WhatsApp, el teléfono que hacía de cid."""
+    t = str(r.get("telefono") or "")
+    return r.get("contacto") or (t if t.isdigit() else None)
+
+
+SIN_IDENTIDAD = ("telefono", "contacto")  # nunca van al modelo: las herramientas ya saben quién escribe
+
+
 def _pedido_para_modelo(p):
-    """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c."""
-    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at", "ubicacion")}
+    """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c. Tampoco teléfono ni cid."""
+    out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in SIN_IDENTIDAD and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at", "ubicacion")}
     out.update(ubicacion_recibida=bool(p.get("ubicacion")), total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
                lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
     return out
@@ -114,7 +132,7 @@ def _pedido_para_modelo(p):
 def buscar(sv, tipo, texto="", telefono=None):
     t = texto.lower()
     r = [r for r in sv.listar(tipo) if r.get("telefono") == telefono and t in json.dumps(r, ensure_ascii=False).lower()][-20:]
-    return [_pedido_para_modelo(p) for p in r] if tipo == "pedido" else r
+    return [_pedido_para_modelo(p) for p in r] if tipo == "pedido" else [{k: v for k, v in x.items() if k not in SIN_IDENTIDAD} for x in r]
 
 
 def _llamar(sv):
@@ -365,7 +383,8 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
         if not mesa:
             raise ValueError("La modalidad 'mesa' solo existe si el cliente entró escaneando el QR de su mesa; ofrece entrega o recogida.")
         nombre, direccion, zona = nombre or f"Mesa {mesa}", "", ""
-    _nombre_real(nombre, telefono)
+    contacto = None if mesa else contacto_de(sv, telefono)
+    _nombre_real(nombre, contacto or "")
     if modalidad == "entrega" and not direccion.strip():
         raise ValueError("Falta la dirección de entrega: pregúntasela al cliente; no inventes datos.")
     cfg = sv.cfg.get("pedidos") or {}
@@ -383,7 +402,7 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
-    return {"nombre": nombre, "telefono": telefono, "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
+    return {"nombre": nombre, "telefono": telefono, **({"contacto": contacto} if contacto and contacto != telefono else {}), "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
             **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
 
 
@@ -783,7 +802,7 @@ CON_TELEFONO = {"fuera_de_tema", "agendar_cita", "programar_mensaje", "escalar_a
 CON_ID = {"cancelar_cita": ("cita_id", "cita"), "actualizar_registro": ("id", None), "confirmar_pedido": ("pedido_id", "pedido"),
           "reportar_pago": ("pedido_id", "pedido"), "pagar_efectivo": ("pedido_id", "pedido"), "cancelar_pedido": ("pedido_id", "pedido"), "modificar_pedido": ("pedido_id", "pedido"), "guardar_ubicacion": ("pedido_id", "pedido"),
           "sugerir_complemento": ("pedido_id", "pedido")}  # herramienta -> (clave del id, tipo esperado)
-INMUTABLES = {"telefono", "fecha_hora", "cita_id"}
+INMUTABLES = {"telefono", "contacto", "fecha_hora", "cita_id"}
 
 
 def ejecutar(sv, nombre, entrada, cliente, turno=None):

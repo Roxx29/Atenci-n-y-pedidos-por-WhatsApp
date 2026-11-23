@@ -13,7 +13,7 @@ import unittest
 import zlib
 
 from motor import herramientas, panel_web, web
-from tests.test_web import PEDIDO, TEL, Base
+from tests.test_web import CID, PEDIDO, Base
 
 EXIF = b"Exif\x00\x00GPS-SECRETO"
 
@@ -34,7 +34,7 @@ class Comprobante(Base):
     def setUp(self):
         self.arrancar()
         _, _, self.ck = self.entrar()
-        self.pid = herramientas.crear_pedido(self.sv, PEDIDO["items"], "recogida", "Ana", TEL)["pedido_id"]
+        self.pid = herramientas.crear_pedido(self.sv, PEDIDO["items"], "recogida", "Ana", CID)["pedido_id"]
         herramientas.confirmar_pedido(self.sv, self.pid)
         self.carpeta = self.sv.dir / "comprobantes"
 
@@ -112,7 +112,7 @@ class Comprobante(Base):
     def test_modelo_no_ve_archivo(self):
         self.subir(jpeg())
         nombre = self.pedido()["comprobante"]
-        r = herramientas.buscar(self.sv, "pedido", "", TEL)
+        r = herramientas.buscar(self.sv, "pedido", "", CID)
         self.assertNotIn(nombre, json_txt(r))
         self.assertNotIn("comprobantes", json_txt(r))
         self.assertEqual((r[0]["estado"], r[0]["metodo"], r[0]["referencia"]), ("pago_reportado", "yappy", "comprobante"))
@@ -212,14 +212,14 @@ class Extra(Base):
         self.assertEqual(self.subir(png(), tipo="image/png")[0], 200)  # puede reenviar
         self.assertNotIn("pago_rechazado", herramientas.CATALOGO)
         with self.assertRaises(ValueError):
-            herramientas.ejecutar(self.sv, "pago_rechazado", {"pedido_id": self.pid}, TEL)
+            herramientas.ejecutar(self.sv, "pago_rechazado", {"pedido_id": self.pid}, CID)
 
     def test_modelo_no_ve_fechas(self):
         self.subir(jpeg())
         herramientas.marcar_pedido(self.sv, self.pid, "pago_rechazado")
         self.subir(jpeg())
         herramientas.marcar_pedido(self.sv, self.pid, "pagado")
-        r, = herramientas.buscar(self.sv, "pedido", "", TEL)
+        r, = herramientas.buscar(self.sv, "pedido", "", CID)
         for k in ("comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at"):
             self.assertNotIn(k, r)
 

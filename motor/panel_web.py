@@ -17,6 +17,7 @@ import os
 import re
 import secrets
 import sys
+import threading
 import time
 import unicodedata
 from collections.abc import Mapping
@@ -394,12 +395,16 @@ def lista_usuarios(sv):
 
 class Bloqueo:
     """5 fallos de PIN desde una IP (IPv6: desde su /64, que es lo que tiene un solo abonado) → bloqueo de 5 min.
-    Además, TOPE fallos entre TODAS las IP en VENTANA_S → cada intento espera `retraso()` s antes de comprobarse: frena el ataque
-    repartido entre muchas IP sin dejar fuera al dueño (bloquear aquí sería regalar un «apagar el panel» a cualquiera)."""
+    Además, TOPE fallos entre TODAS las IP en VENTANA_S → cada intento espera `retraso()` s antes de comprobarse, y TOPE_HORA fallos
+    entre todas en una hora → nadie entra (ni con el PIN bueno) hasta que bajen: frena el ataque repartido entre muchas IP.
+    Las sesiones ya abiertas siguen; el dueño recibe UN aviso por episodio. `cerrojo` serializa el PBKDF2 (no se satura la CPU)."""
     TOPE, VENTANA_S, RETRASO_S = 20, 300, 2
+    TOPE_HORA, HORA_S, MAX_CLAVES = 30, 3600, 1000
 
     def __init__(self):
-        self.fallos, self.hasta, self.recientes = {}, {}, collections.deque(maxlen=self.TOPE)
+        self.fallos, self.hasta, self.recientes = {}, {}, collections.deque(maxlen=self.TOPE)  # fallos: clave -> [n, último]
+        self.hora, self.avisado = collections.deque(), False
+        self.lock, self.cerrojo = threading.Lock(), threading.Lock()
 
     @staticmethod
     def _clave(ip):
@@ -408,24 +413,52 @@ class Bloqueo:
         except ValueError:
             return ip
 
+    def _limpiar(self, ahora):
+        """Con `lock`. Olvida lo viejo: los diccionarios no crecen sin fin aunque el ataque use millones de IP."""
+        while self.hora and self.hora[0] <= ahora - self.HORA_S:
+            self.hora.popleft()
+        if len(self.hora) < self.TOPE_HORA:
+            self.avisado = False
+        if len(self.fallos) + len(self.hasta) > self.MAX_CLAVES:
+            self.hasta = {k: v for k, v in self.hasta.items() if v > ahora}
+            self.fallos = {k: v for k, v in self.fallos.items() if v[1] > ahora - self.HORA_S}
+            if len(self.fallos) > self.MAX_CLAVES:  # ponytail: aun así lleno (ataque masivo): se vacía; el tope global sigue frenando
+                self.fallos.clear()
+
+    def saturado(self):
+        """¿Se pasó el tope global de fallos de la última hora?"""
+        with self.lock:
+            self._limpiar(time.time())
+            return len(self.hora) >= self.TOPE_HORA
+
     def bloqueada(self, ip):
-        return self.hasta.get(self._clave(ip), 0) > time.time()
+        return self.saturado() or self.hasta.get(self._clave(ip), 0) > time.time()
 
     def retraso(self):
-        """Segundos que debe esperar un intento ahora (0 si no hay ataque).
-        ponytail: espera fija y sin cola; intentos en paralelo esperan a la vez. Si hace falta, serializar con un Lock."""
+        """Segundos que debe esperar un intento ahora (0 si no hay ataque)."""
         r = self.recientes
         return self.RETRASO_S if len(r) == self.TOPE and r[0] > time.time() - self.VENTANA_S else 0
 
     def fallo(self, ip):
-        ip = self._clave(ip)
-        self.recientes.append(time.time())
-        self.fallos[ip] = self.fallos.get(ip, 0) + 1
-        if self.fallos[ip] >= 5:
-            self.fallos[ip], self.hasta[ip] = 0, time.time() + 300
+        """Anota un fallo. True solo la primera vez que se pasa el tope global (para avisar al dueño una vez)."""
+        ip, ahora = self._clave(ip), time.time()
+        with self.lock:
+            self._limpiar(ahora)
+            self.recientes.append(ahora)
+            self.hora.append(ahora)
+            n = self.fallos.get(ip, [0, 0])[0] + 1
+            self.fallos[ip] = [n, ahora]
+            if n >= 5:
+                self.fallos.pop(ip)
+                self.hasta[ip] = ahora + 300
+            if len(self.hora) >= self.TOPE_HORA and not self.avisado:
+                self.avisado = True
+                return True
+            return False
 
     def acierto(self, ip):
-        self.fallos.pop(self._clave(ip), None)
+        with self.lock:
+            self.fallos.pop(self._clave(ip), None)
 
 
 def acciones_de(p):
@@ -456,7 +489,7 @@ def pedido_json(p, detalle=False):
     cerrado = p["estado"] in TERMINADOS
     mesa = p.get("mesa")  # pedido de mesa: su "teléfono" es un cid interno, no se muestra
     d = {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"),
-         "telefono": None if mesa else p.get("telefono") if detalle and not cerrado else _mask(p.get("telefono")),
+         "telefono": None if mesa else herramientas.tel_de(p) if detalle and not cerrado else _mask(herramientas.tel_de(p)),
          "modalidad": p.get("modalidad"), "zona": p.get("zona"), "hora_deseada": p.get("hora_deseada"), "notas": p.get("notas"),
          "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"]), **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
          "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
@@ -485,7 +518,7 @@ def estado_panel(sv, desde=0, repartidores=(), rutas=None):
     # quien pide una persona espera que lo llamen: el panel (con PIN) ve su teléfono completo mientras el aviso está abierto; atendido, deja de salir
     nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
     esc = [{"id": e["id"], "nombre": nombres.get(e.get("telefono")) or (f"Mesa {mesa.de_cid(e.get('telefono'))}" if mesa.de_cid(e.get("telefono")) else None),
-            "telefono": None if mesa.de_cid(e.get("telefono")) else e.get("telefono"), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
+            "telefono": None if mesa.de_cid(e.get("telefono")) else herramientas.contacto_de(sv, e.get("telefono")), "motivo": e.get("motivo"), "pedido_id": None} for e in abiertos]
     return {"pedidos": [pedido_json(p) for p in sorted(peds, key=lambda p: p["id"])], "avisos": avisos,
             "ultimo": max([a["id"] for a in todos] + [0]), "escalados": esc, "repartidores": sorted(repartidores), "cerrado": herramientas.cerrado_ahora(sv), "cerrado_hasta": sv.cfg.get("cerrado_hasta") if sv.cfg.get("cerrado") else None, "modulos": modulos(sv),
             "rutas": rutas or {}}  # repartidor -> ruta (motor/ruta.py); la calcula web.py, que es quien tiene las posiciones
@@ -527,7 +560,7 @@ SIGUIENTE = {"listo": "en_camino", "en_camino": "entregado"}
 
 def pedido_repartidor(p, ruta=None):
     """`parada`: su número en la ruta del repartidor (1 = la siguiente); None si aún no es parada (en preparación)."""
-    return {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"), "telefono": p.get("telefono"), "direccion": p.get("direccion"), "zona": p.get("zona"),
+    return {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"), "telefono": herramientas.tel_de(p), "direccion": p.get("direccion"), "zona": p.get("zona"),
             "notas": p.get("notas"), "hora_deseada": p.get("hora_deseada"),
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
             "total": dinero(p["total_c"]), "pagado": not p.get("por_cobrar"),  # el pago va antes de preparar, salvo efectivo contra entrega: ahí cobra el repartidor
@@ -578,7 +611,7 @@ def ajustes_json(sv):
     pago = c.get("pago") or {}
     return {"marca": c.get("marca") or c.get("nombre") or "", "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": herramientas.cerrado_ahora(sv), "cerrado_hasta": c.get("cerrado_hasta") if c.get("cerrado") else None,
             "horario": herramientas.horario_por_dia(c.get("horario")), "excepciones": excepciones_futuras(sv), "pago": {**{k: pago.get(k) or "" for k in ("yappy", "transferencia")}, "efectivo": herramientas.efectivo_ok(sv)},
-            "sugerencias": bool(c.get("sugerencias", True)), "envio": envio_zonas(c)}
+            "sugerencias": bool(c.get("sugerencias", True)), "envio": envio_zonas(c), "factura": {k: str(c.get(k) or "") for k in ("razon_social", "ruc", "dv", "sucursal")}}
 
 
 def envio_zonas(c):
@@ -683,6 +716,16 @@ def guardar_ajustes(sv, d, quien):
         if t and not (re.fullmatch(r"\+?[\d \-]+", t) and 7 <= sum(c.isdigit() for c in t) <= 15):
             raise ValueError("El teléfono del restaurante debe tener de 7 a 15 números")
         nuevo["telefono"] = t
+    if "factura" in d:  # datos del emisor para el resumen para factura (motor/factura.py)
+        f = d["factura"]
+        if not (isinstance(f, dict) and set(f) <= {"razon_social", "ruc", "dv", "sucursal"} and all(isinstance(v, str) for v in f.values())):
+            raise ValueError("Datos de factura inválidos")
+        for k, maximo, patron in (("razon_social", 80, r"[^\x00-\x1f<>]*"), ("ruc", 20, r"[A-Za-z0-9-]*"), ("dv", 3, r"\d*"), ("sucursal", 20, r"[A-Za-z0-9 -]*")):
+            if k in f:
+                v = " ".join(f[k].split())
+                if len(v) > maximo or not re.fullmatch(patron, v):
+                    raise ValueError(f"'{k}' no es válido (hasta {maximo} caracteres; RUC y DV solo letras, números y guiones)")
+                nuevo[k] = v
     if "horario" in d:
         h = d["horario"]
         if not (isinstance(h, dict) and set(h) <= set(herramientas.DIAS)):
@@ -766,8 +809,8 @@ def estadisticas(sv, dias=30):
     for p in cur:
         try: minutos.append((dt.datetime.fromisoformat(p["estado_at"]) - dt.datetime.fromisoformat(p["creado_at"])).total_seconds() / 60)
         except (KeyError, ValueError, TypeError): pass
-    veces = collections.Counter(p.get("telefono") for p in entregados if p.get("telefono"))
-    clientes = {p.get("telefono") for p in cur if p.get("telefono")}
+    veces = collections.Counter(herramientas.tel_de(p) or p.get("telefono") for p in entregados if p.get("telefono"))  # por teléfono: la web da una sesión nueva por navegador
+    clientes = {herramientas.tel_de(p) or p.get("telefono") for p in cur if p.get("telefono")}
     cuenta = lambda clave: dict(collections.Counter(p.get(clave) or "—" for p in cur))
     zonas = collections.Counter(p.get("zona") for p in cur if p.get("modalidad") == "entrega" and p.get("zona"))
     cambio = lambda a, b: None if not b else round((a - b) * 100 / b, 1)

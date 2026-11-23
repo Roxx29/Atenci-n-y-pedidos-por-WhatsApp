@@ -82,7 +82,8 @@ class Operador:
         return self._atrib("operador=", 0)
 
     def _firma(self, exp):
-        return hmac.new(self.firma_key, str(exp).encode(), hashlib.sha256).hexdigest()
+        # con la huella de la clave: cambiar OPERADOR_CLAVE (y reiniciar) cierra todas las sesiones abiertas
+        return hmac.new(self.firma_key, str(exp).encode() + b"." + hashlib.sha256(self.clave).digest(), hashlib.sha256).hexdigest()
 
     def _cookie(self):
         exp = int(time.time()) + SESION
@@ -253,7 +254,7 @@ class Operador:
             ph = self._fecha(e.get("prueba_hasta"))
             pd, pet = self.estado_prueba(ph)
             tope = e.get("tope_ia_dia")
-            tope = tope if isinstance(tope, int) and not isinstance(tope, bool) else (TOPE_PRUEBA if ph else 0)
+            tope = tope if isinstance(tope, int) and not isinstance(tope, bool) else (TOPE_PRUEBA if ph else clientes.tope_ia_pago())
             precio = e.get("precio") if isinstance(e.get("precio"), (int, float)) else None
             out.append({"slug": c.slug, "dominio": c.dominio or "", "activo": bool(c.activo), **m,
                         "pagado_hasta": hasta.isoformat() if hasta else None, "estado_pago": est, "dias": dias, "etiqueta_pago": et,

@@ -1,4 +1,4 @@
-"""Canal web: página de pedidos con chat (solo stdlib). Cookie firmada = identidad del cliente (cid = teléfono)."""
+"""Canal web: página de pedidos con chat (solo stdlib). Cookie firmada = identidad del cliente (cid aleatorio por navegador; el teléfono es solo contacto)."""
 import base64
 import datetime as dt
 import hashlib
@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import carta, clientes, mesa, paginas, panel_web, temas, ubicacion
+from . import carta, clientes, factura, mesa, paginas, panel_web, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -44,7 +44,8 @@ ICONO_REP = Path(__file__).with_name("repartidor_icono.svg")
 MAX_CUERPO = 8192
 MAX_IMAGEN = 5 * 1024 * 1024
 TIMEOUT_S = 15  # socket de cada conexión: un cliente callado no retiene un hilo
-VIDA_S = 24 * 3600
+VIDA_S = 30 * 24 * 3600  # sesión web: la identidad es la cookie de ESTE navegador (otro navegador empieza de cero)
+CID_WEB = re.compile(r"w[0-9a-f]{32}")  # cid de una sesión web: aleatorio; el teléfono que da el cliente es solo contacto (no se verifica)
 VISITA_S = 4 * 3600  # sin actividad más de 4 h = visita nueva: chat limpio
 CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://tile.openstreetmap.org; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
 GENERICA = "Disculpe, tuvimos un problema técnico. Intente de nuevo en unos minutos."
@@ -155,6 +156,10 @@ def secreto_web(carpeta):
     f = Path(carpeta) / ".web_secret"
     if not f.exists():
         f.write_text(secrets.token_hex(32))
+    try:
+        f.chmod(0o600)  # solo el dueño del proceso (en Windows solo cambia el bit de solo lectura)
+    except OSError:
+        pass
     return f.read_text().strip()
 
 
@@ -330,6 +335,10 @@ def crear_manejador(sv, secreto=None, env=None):
         return {"version": v, "texto": r.get("aviso_ubicacion", ubicacion.REP_AVISO).replace("{Restaurante}", sv.cfg.get("nombre") or "el restaurante"),
                 "aceptado": bool(fila) and fila[0][0] == v}
 
+    def aviso_pin(donde):
+        sv.insertar("aviso", {"texto": f"Muchos PIN equivocados en {donde} en la última hora: el acceso queda en pausa un rato (las sesiones abiertas siguen)."
+                                       " Si no fue su equipo, alguien está probando PIN.", "telefono": None, "pedido_id": None})
+
     def restaurante():
         try:  # RESTAURANTE_LAT/LON (.env): opcional; sin ellos o inválidos, None
             return ubicacion.validar(float(env["RESTAURANTE_LAT"]), float(env["RESTAURANTE_LON"]))
@@ -422,6 +431,10 @@ def crear_manejador(sv, secreto=None, env=None):
                     pass
             return self.client_address[0]
 
+        def _ipc(self):
+            """Clave de los límites por IP: la IP, o su /64 si es IPv6 (un abonado tiene 2^64 direcciones)."""
+            return panel_web.Bloqueo._clave(self._ip())
+
         def _seguro(self):
             """Cookie Secure si el cliente llegó por https a través del túnel."""
             if self._proxy():
@@ -429,7 +442,9 @@ def crear_manejador(sv, secreto=None, env=None):
             return self._del_tunel() and "https" in ((self.headers.get("X-Forwarded-Proto") or "") + (self.headers.get("CF-Visitor") or "")).lower()
 
         def _cid(self):
-            return cid_de_cookie(secreto, self.headers.get("Cookie"))
+            """Solo sesiones aleatorias (web o mesa). Las cookies viejas cuyo cid era el teléfono ya no valen: cualquiera podía obtenerlas."""
+            c = cid_de_cookie(secreto, self.headers.get("Cookie"))
+            return c if c and (CID_WEB.fullmatch(c) or mesa.de_cid(c)) else None
 
         def _base(self):
             """https://dominio de esta petición (para las URL de los QR). El Host solo entra si tiene forma de nombre de host."""
@@ -446,7 +461,7 @@ def crear_manejador(sv, secreto=None, env=None):
         def _escaneo(self, codigo):
             """GET /m/<codigo>: la URL estable que lleva el QR. Cuenta el escaneo y lleva al destino que el dueño tiene puesto AHORA (sin cachés)."""
             f = mesa.por_codigo(sv, codigo) if mesas_on() else None
-            if limite.excede(("m", self._ip()), 30) or limite.excede(("m", codigo), 120):
+            if limite.excede(("m", self._ipc()), 30) or limite.excede(("m", codigo), 120):
                 return self._pagina(429, "Demasiados intentos", "Espere un momento e inténtelo de nuevo.")
             if not f:
                 return self._pagina(404, "Código no válido", "Este código QR ya no está activo.")
@@ -493,15 +508,17 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA_PANEL, CSP))])  # en cada visita: el nombre se cambia desde el panel
             if ruta == "/panel/entrar" and metodo == "POST":
                 if bloqueo.bloqueada(ip):
-                    return self._err(429, "Demasiados intentos; espere 5 minutos")
+                    return self._err(429, "Demasiados intentos; espere unos minutos")
                 d = self._json()
                 if d is None:
                     return
                 pin = d.get("pin")
                 time.sleep(bloqueo.retraso())  # antes de comprobar: si solo esperase el fallo, la tardanza delataría el PIN malo
-                quien = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                with bloqueo.cerrojo:  # un PBKDF2 a la vez
+                    quien = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
                 if not quien:
-                    bloqueo.fallo(ip)
+                    if bloqueo.fallo(ip):
+                        aviso_pin("el panel")
                     panel_web.auditar(sv, "?", "login_fallido")
                     return self._err(401, "PIN incorrecto")
                 bloqueo.acierto(ip)
@@ -533,6 +550,19 @@ def crear_manejador(sv, secreto=None, env=None):
                         return self._err(404, "Sin comprobante")
                     panel_web.auditar(sv, quien, "ver_comprobante", pid)
                     return self._enviar(200, img[0], img[1], renovar)
+                if ruta == "/panel/factura" and metodo in ("GET", "POST"):  # resumen para factura (motor/factura.py): no es una factura fiscal
+                    q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+                    d = self._json() if metodo == "POST" else q
+                    if d is None:
+                        return
+                    pid = d.get("pedido_id", q.get("pedido"))
+                    pid = int(pid) if isinstance(pid, str) and pid.isdigit() else pid
+                    if not (isinstance(pid, int) and not isinstance(pid, bool)):
+                        return self._err(400, "Datos inválidos")
+                    cod, cuerpo, tipo, extra = factura.atender(sv, pid, q.get("formato", "json"), d.get("receptor") if metodo == "POST" else {k: q.get(k) for k in ("tipo", "ruc", "dv", "nombre") if q.get(k)})
+                    if cod == 200:
+                        panel_web.auditar(sv, quien, "factura", pid)
+                    return self._enviar(cod, cuerpo, tipo, [*extra, *renovar]) if cod == 200 else self._err(cod, cuerpo["error"])
                 if ruta == "/panel/marcar" and metodo == "POST":
                     d = self._json()
                     if d is None:
@@ -617,7 +647,7 @@ def crear_manejador(sv, secreto=None, env=None):
         def _carta(self, accion, quien, renovar):
             """Carta por foto (motor/carta.py): carta_foto {fotos: [base64]} → borrador; carta_publicar {platos} → menú."""
             foto = accion == "carta_foto"
-            if foto and limite.excede(("carta", self._ip()), 5):  # cada lectura es una llamada al modelo
+            if foto and limite.excede(("carta", self._ipc()), 5):  # cada lectura es una llamada al modelo
                 return self._err(429, "Demasiadas cartas seguidas, espere un minuto")
             d = self._json(carta.MAX_CUERPO if foto else carta.MAX_CUERPO_PUBLICAR)
             if d is None:
@@ -722,7 +752,7 @@ def crear_manejador(sv, secreto=None, env=None):
         def _estatico(self, ruta):
             """GET /estatico/<nombre>: público, sin sesión; solo los nombres de ESTATICOS (fuentes y Leaflet autoalojado)."""
             nombre = ruta[len("/estatico/"):]
-            if limite.excede(("foto", self._ip()), 300):
+            if limite.excede(("foto", self._ipc()), 300):
                 return self._err(429, "Demasiadas peticiones")
             f = ESTATICO / nombre
             if nombre not in ESTATICOS or not f.is_file():
@@ -737,7 +767,7 @@ def crear_manejador(sv, secreto=None, env=None):
 
         def _logo(self):
             """GET /logo: público; el logo del cliente (qr_config: PNG, WebP o SVG ya validados al subirlo). Sin logo: 404."""
-            if limite.excede(("foto", self._ip()), 300):
+            if limite.excede(("foto", self._ipc()), 300):
                 return self._err(429, "Demasiadas peticiones")
             uri = mesa.logo_uri(sv)
             tipo = uri and uri[5:uri.index(";")]
@@ -780,15 +810,17 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._enviar(200, ICONO_REP.read_bytes(), "image/svg+xml")
             if ruta == "/repartidor/entrar" and metodo == "POST":
                 if bloqueo_rep.bloqueada(ip):
-                    return self._err(429, "Demasiados intentos; espere 5 minutos")
+                    return self._err(429, "Demasiados intentos; espere unos minutos")
                 d = self._json()
                 if d is None:
                     return
                 pin = d.get("pin")
                 time.sleep(bloqueo_rep.retraso())
-                nombre = acc_rep.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                with bloqueo_rep.cerrojo:
+                    nombre = acc_rep.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
                 if not nombre:
-                    bloqueo_rep.fallo(ip)
+                    if bloqueo_rep.fallo(ip):
+                        aviso_pin("la app del repartidor")
                     panel_web.auditar(sv, "?", "repartidor_login_fallido")
                     return self._err(401, "PIN incorrecto")
                 bloqueo_rep.acierto(ip)
@@ -869,10 +901,10 @@ def crear_manejador(sv, secreto=None, env=None):
                 except Exception:
                     return self._enviar(503, {"ok": False})
             if ruta.startswith("/menu/foto/"):  # límite propio: un menú con fotos son decenas de GET de una vez
-                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else self._foto(ruta)
+                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ipc()), 300) else self._foto(ruta)
             if ruta.startswith("/web/"):  # archivos de la página propia del cliente (motor/paginas.py)
-                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ip()), 300) else paginas.servir(self, sv.dir / "web", ruta)
-            if limite.excede(("ip", self._ip()), 60):
+                return self._err(429, "Demasiadas peticiones") if limite.excede(("foto", self._ipc()), 300) else paginas.servir(self, sv.dir / "web", ruta)
+            if limite.excede(("ip", self._ipc()), 60):
                 return self._err(429, "Demasiadas peticiones")
             if ruta.startswith("/m/"):
                 return self._escaneo(ruta[3:])
@@ -924,7 +956,7 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._repartidor("POST", self.path.split("?")[0])
             if self.path.split("?")[0].startswith("/panel"):
                 return self._panel("POST", self.path.split("?")[0])
-            ip = self._ip()
+            ip = self._ipc()
             ruta = self.path.split("?")[0]
             if limite.excede(("ip", ip), 60) or (ruta == "/entrar" and limite.excede(("entrar", ip), 10)):
                 return self._err(429, "Demasiadas peticiones")
@@ -984,7 +1016,11 @@ def crear_manejador(sv, secreto=None, env=None):
             if en_mesa:  # la misma sesión de esa mesa se conserva (recargar no pierde el seguimiento); si no, cid nuevo; la cookie dura una visita
                 actual = self._cid()
                 tel, vida = actual if mesa.de_cid(actual) == en_mesa else mesa.nuevo_cid(en_mesa), VISITA_S
-            sv.insertar("consentimiento", {"telefono": tel, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
+                contacto = {}
+            else:  # el teléfono no se verifica: es solo contacto. La identidad es una sesión aleatoria (la de este navegador si ya tenía)
+                actual = self._cid()
+                contacto, tel = {"contacto": tel}, actual if actual and CID_WEB.fullmatch(actual) else "w" + secrets.token_hex(16)
+            sv.insertar("consentimiento", {"telefono": tel, **contacto, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
             if nombre:
                 nombres[tel] = nombre
             self._visita_nueva(tel)

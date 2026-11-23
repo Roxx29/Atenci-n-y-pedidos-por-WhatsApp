@@ -7,7 +7,7 @@ import unittest.mock
 
 from motor import herramientas, panel_web
 from tests.test_motor import herramienta, texto
-from tests.test_web import PEDIDO, TEL, Base
+from tests.test_web import CID, PEDIDO, TEL, Base
 
 PIN = "483920"
 OTRO = "50760002222"
@@ -184,10 +184,10 @@ class Sugerencias(Dueno):
         self.montar()
         self.js("POST", "/panel/dueno/plato", {"id": "chicha", "complemento": True}, cookie=self.ck)
         self.sv.cfg["herramientas"] = self.sv.cfg["herramientas"] + ["sugerir_complemento"]
-        pid = self.pedido()
+        pid = herramientas.crear_pedido(self.sv, telefono=CID, **PEDIDO)["pedido_id"]  # pedido web: lo ve el navegador de Ana
         with self.assertRaises(ValueError):
             herramientas.ejecutar(self.sv, "sugerir_complemento", {"pedido_id": pid}, OTRO, {"texto": "", "creados": set()})
-        web = herramientas.ejecutar(self.sv, "sugerir_complemento", {"pedido_id": pid}, TEL, {"texto": "", "creados": set(), "canal": "web"})
+        web = herramientas.ejecutar(self.sv, "sugerir_complemento", {"pedido_id": pid}, CID, {"texto": "", "creados": set(), "canal": "web"})
         self.assertIsNone(web["sugerencia"])  # en la web la ofrece la pantalla, no el bot
         self.assertIn("sugerir_complemento", self.sv.system)
         _, _, ck = self.entrar()

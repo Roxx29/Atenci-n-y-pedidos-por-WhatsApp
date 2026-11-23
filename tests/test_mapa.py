@@ -8,7 +8,7 @@ from pathlib import Path
 
 from motor import herramientas, panel_web, ubicacion, web
 from tests.test_ubicacion import ENT, PIN_J, PIN_L, PIN_P
-from tests.test_web import TEL, Base
+from tests.test_web import CID, TEL, Base, cid_tel
 
 TEL_B = "50760002222"
 AQUI = {"lat": 7.9667, "lon": -80.4333, "precision": 15}
@@ -88,7 +88,7 @@ class Mapa(Base):
 
     def test_panel_y_cliente_solo_el_suyo_y_siguiente_parada(self):
         self.aceptar()
-        a, b = self.camino(TEL), self.camino(TEL_B)
+        a, b = self.camino(CID), self.camino(cid_tel(TEL_B))  # pedidos web: los ve el navegador de cada uno
         ca, cb, cc = self.entrar()[2], self.entrar(tel=TEL_B, nombre="Luis")[2], self.entrar(tel="50760003333", nombre="Eva")[2]
         self.assertIsNone(self.js("GET", "/pedidos", cookie=ca)[1]["pedidos"][0]["repartidor_pos"])  # aún sin posición
         self.assertEqual(self.enviar()[0], 200)
@@ -206,7 +206,7 @@ class Mapa(Base):
 
     def test_ruta_cambia_al_moverse_y_el_cliente_ve_su_parada(self):
         self.aceptar()
-        lejos, cerca = self.camino(TEL, LEJOS), self.camino(TEL_B, CERCA)
+        lejos, cerca = self.camino(CID, LEJOS), self.camino(cid_tel(TEL_B), CERCA)
         ca, cb = self.entrar()[2], self.entrar(tel=TEL_B, nombre="Luis")[2]
         cli = lambda ck: self.js("GET", "/pedidos", cookie=ck)[1]["pedidos"][0]
         with unittest.mock.patch.dict(os.environ, REST):

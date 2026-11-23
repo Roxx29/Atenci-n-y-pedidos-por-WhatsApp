@@ -10,6 +10,7 @@
 operador.{$OPERADOR_DOMINIO} {
 	@fuera not remote_ip {$OPERADOR_IPS}
 	respond @fuera 403
+	header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy operador:8081
 }
 
@@ -18,5 +19,6 @@ https:// {
 	tls {
 		on_demand
 	}
+	header Strict-Transport-Security "max-age=31536000"
 	reverse_proxy alojar:8080
 }

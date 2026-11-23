@@ -6,7 +6,7 @@ import unittest.mock
 
 from motor import herramientas, panel_web, web
 from motor.nucleo import Servicio
-from tests.test_web import PEDIDO, TEL, Base
+from tests.test_web import CID, PEDIDO, TEL, Base
 
 PIN = "483920"
 
@@ -286,7 +286,7 @@ class PanelWeb(Base):
 
     def test_web_cliente_paga_en_efectivo(self):
         ck = self.entrar()[2]
-        pid = herramientas.crear_pedido(self.sv, telefono=TEL, **{**PEDIDO, "modalidad": "entrega", "zona": "Chitré", "direccion": "Calle 4"})["pedido_id"]
+        pid = herramientas.crear_pedido(self.sv, telefono=CID, **{**PEDIDO, "modalidad": "entrega", "zona": "Chitré", "direccion": "Calle 4"})["pedido_id"]
         herramientas.confirmar_pedido(self.sv, pid)
         self.assertEqual(self.js("POST", "/efectivo", {"pedido": pid})[0], 401)
         self.assertEqual(self.js("POST", "/efectivo", {"pedido": 9999}, cookie=ck)[0], 404)

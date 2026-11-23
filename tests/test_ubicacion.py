@@ -5,7 +5,7 @@ import unittest
 import unittest.mock
 
 from motor import herramientas, panel_web, ubicacion
-from tests.test_web import PEDIDO, TEL, Base
+from tests.test_web import CID, PEDIDO, TEL, Base
 
 LARGO = "https://www.google.com/maps/place/Chitre/@7.9667,-80.4333,17z/data=!3m1"
 ENT = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "entrega", "nombre": "Ana", "direccion": "Calle 5", "zona": ""}
@@ -79,7 +79,7 @@ class Flujo(Base):
 
     # --- cliente ---
     def test_ubicacion_navegador_y_no_a_la_ia(self):
-        pid = self.entrega()
+        pid = self.entrega(CID)
         ck = self.entrar()[2]
         st, d, _ = self.js("POST", "/ubicacion", {"lat": 7.9667, "lon": -80.4333, "precision": 20}, cookie=ck)
         self.assertEqual((st, d["pedido_id"]), (200, pid))
@@ -91,7 +91,7 @@ class Flujo(Base):
         self.assertTrue(self.js("GET", "/pedidos", cookie=ck)[1]["pedidos"][0]["ubicacion"])
 
     def test_ubicacion_enlace_y_errores(self):
-        self.entrega()
+        self.entrega(CID)
         ck = self.entrar()[2]
         self.assertEqual(self.js("POST", "/ubicacion", {"enlace": LARGO}, cookie=ck)[0], 200)
         self.assertEqual(self.pedido(1)["ubicacion"]["enlace"], LARGO)
@@ -102,7 +102,7 @@ class Flujo(Base):
         self.assertEqual(self.js("POST", "/ubicacion", {"enlace": LARGO})[0], 401)
 
     def test_lejos_y_sin_coordenadas_se_aceptan_con_aviso(self):
-        pid = self.entrega()
+        pid = self.entrega(CID)
         ck = self.entrar()[2]
         self.assertEqual(self.js("POST", "/ubicacion", {"lat": 8.9824, "lon": -79.5199}, cookie=ck)[0], 200)
         self.assertTrue(self.pedido(pid)["ubicacion"]["fuera_de_zona"])
@@ -128,7 +128,7 @@ class Flujo(Base):
         ck = self.entrar()[2]
         st, d, _ = self.js("POST", "/ubicacion", {"lat": 7.9667, "lon": -80.4333}, cookie=ck)
         self.assertEqual((st, d["pedido_id"]), (200, None))
-        pid = self.entrega()
+        pid = self.entrega(CID)
         self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)  # el turno la une al pedido de entrega abierto
         self.assertEqual(self.pedido(pid)["ubicacion"]["lat"], 7.9667)
 

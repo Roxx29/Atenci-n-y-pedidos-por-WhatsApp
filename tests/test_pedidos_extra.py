@@ -512,7 +512,8 @@ class Aislamiento(Base):
         sv = self.sv()
         self.crear(sv, "A")
         self.crear(sv, "B")
-        self.assertEqual({p["telefono"] for p in self.e(sv, "buscar", {"tipo": "pedido"}, "A")}, {"A"})
+        self.assertEqual([p["id"] for p in self.e(sv, "buscar", {"tipo": "pedido"}, "A")], [p["id"] for p in sv.listar("pedido") if p["telefono"] == "A"])
+        self.assertFalse({"telefono", "contacto"} & set(self.e(sv, "buscar", {"tipo": "pedido"}, "A")[0]))  # ni teléfono ni cid al modelo
         self.assertEqual(self.e(sv, "buscar", {"tipo": "aviso"}, "C"), [])
 
     def test_cliente_no_puede_cambiar_pedido_via_actualizar(self):

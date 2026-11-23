@@ -132,13 +132,15 @@ class TestTopePorDefecto(unittest.TestCase):
     def tope(self, **k):
         return clientes.tope_ia(clientes.Cliente("a", Path("."), "a.com", True, **k))
 
-    def test_por_defecto_300_en_prueba_y_sin_tope_los_demas(self):
+    def test_por_defecto_300_en_prueba_y_1000_los_demas(self):
         hasta = dt.date(2026, 12, 1)
         with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual([self.tope(), self.tope(pagado_hasta=hasta), self.tope(prueba_hasta=hasta)], [0, 0, 300])
-            self.assertEqual([self.tope(tope_ia_dia=7), self.tope(tope_ia_dia=0, prueba_hasta=hasta)], [7, 0])
-        with unittest.mock.patch.dict(os.environ, {"TOPE_IA_DIA": "50"}):
-            self.assertEqual([self.tope(), self.tope(prueba_hasta=hasta), self.tope(tope_ia_dia=7, prueba_hasta=hasta)], [0, 50, 7])
+            self.assertEqual([self.tope(), self.tope(pagado_hasta=hasta), self.tope(prueba_hasta=hasta)], [1000, 1000, 300])
+            self.assertEqual([self.tope(tope_ia_dia=7), self.tope(tope_ia_dia=0, prueba_hasta=hasta), self.tope(tope_ia_dia=0)], [7, 0, 0])  # 0 explícito = sin tope
+        with unittest.mock.patch.dict(os.environ, {"TOPE_IA_DIA": "50", "TOPE_IA_PAGO": "2000"}):
+            self.assertEqual([self.tope(), self.tope(prueba_hasta=hasta), self.tope(tope_ia_dia=7, prueba_hasta=hasta)], [2000, 50, 7])
+        with unittest.mock.patch.dict(os.environ, {"TOPE_IA_PAGO": "x"}):  # mal escrita: no deja al cliente sin tope
+            self.assertEqual(self.tope(), 1000)
         with unittest.mock.patch.dict(os.environ, {"TOPE_IA_DIA": "-3"}):  # mal escrita: no deja la prueba sin tope
             self.assertEqual(self.tope(prueba_hasta=hasta), 300)
 
@@ -209,7 +211,7 @@ class TestPrueba(Alojado):
         os.utime(f, ns=(antes + 10**9, antes + 10**9))
         self.assertEqual([self.marca("a.com"), self.ask("a.com")], ["Marca-a", 200])  # impago: la pausa sigue siendo manual
         self.assertEqual([self.marca("b.com"), self.ask("b.com")], [404, 404])  # vencida al recargar en caliente
-        self.assertEqual(self.srv.servicios["a"].tope_ia, 0)
+        self.assertEqual(self.srv.servicios["a"].tope_ia, 1000)  # de pago sin tope propio: el de por defecto
 
 
 class TestValidacion(unittest.TestCase):

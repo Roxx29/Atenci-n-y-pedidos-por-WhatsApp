@@ -245,6 +245,24 @@ class TestBloqueo(unittest.TestCase):
             self.assertEqual(b.retraso(), 0)
 
 
+class TestBloqueoGlobal(unittest.TestCase):
+    def test_tope_por_hora_entre_todas_las_ip_y_un_aviso(self):
+        b, t0 = panel_web.Bloqueo(), panel_web.time.time()
+        avisos = [b.fallo(f"10.0.{i}.1") for i in range(panel_web.Bloqueo.TOPE_HORA + 3)]
+        self.assertEqual(avisos.count(True), 1)  # un solo aviso por episodio
+        self.assertTrue(b.bloqueada("7.7.7.7"))  # nadie entra hasta que bajen
+        with unittest.mock.patch.object(panel_web.time, "time", return_value=t0 + panel_web.Bloqueo.HORA_S + 1):
+            self.assertFalse(b.bloqueada("7.7.7.7"))
+            self.assertEqual([b.fallo(f"10.1.{i}.1") for i in range(panel_web.Bloqueo.TOPE_HORA)].count(True), 1)  # otro episodio, otro aviso
+
+    def test_los_diccionarios_no_crecen_sin_fin(self):
+        b = panel_web.Bloqueo()
+        with unittest.mock.patch.object(panel_web.Bloqueo, "TOPE_HORA", 10**9):
+            for i in range(3000):
+                b.fallo(f"10.{i // 250}.{i % 250}.1")
+        self.assertLessEqual(len(b.fallos) + len(b.hasta), panel_web.Bloqueo.MAX_CLAVES + 1)
+
+
 class TestAislamiento(Base):
     def test_cookie_de_cliente_de_a_no_vale_en_b(self):
         st, _, ck = self.entrar("a.com")
@@ -296,6 +314,16 @@ class TestAislamiento(Base):
             self.login("a.com", "000111")
         self.assertEqual(self.login("a.com", PIN_A)[0], 429)
         self.assertEqual(self.login("b.com", PIN_B)[0], 200)
+
+    def test_tope_global_pausa_el_login_y_avisa_al_dueno_una_vez(self):
+        with unittest.mock.patch.object(panel_web.Bloqueo, "TOPE_HORA", 3):
+            for _ in range(3):
+                self.assertEqual(self.login("a.com", "000111")[0], 401)
+            self.assertEqual(self.login("a.com", PIN_A)[0], 429)  # ni con el PIN bueno, hasta que pase la hora
+            self.assertEqual(self.login("a.com", PIN_A)[0], 429)
+            self.assertEqual(self.login("b.com", PIN_B)[0], 200)  # otro cliente no se entera
+        avisos = [x for x in self.srv.servicios["a"].listar("aviso") if "PIN" in x["texto"]]
+        self.assertEqual(len(avisos), 1)
 
     def test_el_retraso_se_aplica_antes_de_comprobar_el_pin(self):
         with unittest.mock.patch.object(panel_web.Bloqueo, "retraso", return_value=0.3), unittest.mock.patch.object(web.time, "sleep") as dormir:

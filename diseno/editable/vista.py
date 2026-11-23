@@ -250,7 +250,7 @@ def crear(carpeta, puerto=8090):
                     return self._enviar(200, {"restaurante": rest, "repartidores": [{"repartidor": p["repartidor"], "pedido_id": p["id"], **est.vista_pos()}
                                                                                      for p in camino if est.pos]})
                 if r == "/panel/dueno/ajustes":
-                    return self._enviar(200, {"ajustes": {**est.d["ajustes"], "cerrado": est.cerrado, "cerrado_hasta": None, "excepciones": {}, "envio": [{"nombre": z, "precio": pr, "incluye": []} for z, pr in est.d["config"]["envio"].items()]}})
+                    return self._enviar(200, {"ajustes": {**est.d["ajustes"], "cerrado": est.cerrado, "cerrado_hasta": None, "excepciones": {}, "factura": {"razon_social": "", "ruc": "", "dv": "", "sucursal": ""}, "envio": [{"nombre": z, "precio": pr, "incluye": []} for z, pr in est.d["config"]["envio"].items()]}})
                 if r == "/panel/dueno/usuarios":
                     return self._enviar(200, {"usuarios": est.d["usuarios"]})
             if r == "/repartidor/pedidos":

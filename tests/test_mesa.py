@@ -13,7 +13,7 @@ from pathlib import Path
 from motor import herramientas, mesa, qr
 from tests.test_alojar import Base as BaseAlojar
 from tests.test_motor import herramienta, texto
-from tests.test_web import SECRETO, Base
+from tests.test_web import CID, SECRETO, Base
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -315,7 +315,7 @@ class Servidor(Base):
 
     def test_ultimo_pedido_es_solo_de_quien_lo_hizo(self):
         self.listo()
-        pid = herramientas.crear_pedido(self.sv, telefono="50760001111", **{k: v for k, v in {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Ana"}.items()})["pedido_id"]
+        pid = herramientas.crear_pedido(self.sv, telefono=CID, **{k: v for k, v in {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Ana"}.items()})["pedido_id"]
         self.sv.actualizar(pid, {"estado": "entregado", "estado_at": self.sv.ahora().isoformat()}, tipo="pedido")
         mio, otro = self.entrar()[2], self.entrar(tel="50762223333")[2]
         self.assertEqual(self.js("GET", "/ultimo", cookie=mio)[1]["pedido"]["id"], pid)

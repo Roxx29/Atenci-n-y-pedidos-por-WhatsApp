@@ -29,6 +29,7 @@ ENV_POR_CLIENTE = ("PANEL_PIN", "PANEL_PIN_HASH", "PANEL_PIN_PERSONAL", "PANEL_P
 MODULOS = ("estadisticas", "mesas")  # catálogo de módulos extra que se pueden contratar (panel_web.modulos)
 CAMPOS = {"carpeta", "dominio", "activo", "modulos", "pagado_hasta", "precio", "notas", "tope_ia_dia", "prueba_hasta", "archivado", "reglas_bot"}
 REGLAS_MAX = 800  # caracteres de `reglas_bot`
+TOPE_IA_PAGO = 1000  # ídem para un cliente de pago sin tope propio (TOPE_IA_PAGO lo cambia; tope_ia_dia: 0 = sin tope explícito)
 TOPE_IA_PRUEBA = 300  # turnos de IA al día de un cliente en prueba si nadie dice otra cosa (TOPE_IA_DIA lo cambia)
 
 
@@ -49,12 +50,18 @@ class Cliente:
     reglas_bot: str = ""  # indicaciones extra del restaurante para el bot (nucleo.Servicio._prompt); solo el operador las escribe
 
 
+def tope_ia_pago():
+    v = os.environ.get("TOPE_IA_PAGO", "")
+    return int(v) if v.isascii() and v.isdigit() else TOPE_IA_PAGO  # mal escrita: no deja al cliente sin tope
+
+
 def tope_ia(c):
-    """Tope efectivo de turnos de IA al día (0 = sin tope): el suyo; si no tiene, TOPE_IA_DIA (o 300) en prueba y sin tope los demás."""
+    """Tope efectivo de turnos de IA al día (0 = sin tope): el suyo; si no tiene, TOPE_IA_DIA (o 300) en prueba y TOPE_IA_PAGO (o 1000) los demás.
+    Sin tope solo si se pone tope_ia_dia: 0 a propósito (una conversación abusiva no dispara el gasto de un cliente de pago)."""
     if c.tope_ia_dia is not None:
         return c.tope_ia_dia
     if c.prueba_hasta is None:
-        return 0
+        return tope_ia_pago()
     v = os.environ.get("TOPE_IA_DIA", "")
     return int(v) if v.isascii() and v.isdigit() else TOPE_IA_PRUEBA  # mal escrita: no deja la prueba sin tope
 

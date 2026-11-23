@@ -1,5 +1,6 @@
 """Canal web. Ejecutar: python -m unittest tests.test_web"""
 import datetime as dt
+import hashlib
 import http.client
 import json
 import tempfile
@@ -9,12 +10,20 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from motor import mesa, web
+from motor import herramientas, mesa, panel_web, web
 from motor.nucleo import Servicio
 from tests.test_motor import MENU, SERVICIO_PEDIDOS, ClienteFalso, herramienta, texto
 
 SECRETO = "secreto-de-prueba"
 TEL = "50760001111"
+
+
+def cid_tel(tel):
+    """Sesión web fija para un teléfono en las pruebas (como si cada teléfono usara siempre su navegador)."""
+    return "w" + hashlib.sha256("".join(c for c in tel if c.isdigit()).encode()).hexdigest()[:32]
+
+
+CID = cid_tel(TEL)  # identidad web de Ana: los pedidos que deba ver su navegador se crean con este cid
 AVISO = "Texto del aviso"
 PEDIDO = {"items": [{"id": "sancocho", "cantidad": 2}], "modalidad": "recogida", "nombre": "Ana"}
 
@@ -39,9 +48,9 @@ class Base(unittest.TestCase):
         self.addCleanup(sv.cerrar)  # corre después de cerrar el servidor
         self.addCleanup(lambda: (srv.shutdown(), srv.server_close()))
 
-    def req(self, metodo, ruta, cuerpo=None, cookie=None, crudo=None, tipo="application/json"):
+    def req(self, metodo, ruta, cuerpo=None, cookie=None, crudo=None, tipo="application/json", cabeceras=None):
         c = http.client.HTTPConnection("127.0.0.1", self.puerto, timeout=10)
-        h = {"Content-Type": tipo}
+        h = {"Content-Type": tipo, **(cabeceras or {})}
         if cookie:
             h["Cookie"] = cookie
         data = crudo if crudo is not None else (json.dumps(cuerpo) if cuerpo is not None else None)
@@ -55,10 +64,17 @@ class Base(unittest.TestCase):
         r, raw = self.req(*a, **k)
         return r.status, json.loads(raw), r
 
-    def entrar(self, tel=TEL, nombre="Ana", **extra):
+    def entrar(self, tel=TEL, nombre="Ana", cookie=None, **extra):
+        """cookie=None: el navegador de ese teléfono (sesión cid_tel(tel)); cookie="": un navegador nuevo, sin cookie."""
+        if cookie is None:
+            cookie = "sesion=" + web.firmar(SECRETO, cid_tel(str(tel)), int(time.time()) + 3600)
         cuerpo = {"nombre": nombre, "telefono": tel, "consentimiento": True, "version_aviso": "v1", **extra}
-        st, d, r = self.js("POST", "/entrar", cuerpo)
-        return st, d, (r.getheader("Set-Cookie") or "").split(";")[0]
+        st, d, r = self.js("POST", "/entrar", cuerpo, cookie=cookie)
+        return st, d, (r.getheader("Set-Cookie") or "").split(";")[0] or cookie
+
+    @staticmethod
+    def cid(ck):
+        return web.cid_de_cookie(SECRETO, ck)
 
 
 class Acceso(Base):
@@ -92,14 +108,15 @@ class Acceso(Base):
         self.assertEqual((st, d), (200, {"ok": True, "nombre": "Ana"}))
         c = self.sv.listar("consentimiento")
         self.assertEqual(len(c), 1)
-        self.assertEqual((c[0]["telefono"], c[0]["version_aviso"], c[0]["nombre"]), (TEL, "v1", "Ana"))
+        self.assertEqual((c[0]["contacto"], c[0]["version_aviso"], c[0]["nombre"]), (TEL, "v1", "Ana"))
+        self.assertRegex(c[0]["telefono"], web.CID_WEB)  # la identidad es la sesión, no el teléfono
         self.assertTrue(c[0]["consentimiento_at"].startswith("2026-11-02T12:00"))
         self.assertEqual(self.js("GET", "/aviso")[1], {"version": "v1", "texto": AVISO})
 
     def test_cookie_atributos(self):
         _, _, r = self.js("POST", "/entrar", {"nombre": "Ana", "telefono": TEL, "consentimiento": True, "version_aviso": "v1"})
         sc = r.getheader("Set-Cookie")
-        for x in ("HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=86400"):
+        for x in ("HttpOnly", "SameSite=Strict", "Path=/", f"Max-Age={30 * 86400}"):
             self.assertIn(x, sc)
 
     def test_flujo_chat_cid_y_nombre(self):
@@ -108,7 +125,9 @@ class Acceso(Base):
         st, d, _ = self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
         self.assertEqual((st, d), (200, {"respuesta": "Hola Ana", "pedido": None}))
         self.js("POST", "/chat", {"texto": "otra"}, cookie=ck)
-        self.assertEqual([c[0] for c in self.llamadas], [TEL, TEL])
+        self.assertEqual([c[0] for c in self.llamadas], [self.cid(ck)] * 2)
+        self.assertRegex(self.cid(ck), web.CID_WEB)
+        self.assertEqual(self.cid(self.entrar(cookie=ck)[2]), self.cid(ck))  # mismo navegador: misma sesión
         self.assertEqual(self.llamadas[0][1], "[Nombre del cliente: Ana] hola")
         self.assertEqual(self.llamadas[1][1], "otra")  # el nombre solo va en el primero
 
@@ -139,6 +158,13 @@ class Acceso(Base):
         for _ in range(60):
             self.req("GET", "/menu")
         self.assertEqual(self.req("GET", "/menu")[0].status, 429)
+
+    def test_limite_por_ip_cuenta_el_64_de_ipv6(self):
+        """Un abonado IPv6 tiene un /64 entero: cambiar de dirección dentro de él no da peticiones nuevas."""
+        with unittest.mock.patch.dict(web.os.environ, {"PROXY": "1"}):
+            codigos = [self.req("GET", "/config", cabeceras={"X-Forwarded-For": f"2001:db8:1:2::{i + 1:x}"})[0].status for i in range(61)]
+            self.assertEqual(codigos[-1], 429)
+            self.assertEqual(self.req("GET", "/config", cabeceras={"X-Forwarded-For": "2001:db8:1:3::1"})[0].status, 200)
 
     def test_limite_por_cid_429(self):
         self.arrancar([texto("a")] * 40)
@@ -185,17 +211,72 @@ class Acceso(Base):
         self.assertEqual(d["nombre"], "<img src=x onerror=alert(1)>")  # el escape es del cliente (textContent)
 
 
+class Secreto(unittest.TestCase):
+    @unittest.skipIf(web.os.name == "nt", "en Windows chmod solo toca el bit de solo lectura")
+    def test_web_secret_solo_para_el_dueno(self):
+        with tempfile.TemporaryDirectory() as d, unittest.mock.patch.dict(web.os.environ, {"WEB_SECRET": ""}):
+            web.secreto_web(d)
+            self.assertEqual((Path(d) / ".web_secret").stat().st_mode & 0o777, 0o600)
+
+
+class Suplantacion(Base):
+    """Entrar con el teléfono de otra persona no da acceso a nada suyo: el teléfono es solo contacto, la identidad es la sesión."""
+
+    def test_mismo_telefono_otra_sesion_no_ve_ni_toca_nada(self):
+        self.arrancar([herramienta("crear_pedido", {**PEDIDO, "modalidad": "entrega", "direccion": "Calle 1", "zona": "Centro"}), texto("Listo")])
+        _, _, victima = self.entrar(cookie="")
+        _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos a domicilio"}, cookie=victima)
+        pid = d["pedido"]["id"]
+        self.sv.actualizar(pid, {"estado": "confirmado"}, tipo="pedido")
+        herramientas.programar_mensaje(self.sv, self.cid(victima), "2026-11-02 11:00", "su pedido va en camino")
+        _, _, atacante = self.entrar(nombre="Eva", cookie="")  # mismo teléfono, otro navegador
+        self.assertNotEqual(self.cid(atacante), self.cid(victima))
+        self.assertEqual(self.js("GET", "/pedidos", cookie=atacante)[1], {"pedidos": []})
+        self.assertEqual(self.js("GET", "/ultimo", cookie=atacante)[1], {"pedido": None})
+        self.assertEqual(self.js("GET", "/avisos", cookie=atacante)[1], {"mensajes": []})
+        self.assertEqual(self.req("POST", "/efectivo", {"pedido": pid}, cookie=atacante)[0].status, 404)
+        self.assertEqual(self.req("POST", "/sugerencia", {"pedido": pid}, cookie=atacante)[0].status, 404)
+        self.assertEqual(self.req("POST", f"/comprobante?pedido={pid}", crudo=b"jpg", tipo="image/jpeg", cookie=atacante)[0].status, 404)
+        self.assertIsNone(self.js("POST", "/ubicacion", {"lat": 7.96, "lon": -80.43}, cookie=atacante)[1]["pedido_id"])
+        for nombre, entrada in (("cancelar_pedido", {"pedido_id": pid}), ("pagar_efectivo", {"pedido_id": pid})):
+            with self.assertRaises(ValueError):  # por el chat tampoco: las herramientas filtran por la sesión
+                herramientas.ejecutar(self.sv, nombre, entrada, self.cid(atacante))
+        self.assertEqual(herramientas.ejecutar(self.sv, "buscar", {"tipo": "pedido"}, self.cid(atacante)), [])
+        p = self.sv.listar("pedido")[0]
+        self.assertEqual((p["estado"], p.get("ubicacion"), p.get("por_cobrar")), ("confirmado", None, None))
+        # la víctima sigue viendo lo suyo y el personal ve su teléfono real
+        self.assertEqual([x["id"] for x in self.js("GET", "/pedidos", cookie=victima)[1]["pedidos"]], [pid])
+        self.assertEqual(self.js("GET", "/avisos", cookie=victima)[1], {"mensajes": ["su pedido va en camino"]})
+        self.assertEqual(panel_web.pedido_json(p, True)["telefono"], TEL)
+        self.assertEqual(panel_web.pedido_repartidor(p)["telefono"], TEL)
+
+    def test_cookie_vieja_con_el_telefono_como_cid_no_vale(self):
+        self.arrancar()
+        vieja = "sesion=" + web.firmar(SECRETO, TEL, int(time.time()) + 3600)  # las emitía /entrar antes del arreglo
+        for ruta in ("/pedidos", "/avisos", "/ultimo"):
+            self.assertEqual(self.req("GET", ruta, cookie=vieja)[0].status, 401)
+
+    def test_el_modelo_no_ve_el_telefono(self):
+        self.arrancar([texto("hola")])
+        _, _, ck = self.entrar()
+        self.js("POST", "/chat", {"texto": "hola"}, cookie=ck)
+        enviado = json.dumps(self.sv._cliente.llamadas, default=str)
+        self.assertNotIn(TEL, enviado)
+        self.assertNotIn(self.cid(ck), enviado)
+
+
 class Avisos(Base):
     def test_avisos_una_vez_y_aislado(self):
         self.arrancar()
 
         def prog(tel, en="2026-11-02 11:00"):
             self.sv.insertar("mensaje_programado", {"telefono": tel, "enviar_en": en, "texto": f"para {tel}", "estado": "pendiente", "cita_id": None})
-        prog(TEL)
-        prog("50760002222")
-        prog(TEL, en="2026-11-03 11:00")  # futuro
         _, _, ck = self.entrar()
-        self.assertEqual(self.js("GET", "/avisos", cookie=ck)[1], {"mensajes": [f"para {TEL}"]})
+        yo = self.cid(ck)
+        prog(yo)
+        prog("50760002222")
+        prog(yo, en="2026-11-03 11:00")  # futuro
+        self.assertEqual(self.js("GET", "/avisos", cookie=ck)[1], {"mensajes": [f"para {yo}"]})
         self.assertEqual(self.js("GET", "/avisos", cookie=ck)[1], {"mensajes": []})
         self.assertEqual(len([m for m in self.sv.listar("mensaje_programado") if m["estado"] == "pendiente"]), 2)
 
@@ -233,11 +314,11 @@ class MenuYPedidos(Base):
         _, _, a = self.entrar()
         _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
         pid = d["pedido"]["id"]
-        self.entrar()  # pedido en curso: se conserva historial y pedido
+        self.entrar(cookie=a)  # pedido en curso: se conserva historial y pedido
         self.assertEqual(len(self._historial_filas()), 1)
         self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
         self.sv.actualizar(pid, {"estado": "entregado"}, tipo="pedido")
-        self.entrar()  # cerrado: chat limpio, pedido ya no se muestra, sigue en BD
+        self.entrar(cookie=a)  # cerrado: chat limpio, pedido ya no se muestra, sigue en BD
         self.assertEqual(self._historial_filas(), [])
         self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1], {"pedidos": []})
         self.assertEqual(len(self.sv.listar("pedido")), 1)
@@ -266,7 +347,7 @@ class MenuYPedidos(Base):
         _, _, a = self.entrar()
         _, d, _ = self.js("POST", "/chat", {"texto": "2 sancochos"}, cookie=a)
         self.sv.actualizar(d["pedido"]["id"], {"estado": "confirmado"}, tipo="pedido")
-        self.entrar()
+        self.entrar(cookie=a)
         self.assertEqual(len(self._historial_filas()), 1)
         self.assertEqual(len(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"]), 1)
 
@@ -274,10 +355,10 @@ class MenuYPedidos(Base):
         self.arrancar([texto("hola")])
         _, _, a = self.entrar()
         self.js("POST", "/chat", {"texto": "hola"}, cookie=a)
-        self.entrar()
+        self.entrar(cookie=a)
         self.assertEqual(len(self._historial_filas()), 1)  # reciente: se conserva
         self.sv._q("UPDATE conversaciones SET actualizado=?", (time.time() - web.VISITA_S - 60,))
-        self.entrar()
+        self.entrar(cookie=a)
         self.assertEqual(self._historial_filas(), [])
 
 

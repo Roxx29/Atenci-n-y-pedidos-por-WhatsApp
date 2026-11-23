@@ -433,3 +433,21 @@ class Panel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Recorte(unittest.TestCase):
+    """El historial que va al modelo se recorta a los últimos MAX_HISTORIAL sin dejar un tool_result sin su tool_use."""
+
+    def test_recorte_empieza_en_mensaje_del_cliente(self):
+        from motor import nucleo
+        msgs = []
+        for i in range(30):
+            msgs += [{"role": "user", "content": f"m{i}"}, {"role": "assistant", "content": [{"type": "tool_use", "id": f"t{i}"}]},
+                     {"role": "user", "content": [{"type": "tool_result", "tool_use_id": f"t{i}"}]}, {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}]
+        r = nucleo.Servicio._recorte(msgs)
+        self.assertLessEqual(len(r), nucleo.MAX_HISTORIAL)
+        self.assertEqual(r[0]["role"], "user")
+        self.assertIsInstance(r[0]["content"], str)
+        self.assertEqual(r[-1], msgs[-1])
+        self.assertEqual(nucleo.Servicio._recorte(msgs[:6]), msgs[:6])  # corto: tal cual
+        self.assertEqual(nucleo.Servicio._recorte([{"role": "assistant", "content": "x"}] * 50), [])  # sin inicio válido: conversación nueva

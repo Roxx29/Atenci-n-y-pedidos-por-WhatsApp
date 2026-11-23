@@ -16,6 +16,8 @@ from . import herramientas
 
 VENTANA_S = 24 * 3600  # conversación nueva tras 24 h sin mensajes (= ventana de servicio de WhatsApp)
 MAX_VUELTAS = 10
+MAX_HISTORIAL = 40  # mensajes de la conversación que se mandan al modelo (los más recientes); acota tokens y coste por turno
+MAX_TOKENS = 8192  # respuesta (con su razonamiento) del modelo: es un chat de mensajes cortos
 CAIDA_S = 300  # tras fallar el principal, se usa el respaldo este tiempo antes de reintentar
 
 
@@ -25,7 +27,7 @@ def _de_proveedor(e):
     if isinstance(c, int):
         return c in (401, 402, 403, 429) or c >= 500
     return isinstance(e, (ConnectionError, TimeoutError)) or type(e).__name__ in ("APIConnectionError", "APITimeoutError")
-PREFIJO = re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · cliente [^\]]*\]\s*")  # eco del prefijo que el código antepone al mensaje
+PREFIJO = re.compile(r"^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} · cliente[^\]]*\]\s*")  # eco del prefijo que el código antepone al mensaje
 
 PROMPT = """Eres el asistente de {negocio}. Atiendes a sus clientes por chat en nombre del negocio.
 Objetivo del servicio: {objetivo}
@@ -41,8 +43,8 @@ Reglas:
 - Para cambiar un pedido existente usa modificar_pedido, nunca crees otro; si ya está pagado y cambian ítems, zona o modalidad, la herramienta escala a una persona: díselo al cliente.
 - Nunca digas importes en centavos ni los calcules: usa solo los textos "B/. 9.36" que devuelven las herramientas.
 - Pide solo los datos necesarios; no solicites datos sensibles que el servicio no requiera (Ley 81 de 2019).
-- Cada mensaje del cliente empieza con [fecha hora · cliente <teléfono>]: úsalo para fechas relativas ("mañana") y como teléfono del cliente.
-- Si el cliente responde a un recordatorio, busca sus registros con buscar usando su teléfono.
+- Cada mensaje del cliente empieza con [fecha hora · cliente]: úsalo para fechas relativas ("mañana"). El sistema ya sabe quién escribe y cómo contactarle: no pidas su teléfono (las herramientas lo ponen solas).
+- Si el cliente responde a un recordatorio, busca sus registros con buscar.
 
 Horario de atención: {horario}
 
@@ -255,6 +257,14 @@ class Servicio:
         # shortcut: conversación nueva tras 24 h en vez de compactar; si hay chats muy largos, usar compaction.
         return json.loads(fila[0][0]) if fila and time.time() - fila[0][1] < VENTANA_S else []
 
+    @staticmethod
+    def _recorte(msgs):
+        """Los últimos MAX_HISTORIAL mensajes, empezando en un mensaje del cliente con texto (no en un tool_result huérfano de su tool_use)."""
+        i = max(0, len(msgs) - MAX_HISTORIAL)
+        while i < len(msgs) and not (msgs[i]["role"] == "user" and isinstance(msgs[i]["content"], str)):
+            i += 1
+        return msgs[i:]
+
     def _cupo_ia(self):
         """Cuenta este turno en uso_ia y dice si cabe en el tope de hoy (día en la zona del servicio). Una sola sentencia:
         ni dos hilos ni dos procesos sobre la misma BD pasan del tope. Al toparse deja UN aviso al panel por día."""
@@ -286,7 +296,8 @@ class Servicio:
             return f"Hoy el asistente alcanzó su límite. Llama al restaurante{f' al {tel}' if tel else ''} para tu pedido."
         with self._locks[cid]:
             msgs = self._historial(cid)
-            msgs.append({"role": "user", "content": f"[{self.ahora():%Y-%m-%d %H:%M} · cliente {cid}] {texto}"})
+            msgs = self._recorte(msgs)  # lo recortado tampoco se vuelve a guardar
+            msgs.append({"role": "user", "content": f"[{self.ahora():%Y-%m-%d %H:%M} · cliente] {texto}"})  # sin cid ni teléfono: no van al modelo
             respuesta = self._bucle(msgs, cid, texto, canal)
             self._q("INSERT OR REPLACE INTO conversaciones VALUES (?,?,?)", (cid, json.dumps(msgs, ensure_ascii=False), time.time()))
             return respuesta
@@ -318,12 +329,12 @@ class Servicio:
     def _llamar(self, cliente, modelo, msgs, compatible, system, tools):
         if compatible:  # servidor compatible (DeepSeek, Ollama): solo lo básico, sin betas ni tool_choice
             # thinking desactivado: con qwen3 el razonamiento hace cada vuelta ~40 s (sin él, ~1 s)
-            r = cliente.messages.create(model=modelo, max_tokens=16000, system=system, tools=tools, messages=msgs,
+            r = cliente.messages.create(model=modelo, max_tokens=MAX_TOKENS, system=system, tools=tools, messages=msgs,
                                         thinking={"type": "disabled"})
             return r, True
         r = cliente.beta.messages.create(
             model=modelo,
-            max_tokens=16000,
+            max_tokens=MAX_TOKENS,
             system=system,
             tools=tools,
             messages=msgs,

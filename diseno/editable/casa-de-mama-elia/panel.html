@@ -219,6 +219,14 @@
             <div id="hor-exc"></div>
             <button type="button" class="btn" id="hor-exc-nuevo">+ Agregar día especial</button>
           </section>
+          <section class="caja-aj" id="sec-factura">
+            <h3 class="grupo">Datos para facturar</h3>
+            <p class="t-espera" style="margin:0">Salen en el «Resumen para factura» de cada pedido, para que lo teclee en su caja fiscal o con su proveedor (PAC). La app no emite facturas.</p>
+            <label>Razón social<input name="razon_social" maxlength="80"></label>
+            <label>RUC<input name="ruc" maxlength="20" pattern="[A-Za-z0-9\-]*" placeholder="Ej.: 8-123-456"></label>
+            <label>DV<input name="dv" maxlength="3" inputmode="numeric" pattern="\d*"></label>
+            <label>Sucursal<input name="sucursal" maxlength="20" placeholder="Ej.: 0001"></label>
+          </section>
           <section class="caja-aj">
             <h3 class="grupo">Datos de pago</h3>
             <label>Yappy<input name="yappy" maxlength="160" placeholder="@turestaurante o número"></label>
@@ -278,6 +286,7 @@
       <div class="dlg-dato" id="dlg-ref-caja"><span>Método y referencia</span><b id="dlg-ref"></b></div>
       <ul class="t-items" id="dlg-items"></ul>
       <p class="t-espera" id="dlg-pista">Compara el monto y la referencia con tu app de Yappy o del banco.</p>
+      <button type="button" class="btn suave" id="dlg-factura-btn" hidden>Resumen para factura</button>
       <div class="acciones" id="dlg-acciones"></div>
       <div class="confirmar" id="dlg-confirmar" hidden>
         <p>¿Seguro? El pedido vuelve a "Nuevos" y se avisa al cliente para que pague de nuevo.</p>
@@ -286,6 +295,19 @@
     </div>
   </div>
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-factura" class="chico" aria-labelledby="fac-tit">
+  <div class="caja-aj" style="margin:0;box-shadow:none">
+    <h2 id="fac-tit" style="margin:0;font-size:1.125rem">Resumen para factura</h2>
+    <p class="error" style="min-height:0" id="fac-aviso">Resumen para facturar: no es una factura fiscal. Emítala en su caja fiscal o con su proveedor (PAC).</p>
+    <p class="t-espera" id="fac-faltan" hidden>Faltan datos del emisor. <a href="#" id="fac-cfg">Complételos en Configuración</a>.</p>
+    <label>RUC o cédula del cliente (opcional)<input id="fac-ruc" maxlength="20" autocomplete="off" placeholder="Vacío = consumidor final"></label>
+    <label>Nombre del cliente (opcional)<input id="fac-nombre" maxlength="80" autocomplete="off" placeholder="Consumidor final"></label>
+    <button type="button" class="btn suave" id="fac-ver">Actualizar resumen</button>
+    <pre id="fac-texto" tabindex="0" style="white-space:pre-wrap;margin:0;max-height:40vh;overflow:auto;font:.875rem/1.5 ui-monospace,monospace" aria-live="polite"></pre>
+    <div class="dh-acc"><button type="button" class="btn" id="fac-copiar">Copiar</button><button type="button" class="btn suave" id="fac-csv">Descargar CSV</button><button type="button" class="btn suave" id="fac-imprimir">Imprimir</button><button type="button" class="btn suave" id="fac-x">Cerrar</button></div>
+  </div>
 </dialog>
 
 <dialog id="dlg-cierre" class="chico" aria-labelledby="cierre-tit">
@@ -657,6 +679,8 @@ async function abrirDetalle(p, rechazar) {
   $("#dlg-ref").textContent = [p.metodo, p.referencia && "Ref. " + p.referencia].filter(Boolean).join(" · ");
   $("#dlg-items").replaceChildren(...(p.items || []).map(i => h("li", {}, h("b", {class:"num"}, i.cantidad + "×"), " " + i.nombre)));
   $("#dlg-pista").hidden = !conImg;
+  $("#dlg-factura-btn").hidden = st.demo || ["por_confirmar", "cancelado", "caducado"].includes(p.estado);
+  $("#dlg-factura-btn").onclick = () => abrirFactura(p);
   const acc = [];
   const hacer = e => () => { $("#dlg").close(); marcar(p, e); };
   if (p.estado === "pago_reportado") acc.push(
@@ -677,6 +701,33 @@ $("#dlg-cerrar").onclick = () => $("#dlg").close();
 $("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
 $("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
 $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+/* ---------- Resumen para factura (no es una factura fiscal; el servidor arma el resumen) ---------- */
+const FAC = {id:0, texto:""};
+const facQuery = () => { const ruc = $("#fac-ruc").value.trim(); return ruc ? `&tipo=contribuyente&ruc=${encodeURIComponent(ruc)}&nombre=${encodeURIComponent($("#fac-nombre").value.trim())}` : ""; };
+async function verFactura() {
+  const ruc = $("#fac-ruc").value.trim();
+  try {
+    const r = (await api("POST", "/panel/factura", {pedido_id:FAC.id, receptor:ruc ? {tipo:"contribuyente", ruc, nombre:$("#fac-nombre").value.trim()} : {tipo:"consumidor_final"}})).resumen;
+    const l = r.lineas.concat(r.envio ? [r.envio] : []).map(x => `${x.cantidad} × ${x.descripcion}: base B/. ${x.base} + ITBMS ${x.tasa_itbms} % B/. ${x.itbms} = B/. ${x.total}`);
+    const t = r.totales, e = r.emisor, rc = r.receptor;
+    FAC.texto = [`Resumen para factura — no es una factura fiscal`, `Emisor: ${e.razon_social || "—"} · RUC ${e.ruc || "—"}-${e.dv || "—"} · Sucursal ${e.sucursal || "—"}`,
+      `Pedido #${r.documento.pedido_id} · ${r.documento.fecha} · ${r.documento.modalidad}`, `Cliente: ${rc.tipo === "consumidor_final" ? "Consumidor final" : `${rc.nombre} · ${rc.ruc}`}`, "", ...l, "",
+      `Subtotal B/. ${t.subtotal} · ITBMS B/. ${t.itbms} · Envío B/. ${t.envio}`, `Total B/. ${t.total} · ${t.pagado ? "Pagado" : "No pagado aún"}${t.forma_pago ? " (" + t.forma_pago + ")" : ""}`,
+      r.coincide ? "" : "OJO: el total no coincide con el del pedido; no lo use.", r.envio ? "ITBMS del envío: por confirmar con su contador." : ""].filter((x, i, a) => x || (a[i - 1] && a[i + 1])).join("\n");
+    $("#fac-texto").textContent = FAC.texto; $("#fac-faltan").hidden = !r.faltan.length;
+  } catch (e) { $("#fac-texto").textContent = e.message; FAC.texto = ""; }
+}
+function abrirFactura(p) {
+  FAC.id = p.id; $("#fac-ruc").value = ""; $("#fac-nombre").value = ""; $("#fac-texto").textContent = "Cargando…";
+  $("#dlg").close(); $("#dlg-factura").showModal(); verFactura();
+}
+$("#fac-ver").onclick = verFactura;
+$("#fac-x").onclick = () => $("#dlg-factura").close();
+$("#fac-cfg").onclick = e => { e.preventDefault(); $("#dlg-factura").close(); irA("config"); $("#sec-factura").scrollIntoView(); };
+$("#fac-copiar").onclick = async () => { try { await navigator.clipboard.writeText(FAC.texto); aviso("Resumen copiado"); } catch (e) { aviso("No se pudo copiar", true); } };
+$("#fac-csv").onclick = () => { const a = h("a", {href:`/panel/factura?pedido=${FAC.id}&formato=csv${facQuery()}`, download:`resumen-factura-${FAC.id}.csv`}); document.body.append(a); a.click(); a.remove(); };
+$("#fac-imprimir").onclick = () => { const w = window.open(`/panel/factura?pedido=${FAC.id}&formato=html${facQuery()}`, "_blank"); if (w) w.addEventListener("load", () => w.print()); };
 
 
 /* ---------- Secciones: Pedidos · Menú · Equipo ---------- */
@@ -1060,6 +1111,7 @@ async function pintarConfig() {
   const f = $("#f-config");
   f.marca.value = a.marca; f.telefono.value = a.telefono; f.anuncio.value = a.anuncio; f.yappy.value = a.pago.yappy; f.transferencia.value = a.pago.transferencia; f.efectivo.checked = a.pago.efectivo; f.sugerencias.checked = a.sugerencias !== false;
   $("#config-nota").textContent = "";
+  for (const k of ["razon_social", "ruc", "dv", "sucursal"]) f[k].value = (a.factura || {})[k] || "";
   $("#zonas-envio").replaceChildren(...(a.envio || []).map(filaZona));
   for (const [d] of DIAS_H) HOR.dias[d] = {abierto:(a.horario[d] || []).length > 0, turnos:copia(a.horario[d] || [])};
   HOR.exc = Object.entries(a.excepciones || {}).map(([fecha, t]) => ({fecha, turnos:t.length ? copia(t) : null}));
@@ -1080,7 +1132,7 @@ $("#f-config").onsubmit = async ev => {
     envio.push({nombre:n.value.trim(), precio:+v.value, incluye:i.value.split(",").map(x => x.trim()).filter(Boolean)});
   }
   try {
-    await api("POST", "/panel/dueno/ajustes", {envio, marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, excepciones, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
+    await api("POST", "/panel/dueno/ajustes", {envio, factura:Object.fromEntries(["razon_social", "ruc", "dv", "sucursal"].map(k => [k, f[k].value.trim()])), marca:f.marca.value.trim(), telefono:f.telefono.value.trim(), anuncio:f.anuncio.value.trim(), horario, excepciones, pago:{yappy:f.yappy.value.trim(), transferencia:f.transferencia.value.trim(), efectivo:f.efectivo.checked}, sugerencias:f.sugerencias.checked});
     nota.textContent = f.marca.value.trim() !== MARCA ? "Guardado. El nombre nuevo se ve al recargar la página." : ""; aviso("Configuración guardada");
   } catch (e) { nota.textContent = e.message; aviso(e.message, true); }
 };

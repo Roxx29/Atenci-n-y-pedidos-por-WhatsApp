@@ -102,6 +102,8 @@ class Operador:
         """Una línea en registro.jsonl (junto a clientes.yaml). Solo estos cinco campos: nunca PINs, claves ni datos de personas."""
         f = self.ruta.parent / "registro.jsonl"
         linea = json.dumps({"fecha": dt.datetime.now().isoformat(timespec="seconds"), "accion": accion, "slug": slug, "ip": ip, "resultado": resultado})
+        if accion == "login":  # también al registro de seguridad (90+ días); bloqueado = alerta
+            web.seguridad.evento("operador_login", alerta=resultado == "bloqueado", ip=ip, resultado=resultado)
         with self.lock:
             try:
                 if f.exists() and f.stat().st_size > MAX_REGISTRO:
@@ -593,6 +595,37 @@ class Operador:
                         pass
         return {"canceladas": n}
 
+    HISTORIAL = ("pedido", "aviso", "escalado", "mensaje_programado")  # lo que `reiniciar` borra por defecto
+
+    def reiniciar(self, slug, d):
+        """Borra el historial de pedidos de un cliente (pedidos, avisos, escalados, mensajes y comprobantes) sin recrearlo.
+        d: {confirmar: slug, clave: OPERADOR_CLAVE, todo?: true}. `todo` borra además TODO registro de datos (consentimientos, citas, auditoría, conversaciones, usos de IA, escaneos de QR):
+        el contador de pedidos vuelve a 1 solo así, porque los números de pedido son el id de la tabla `registros`. Carta, equipo, ajustes y QR quedan.
+        Pide la copia de seguridad antes. -> {borrados, siguiente_pedido, copia}."""
+        self._entrada(slug)
+        if d.get("confirmar") != slug:
+            raise ValueError("Para confirmar, escribe el identificador del cliente")
+        if not (isinstance(d.get("clave"), str) and hmac.compare_digest(hashlib.sha256(d["clave"].encode()).digest(), hashlib.sha256(self.clave).digest())):
+            raise ValueError("Clave del operador incorrecta")
+        todo = d.get("todo") is True
+        try:
+            copia = self.respaldo(slug)
+        except FileNotFoundError:
+            copia = None
+        with self._sv(slug) as sv:
+            with sv._db_lock, sv.db:
+                if todo:
+                    n = sv.db.execute("DELETE FROM registros").rowcount
+                    for t in ("conversaciones", "vistos", "uso_ia", "qr_dias", "comprobantes"):
+                        sv.db.execute(f"DELETE FROM {t}")
+                else:
+                    n = sv.db.execute(f"DELETE FROM registros WHERE tipo IN ({','.join('?' * len(self.HISTORIAL))})", self.HISTORIAL).rowcount
+                    sv.db.execute("DELETE FROM comprobantes")
+            if not todo:  # con `todo` no se deja ni la fila de auditoría: el contador queda en cero (la acción queda en registro.jsonl)
+                panel_web.auditar(sv, "operador", f"reiniciar_historial:{n}")
+            siguiente = (sv._q("SELECT COALESCE(MAX(id), 0) + 1 FROM registros")[0][0])
+        return {"borrados": n, "siguiente_pedido": siguiente, "copia": copia}
+
     # --- ajustes ---
     def ajustes(self, slug, d):
         """Cambia dominio (clientes.yaml), nombre/marca (su servicio.yaml) y color (su tema.css). Valida todo antes de escribir y,
@@ -707,6 +740,7 @@ RUTAS = {
     "pago": ("pago", lambda op, s, d: {"pagado_hasta": op.pagar(s, d.get("meses", 1))}),
     "prueba": ("prueba", lambda op, s, d: {"hasta": op.prueba(s, d.get("accion"), d.get("dias", 15), d.get("meses", 1))}),
     "respaldo": ("backup", lambda op, s, d: {"archivo": op.respaldo(s)}),
+    "reiniciar": ("reiniciar", lambda op, s, d: op.reiniciar(s, d)),  # la clave va en el cuerpo y nunca al registro
     "limpiar-pruebas": ("limpiar_pruebas", lambda op, s, d: op.limpiar_pruebas(s)),
     "pin": ("pin", lambda op, s, d: op.pin(s, d)),  # única, con el alta, que responde un PIN en claro
     "equipo/activo": ("equipo", lambda op, s, d: op.equipo_activo(s, d)),

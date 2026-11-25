@@ -15,6 +15,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from . import seguridad
+
 
 def firma_valida(cuerpo, cabecera, secreto):
     esperada = "sha256=" + hmac.new(secreto.encode(), cuerpo, hashlib.sha256).hexdigest()
@@ -118,6 +120,7 @@ def servir(sv, puerto=8080):
                 return
             cuerpo = self.rfile.read(largo)
             if not firma_valida(cuerpo, self.headers.get("X-Hub-Signature-256"), secreto):
+                seguridad.evento("webhook_firma_invalida", alerta=True, ip=self.client_address[0])
                 self.send_response(403)
                 self.end_headers()
                 return

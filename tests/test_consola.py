@@ -126,6 +126,50 @@ class LimpiarPruebas(Base):
         self.assertEqual(self.post("/api/clientes/napa/limpiar-pruebas")[1]["canceladas"], 0)
 
 
+class Reiniciar(Base):
+    def llenar(self):
+        sv = self.sv()
+        base = {"estado": "confirmado", "modalidad": "recogida", "lineas": [], "subtotal_c": 0, "itbms_c": 0, "envio_c": 0, "total_c": 0, "creado_at": HOY}
+        for n in ("A", "B"):
+            sv.insertar("pedido", {**base, "nombre": n})
+        sv.insertar("aviso", {"texto": "x", "telefono": "1"})
+        sv.insertar("consentimiento", {"telefono": "w1", "nombre": "Ana"})
+        sv.cerrar()
+
+    def tipos(self):
+        sv = self.sv()
+        try:
+            return sorted({r[0] for r in sv._q("SELECT tipo FROM registros")})
+        finally:
+            sv.cerrar()
+
+    def test_exige_slug_y_clave_y_no_borra_nada_si_fallan(self):
+        self.llenar()
+        for d in ({}, {"confirmar": "otro", "clave": CLAVE}, {"confirmar": "napa"}, {"confirmar": "napa", "clave": "mala-clave-12"}, {"confirmar": "napa", "clave": 5}):
+            self.assertEqual(self.post("/api/clientes/napa/reiniciar", d)[0], 400, d)
+        self.assertEqual(self.post("/api/clientes/nadie/reiniciar", {"confirmar": "nadie", "clave": CLAVE})[0], 404)
+        self.assertIn("pedido", self.tipos())
+
+    def test_borra_historial_y_conserva_el_resto_con_auditoria(self):
+        self.llenar()
+        st, j = self.post("/api/clientes/napa/reiniciar", {"confirmar": "napa", "clave": CLAVE})
+        self.assertEqual((st, j["borrados"]), (200, 3))
+        self.assertNotIn("pedido", self.tipos())
+        self.assertIn("consentimiento", self.tipos())
+        self.assertIn("auditoria", self.tipos())
+        self.assertEqual(self.registro()[-1]["accion"], "reiniciar")
+        self.assertNotIn(CLAVE, "".join(self.textos) + json.dumps(self.registro()))
+
+    def test_todo_deja_el_contador_en_cero(self):
+        self.llenar()
+        st, j = self.post("/api/clientes/napa/reiniciar", {"confirmar": "napa", "clave": CLAVE, "todo": True})
+        self.assertEqual((st, j["siguiente_pedido"], self.tipos()), (200, 1, []))
+        sv = self.sv()
+        self.assertEqual(sv.listar("pedido"), [])
+        self.assertTrue(sv.menu)  # la carta sigue
+        sv.cerrar()
+
+
 class Equipo(Base):
     def test_lista_sin_hash_y_desactiva(self):
         sv = self.sv()

@@ -18,10 +18,25 @@ from tests.test_web import CID, PEDIDO, Base
 EXIF = b"Exif\x00\x00GPS-SECRETO"
 
 
+def _jpeg_real():
+    import io
+    from PIL import Image
+    b = io.BytesIO()
+    Image.new("RGB", (4, 4), (180, 40, 40)).save(b, "JPEG")
+    return b.getvalue()
+
+
+JPEG_REAL = _jpeg_real()  # el servidor decodifica con Pillow: hace falta una imagen de verdad
+
+
 def jpeg(extra=True):
     seg = lambda m, d: b"\xff" + bytes([m]) + struct.pack(">H", len(d) + 2) + d
-    return (b"\xff\xd8" + seg(0xE0, b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00") + (seg(0xE1, EXIF) + seg(0xFE, b"COMENTARIO") if extra else b"")
-            + seg(0xDB, b"\x00" * 65) + seg(0xDA, b"\x01\x01\x00\x00\x3f\x00") + b"\x12\x34\xff\xd9")
+    return JPEG_REAL[:2] + (seg(0xE1, EXIF) + seg(0xFE, b"COMENTARIO") if extra else b"") + JPEG_REAL[2:]
+
+
+def limpio(ext):
+    """Lo que guarda el servidor: la imagen sin metadatos, recodificada (motor.herramientas.recodificar_imagen)."""
+    return herramientas.recodificar_imagen(jpeg(False) if ext == "jpg" else png(False), ext)
 
 
 def png(extra=True):
@@ -84,7 +99,7 @@ class Comprobante(Base):
             self.assertNotIn(b"SECRETO", b)
             self.assertNotIn(b"Exif", b)
             self.assertNotIn(b"COMENTARIO", b)
-            self.assertEqual(b, jpeg(False) if ext == "jpg" else png(False))
+            self.assertEqual(b, limpio(ext))
             self.sv.actualizar(self.pid, {"estado": "confirmado"})  # para la vuelta con PNG
         p = self.pedido()
         self.assertEqual((p["metodo"], p["referencia"]), ("yappy", "YP123"))
@@ -148,14 +163,14 @@ class Comprobante(Base):
     def test_leer_comprobante_seguro(self):
         self.subir(jpeg())
         p = self.pedido()
-        self.assertEqual(herramientas.leer_comprobante(self.sv, p), (jpeg(False), "jpg"))
+        self.assertEqual(herramientas.leer_comprobante(self.sv, p), (limpio("jpg"), "jpg"))
         for malo in ("../servicio.yaml", "..\servicio.yaml", "x.jpg", "a" * 32 + ".exe", "a" * 32 + ".jpg", "/etc/passwd", "", None):
             self.assertIsNone(herramientas.leer_comprobante(self.sv, {"comprobante": malo}))
         self.assertIsNone(herramientas.leer_comprobante(self.sv, {}))
 
     def test_panel_sirve_desde_la_bd(self):
         self.subir(jpeg())
-        self.assertEqual(panel_web.comprobante(self.sv, self.pid), (jpeg(False), "image/jpeg"))
+        self.assertEqual(panel_web.comprobante(self.sv, self.pid), (limpio("jpg"), "image/jpeg"))
 
     def test_importa_archivos_viejos_una_vez(self):
         self.carpeta.mkdir(exist_ok=True)

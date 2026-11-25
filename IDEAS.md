@@ -28,7 +28,10 @@ Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` 
 - [ ] 2026-11-23 — Seguridad, pendientes de la auditoría que NO se hicieron en esta pasada: (a) cifrar los respaldos con age (clave pública en el VPS, la privada fuera); (b) purga/borrado de datos Ley 81: retención de pedidos, consentimientos y conversaciones y «borrar mis datos» (ojo: la purga debe borrar también el campo `contacto` de pedidos y consentimientos, que ahora guarda el teléfono aparte del cid); (c) red Docker separada para que `alojar` no alcance `operador:8081`; (d) QR de mesa rotativo (hoy el código es fijo hasta regenerarlo); (e) limpiar las carpetas `tmp*` de la raíz del repo (arquitecto)
 - [ ] 2026-11-23 — Comensal web: si quiere ver su historial desde otro móvil/navegador, añadir OTP por SMS/WhatsApp al teléfono (hoy cada navegador es una sesión propia de 30 días; decisión de producto aceptada) (arquitecto)
 
+- [ ] 2026-11-25 — Seguridad, pendientes tras el endurecimiento: (a) WhatsApp: el cid ES el teléfono y queda en claro en la BD (cifrarlo exige un id derivado, p. ej. HMAC del teléfono, en todas las consultas); (b) el nombre del comensal y la dirección siguen en claro (cifrarlos rompe búsquedas/estadísticas: decidir con legal-datos); (c) botón de Google en las páginas propias de clientes (`diseno/editable/*`, hoy solo la estándar) y alta de correos desde la consola del operador (hoy solo el dueño en Equipo); (d) cuando exista pago en línea (Tilopay/PagueloFacil): webhook con firma HMAC, idempotencia por id de transacción y monto comparado con `total_c`; cupones: canje atómico con `UPDATE … WHERE usos < max` en una sola sentencia (como `uso_ia`); (e) probar en el VPS el Dockerfile sin root, `read_only` y el servicio `permisos` (no se pudo aquí) y el cifrado age de `respaldo.sh`; (f) clave SSH del respaldo limitada con `rrsync -wo` en el destino (arquitecto)
+
 ## Despliegue: endurecimiento pendiente (aplicar al desplegar; no se pudo probar aquí)
+(2026-11-25: los tres puntos de abajo sobre root, compose y caddy ya están aplicados en `Dockerfile` y `docker-compose.yml`; queda fijar versiones)
 Dependen de los permisos del volumen `/datos`; probar en el VPS antes de dejarlo fijo.
 - [ ] 2026-11-23 — `Dockerfile`: no correr como root. Tras los `COPY`, añadir:
   `RUN useradd --system --uid 10001 --home /app motor && mkdir -p /datos && chown -R motor /datos` y `USER motor`.
@@ -190,3 +193,5 @@ Dependen de los permisos del volumen `/datos`; probar en el VPS antes de dejarlo
 - [ ] Después: sellos de lealtad, reseñas, PWA instalable
 
 - [ ] Horario: la tienda web (web_index.html) y el prompt del bot (nucleo.py) deben leer `horario.excepciones` y `cerrado_hasta` (usar herramientas.cerrado_ahora). Pasar de medianoche (cierre < apertura) no soportado: se usa 11:59 p. m.
+- [ ] 2026-11-25 — Portar a `diseno/editable/{base,casa-de-mama-elia,urban-sazon}/index.html` el aviso llamativo de listo/en camino/entregado de `motor/web_index.html` (clase `.llamativo`, `LLAMATIVO`, `avisar(texto, llamativo)`), y sus paneles propios: botón «Editar pedido» y «Exportar al cierre del período» de `panel_web.html`. (programador)
+- [ ] 2026-11-25 — Probar a mano en navegador: diálogo «Editar pedido», exportar CSV y la animación del aviso (no se vieron en pantalla). (programador)

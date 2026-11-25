@@ -238,6 +238,7 @@ li.primera .btn.nav{margin-top:8px;min-height:68px;font-size:1.25rem}
       <button type="submit" class="btn">Entrar</button>
     </div>
     <p class="error" id="e-pin" role="alert"></p>
+    <div id="g-boton" hidden style="margin-top:12px"></div>
   </form>
 </main>
 
@@ -367,10 +368,34 @@ $("#form-pin").addEventListener("submit", async ev => {
       nombre = j.nombre || ""; if (j.aviso_ubicacion) st.aviso = j.aviso_ubicacion;
     } catch (e) { $("#e-pin").textContent = "Sin conexión. Revisa tu internet e inténtalo otra vez."; return; }
   }
+  entrarRep(nombre);
+});
+function entrarRep(nombre) {
   pin.value = ""; $("#login").hidden = true;
   $("#hola").textContent = nombre ? "Hola, " + nombre : "Mis pedidos";
   ver("lista"); mostrarAviso(); cargar(); clearInterval(st.sondeo); st.sondeo = setInterval(cargar, 6000);
-});
+}
+/* Entrar con Google: solo si el servidor tiene GOOGLE_CLIENT_ID; el correo lo autoriza el dueño en el panel (Equipo). */
+(async () => {
+  if (st.demo) return;
+  try {
+    const j = await (await fetch("/repartidor/google")).json(); if (!j.client_id) return;
+    const s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+    s.onload = () => {
+      google.accounts.id.initialize({client_id:j.client_id, callback: async g => {
+        try {
+          const r = await fetch("/repartidor/google", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({credential:g.credential})});
+          const k = await r.json().catch(() => ({}));
+          if (!r.ok) { $("#e-pin").textContent = k.error || "No se pudo entrar con Google."; return; }
+          if (k.aviso_ubicacion) st.aviso = k.aviso_ubicacion;
+          entrarRep(k.nombre || "");
+        } catch (e) { $("#e-pin").textContent = "Sin conexión. Revisa tu internet e inténtalo otra vez."; }
+      }});
+      google.accounts.id.renderButton($("#g-boton"), {theme:"outline", size:"large", text:"signin_with", locale:"es"}); $("#g-boton").hidden = false;
+    };
+    document.head.append(s);
+  } catch (e) {}
+})();
 $("#btn-salir").onclick = async () => { clearInterval(st.sondeo); if (!st.demo) await fetch("/repartidor/salir", {method:"POST"}).catch(() => {}); location.reload(); };
 
 /* ---------- Datos ---------- */

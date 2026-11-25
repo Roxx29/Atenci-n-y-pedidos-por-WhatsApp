@@ -19,7 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-from . import carta, clientes, factura, mesa, paginas, panel_web, temas, ubicacion
+from . import carta, clientes, factura, mesa, paginas, panel_web, seguridad, temas, ubicacion
 from . import ruta as reparto
 from . import herramientas
 from .herramientas import dinero, limpiar_imagen, purgar_comprobantes, subir_comprobante, tipo_imagen
@@ -181,6 +181,11 @@ def cid_de_cookie(secreto, cabecera):
     return None
 
 
+def nombre_seguro(n):
+    """Nombre del cliente para el prompt: solo letras, números, espacios y . ' -; máx. 60."""
+    return re.sub(r"\s+", " ", re.sub(r"[^\w .'-]", " ", str(n))).strip()[:60] or "cliente"
+
+
 def enmascarar(tel):
     """+507 6***-**12: nunca se imprime el teléfono completo."""
     return panel_web._mask(tel, con_prefijo=True)
@@ -326,6 +331,11 @@ def crear_manejador(sv, secreto=None, env=None):
     bloqueo_rep, ubic_pend = panel_web.Bloqueo(), {}  # ubic_pend: cid -> ubicación recibida antes de tener pedido
     limite, nombres = Limite(), {}  # nombres: cid -> nombre pendiente de anteponer al primer mensaje
     pos = ubicacion.Posiciones()  # última posición de cada repartidor en camino (solo memoria)
+    gid = env.get("GOOGLE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")  # en alojar: GOOGLE_CLIENT_ID_<SLUG> o el del proceso
+    seguridad.migrar_contactos(sv)  # con DATOS_CLAVE: cifra los teléfonos de contacto que quedaran en claro
+
+    def login(evento, ip, **c):
+        seguridad.evento(evento, cliente=sv.dir.name, ip=ip, **c)
 
     def aviso_rep(nombre):
         """{version, texto, aceptado} del aviso de ubicación del repartidor (servicio.yaml repartidor: {aviso_ubicacion_version, aviso_ubicacion})."""
@@ -336,6 +346,7 @@ def crear_manejador(sv, secreto=None, env=None):
                 "aceptado": bool(fila) and fila[0][0] == v}
 
     def aviso_pin(donde):
+        seguridad.evento("login_saturado", alerta=True, cliente=sv.dir.name, donde=donde)
         sv.insertar("aviso", {"texto": f"Muchos PIN equivocados en {donde} en la última hora: el acceso queda en pausa un rato (las sesiones abiertas siguen)."
                                        " Si no fue su equipo, alguien está probando PIN.", "telefono": None, "pedido_id": None})
 
@@ -497,6 +508,43 @@ def crear_manejador(sv, secreto=None, env=None):
                 return self._err(400, "JSON inválido")
             return d if isinstance(d, dict) else self._err(400, "JSON inválido")
 
+        def _csp_entrada(self, f):
+            """CSP de panel/repartidor: con GOOGLE_CLIENT_ID la estándar admite el botón de Google; la página propia del cliente, nunca."""
+            c = paginas.csp(sv, f, CSP)
+            return seguridad.con_google(c) if gid and c == CSP else c
+
+        def _acceso(self, acc, blq, donde, aud, por_google):
+            """POST de entrada del equipo (PIN o Google) con el bloqueo por IP y el global. Nombre, o None con el error ya enviado.
+            Google: el correo verificado debe estar autorizado para una persona ACTIVA del rol de esta entrada (panel o repartidor)."""
+            ip = self._ip()
+            if blq.bloqueada(ip):
+                login("login_bloqueado", ip, donde=donde)
+                return self._err(429, "Demasiados intentos; espere unos minutos")
+            if por_google and not gid:
+                return self._err(404, "No encontrado")
+            d = self._json()
+            if d is None:
+                return None
+            time.sleep(blq.retraso())  # antes de comprobar: si solo esperase el fallo, la tardanza delataría el PIN malo
+            if por_google:
+                email = seguridad.google_email(d.get("credential"), gid)
+                nombre = email and seguridad.usuario_de_email(sv, email)
+                quien = nombre if nombre and nombre in acc.roles else None
+            else:
+                pin = d.get("pin")
+                with blq.cerrojo:  # un PBKDF2 a la vez
+                    quien = acc.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+            metodo = "google" if por_google else "pin"
+            if not quien:
+                if blq.fallo(ip):
+                    aviso_pin(donde)
+                panel_web.auditar(sv, "?", aud + "login_fallido")
+                login("login_fallido", ip, donde=donde, metodo=metodo, alerta=blq.bloqueada(ip))  # alerta cuando esa IP queda bloqueada
+                return self._err(401, "Esa cuenta de Google no tiene acceso" if por_google else "PIN incorrecto")
+            blq.acierto(ip)
+            login("login", ip, donde=donde, metodo=metodo, usuario=quien)
+            return quien
+
         def _panel(self, metodo, ruta):
             """Rutas /panel*: solo LAN (o PANEL_PUBLICO=1) y solo con PIN configurado; el resto de peticiones ni lo ven.
             PANEL_PUBLICO: en `motor web`, la del proceso. En `alojar` se fija por cliente con PANEL_PUBLICO_<SLUG> (1 abre, 0 cierra)
@@ -505,23 +553,13 @@ def crear_manejador(sv, secreto=None, env=None):
             if not (acceso.activo and ((panel_web.es_lan(ip) and not self._proxy()) or env.get("PANEL_PUBLICO", os.environ.get("PANEL_PUBLICO")) == "1")):
                 return self._err(404, "No encontrado")
             if ruta == "/panel" and metodo == "GET":
-                return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA_PANEL, CSP))])  # en cada visita: el nombre se cambia desde el panel
-            if ruta == "/panel/entrar" and metodo == "POST":
-                if bloqueo.bloqueada(ip):
-                    return self._err(429, "Demasiados intentos; espere unos minutos")
-                d = self._json()
-                if d is None:
-                    return
-                pin = d.get("pin")
-                time.sleep(bloqueo.retraso())  # antes de comprobar: si solo esperase el fallo, la tardanza delataría el PIN malo
-                with bloqueo.cerrojo:  # un PBKDF2 a la vez
-                    quien = acceso.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+                return self._enviar(200, armar_pagina(sv, PAGINA_PANEL), "text/html", [("Content-Security-Policy", self._csp_entrada(PAGINA_PANEL))])  # en cada visita: el nombre se cambia desde el panel
+            if ruta == "/panel/google" and metodo == "GET":  # la página muestra el botón de Google solo si hay client_id
+                return self._enviar(200, {"client_id": gid or None})
+            if ruta in ("/panel/entrar", "/panel/google") and metodo == "POST":
+                quien = self._acceso(acceso, bloqueo, "el panel", "", ruta == "/panel/google")
                 if not quien:
-                    if bloqueo.fallo(ip):
-                        aviso_pin("el panel")
-                    panel_web.auditar(sv, "?", "login_fallido")
-                    return self._err(401, "PIN incorrecto")
-                bloqueo.acierto(ip)
+                    return
                 panel_web.auditar(sv, quien, "login")
                 return self._enviar(200, {"ok": True, "nombre": quien, "rol": usuarios.rol(quien)}, extra=[("Set-Cookie", acceso.cookie(quien, seguro=self._seguro()))])
             ses = acceso.sesion(self.headers.get("Cookie"))
@@ -797,33 +835,22 @@ def crear_manejador(sv, secreto=None, env=None):
 
         def _repartidor(self, metodo, ruta):
             """Rutas /repartidor*: PIN propio por repartidor; ve solo sus pedidos abiertos. No es solo-LAN (el móvil va por la calle): PIN + bloqueo; HTTPS en producción."""
-            ip = self._ip()
             if not acc_rep.activo:
                 return self._err(404, "No encontrado")
             if ruta in ("/repartidor", "/repartidor/") and metodo == "GET":
-                return self._enviar(200, armar_pagina(sv, PAGINA_REP), "text/html", [("Content-Security-Policy", paginas.csp(sv, PAGINA_REP, CSP))])
+                return self._enviar(200, armar_pagina(sv, PAGINA_REP), "text/html", [("Content-Security-Policy", self._csp_entrada(PAGINA_REP))])
             if ruta == "/repartidor/manifest.webmanifest" and metodo == "GET":
                 return self._enviar(200, MANIFEST_REP, "application/manifest+json")
             if ruta == "/repartidor/sw.js" and metodo == "GET":
                 return self._enviar(200, SW_REP, "text/javascript", [("Service-Worker-Allowed", "/repartidor/")])
             if ruta == "/repartidor/icono.svg" and metodo == "GET":
                 return self._enviar(200, ICONO_REP.read_bytes(), "image/svg+xml")
-            if ruta == "/repartidor/entrar" and metodo == "POST":
-                if bloqueo_rep.bloqueada(ip):
-                    return self._err(429, "Demasiados intentos; espere unos minutos")
-                d = self._json()
-                if d is None:
-                    return
-                pin = d.get("pin")
-                time.sleep(bloqueo_rep.retraso())
-                with bloqueo_rep.cerrojo:
-                    nombre = acc_rep.rol_de_pin(pin) if isinstance(pin, str) and len(pin) <= 64 else None
+            if ruta == "/repartidor/google" and metodo == "GET":
+                return self._enviar(200, {"client_id": gid or None})
+            if ruta in ("/repartidor/entrar", "/repartidor/google") and metodo == "POST":
+                nombre = self._acceso(acc_rep, bloqueo_rep, "la app del repartidor", "repartidor_", ruta == "/repartidor/google")
                 if not nombre:
-                    if bloqueo_rep.fallo(ip):
-                        aviso_pin("la app del repartidor")
-                    panel_web.auditar(sv, "?", "repartidor_login_fallido")
-                    return self._err(401, "PIN incorrecto")
-                bloqueo_rep.acierto(ip)
+                    return
                 panel_web.auditar(sv, nombre, "repartidor_login")
                 return self._enviar(200, {"ok": True, "nombre": nombre, "aviso_ubicacion": aviso_rep(nombre)}, extra=[("Set-Cookie", acc_rep.cookie(nombre, seguro=self._seguro()))])
             ses = acc_rep.sesion(self.headers.get("Cookie"))
@@ -1019,7 +1046,7 @@ def crear_manejador(sv, secreto=None, env=None):
                 contacto = {}
             else:  # el teléfono no se verifica: es solo contacto. La identidad es una sesión aleatoria (la de este navegador si ya tenía)
                 actual = self._cid()
-                contacto, tel = {"contacto": tel}, actual if actual and CID_WEB.fullmatch(actual) else "w" + secrets.token_hex(16)
+                contacto, tel = {"contacto": seguridad.cifrar(tel)}, actual if actual and CID_WEB.fullmatch(actual) else "w" + secrets.token_hex(16)
             sv.insertar("consentimiento", {"telefono": tel, **contacto, "nombre": nombre, "consentimiento_at": sv.ahora().isoformat(), "version_aviso": version})
             if nombre:
                 nombres[tel] = nombre
@@ -1074,7 +1101,7 @@ def crear_manejador(sv, secreto=None, env=None):
             if ext != {"image/jpeg": "jpg", "image/png": "png"}[tipo]:
                 return self._err(415, "El archivo no es una imagen del tipo indicado")
             try:
-                limpia = limpiar_imagen(datos, ext)
+                limpia = herramientas.recodificar_imagen(limpiar_imagen(datos, ext), ext)  # Pillow: tipo real e imagen nueva (sin políglotas)
             except ValueError as e:
                 return self._err(400, str(e))
             try:
@@ -1153,8 +1180,8 @@ def crear_manejador(sv, secreto=None, env=None):
             if not (isinstance(t, str) and 1 <= len(t) <= 1000):
                 return self._err(400, "Texto inválido")
             self._visita_nueva(cid)
-            if n := nombres.pop(cid, None):
-                t = f"[Nombre del cliente: {n}] {t}"
+            if n := nombres.pop(cid, None):  # el nombre lo escribe el cliente: sin corchetes ni saltos no puede cerrar la etiqueta y colar instrucciones
+                t = f"[Nombre del cliente: {nombre_seguro(n)}] {t}"
             if m := mesa.de_cid(cid):
                 t = f"[Cliente SENTADO en la MESA {m} (pedido en mesa por QR, NO online): usa siempre modalidad 'mesa'; NO preguntes dirección, teléfono, entrega ni recogida ni las ofrezcas; el nombre ya lo tienes (arriba), no lo pidas de nuevo; al confirmar di «Mesa {m}»] {t}"
             antes = {p["id"]: p for p in pedidos_de(cid)}

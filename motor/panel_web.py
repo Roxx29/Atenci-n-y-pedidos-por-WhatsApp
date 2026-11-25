@@ -23,7 +23,7 @@ import unicodedata
 from collections.abc import Mapping
 
 from . import mesa, clientes
-from . import herramientas
+from . import herramientas, pedidos_admin, seguridad
 from . import ruta as reparto
 from . import ubicacion
 from .herramientas import dinero
@@ -216,6 +216,9 @@ def guardar_usuario(sv, d, quien):
         raise ValueError("El PIN debe tener 6 números y no ser trivial")
     if activo is not None and not isinstance(activo, bool):
         raise ValueError("Activo debe ser sí o no")
+    email = d.get("email")  # correo de Google autorizado para entrar sin PIN ("" lo quita)
+    if email is not None and not (isinstance(email, str) and (not email.strip() or seguridad.email_valido(email))):
+        raise ValueError("Correo no válido")
     with sv.pedidos_lock:
         u = next((u for u in _todos(sv) if u["nombre"] == nombre), None)
         if not u and not (rol and pin):
@@ -229,9 +232,12 @@ def guardar_usuario(sv, d, quien):
         if u and u["rol"] == "dueno" and u["activo"] and not (nuevo["rol"] == "dueno" and nuevo["activo"]) and \
                 not any(x["rol"] == "dueno" and x["activo"] and x["nombre"] != nombre for x in _todos(sv)):
             raise ValueError("Debe quedar al menos un dueño activo")
+        if email is not None:  # antes de guardar: si el correo es de otra persona no cambia nada
+            seguridad.poner_email(sv, nombre, email)
         _poner(sv, nuevo)
     cambios = ["usuario_crear"] if not u else [a for a, si in (("usuario_pin", pin), ("usuario_rol", rol and rol != u["rol"]),
                                                                ("usuario_activo" if activo else "usuario_desactivar", activo is not None and activo != u["activo"])) if si]
+    cambios += ["usuario_google"] if email is not None else []  # sin el correo
     for a in cambios:
         auditar(sv, quien, f"{a}:{nombre}")
     return {"nombre": nombre, "rol": nuevo["rol"], "activo": nuevo["activo"]}
@@ -247,6 +253,7 @@ def borrar_usuario(sv, nombre, quien):
             raise ValueError("Debe quedar al menos un dueño activo")
         sv._q("DELETE FROM usuarios WHERE nombre=?", (nombre,))
         sv._q("DELETE FROM aviso_repartidor WHERE nombre=?", (nombre,))
+        sv._q("DELETE FROM google WHERE nombre=?", (nombre,))
     auditar(sv, quien, f"usuario_borrar:{nombre}")
     return {"ok": True}
 
@@ -390,7 +397,8 @@ def borrar_foto(sv, quien, iid):
 
 
 def lista_usuarios(sv):
-    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": u["activo"]} for u in _todos(sv)]
+    g = seguridad.emails(sv)
+    return [{"nombre": u["nombre"], "rol": u["rol"], "activo": u["activo"], "email": g.get(u["nombre"])} for u in _todos(sv)]
 
 
 class Bloqueo:
@@ -491,7 +499,7 @@ def pedido_json(p, detalle=False):
     d = {"id": p["id"], "estado": p["estado"], "nombre": p.get("nombre"),
          "telefono": None if mesa else herramientas.tel_de(p) if detalle and not cerrado else _mask(herramientas.tel_de(p)),
          "modalidad": p.get("modalidad"), "zona": p.get("zona"), "hora_deseada": p.get("hora_deseada"), "notas": p.get("notas"),
-         "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"]), **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
+         "items": [{"id": l["id"], "nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"]), **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
          "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
          "metodo": p.get("metodo"), "referencia": p.get("referencia"), "comprobante": bool(p.get("comprobante")),
          "creado_at": p.get("creado_at"), "estado_at": p.get("estado_at") or p.get("creado_at"), "acciones": acciones_de(p),
@@ -506,14 +514,14 @@ def pedido_json(p, detalle=False):
 
 
 def estado_panel(sv, desde=0, repartidores=(), rutas=None):
-    """Lo que el panel sondea cada 3 s: pedidos (activos + cerrados de hoy), avisos nuevos (id > desde) o de pedidos pendientes, escalados abiertos."""
+    """Lo que el panel sondea cada 3 s: pedidos (activos + cerrados de hoy), avisos nuevos (id > desde), escalados abiertos."""
     herramientas.caducar_pedidos(sv)
     hoy = sv.ahora().date().isoformat()
     peds = [p for p in sv.listar("pedido") if p["estado"] not in TERMINADOS or (p.get("estado_at") or "").startswith(hoy)]
     espera = {p["id"] for p in peds if p["estado"] in PAGO_PENDIENTE}
     todos = sv.listar("aviso")
     avisos = [{"id": a["id"], "tipo": "pago" if a.get("pedido_id") in espera else "pedido", "texto": a["texto"], "pedido_id": a.get("pedido_id")}
-              for a in reversed(todos) if a["id"] > desde or a.get("pedido_id") in espera]
+              for a in reversed(todos) if a["id"] > desde]  # solo los nuevos: reenviar los pendientes en cada sondeo repetía el aviso (y el sonido) cada 3 s
     abiertos = [e for e in sv.listar("escalado") if e.get("estado") == "abierto"]
     # quien pide una persona espera que lo llamen: el panel (con PIN) ve su teléfono completo mientras el aviso está abierto; atendido, deja de salir
     nombres = {r["telefono"]: r["nombre"] for t in ("consentimiento", "pedido") for r in sv.listar(t) if r.get("telefono") and r.get("nombre")} if abiertos else {}
@@ -1037,6 +1045,10 @@ def api_dueno(sv, quien, rol, metodo, ruta, d=None):
         return {"ajustes": ajustes_json(sv)}
     if (metodo, ruta) == ("POST", "ajustes"):
         return guardar_ajustes(sv, d or {}, quien)
+    if (metodo, ruta) == ("POST", "pedido_editar"):
+        return pedidos_admin.editar(sv, quien, d or {})
+    if (metodo, ruta) == ("GET", "exportar") or (metodo, ruta) == ("POST", "exportar"):
+        return pedidos_admin.exportar(sv, quien, d or {})
     if (metodo, ruta) == ("POST", "estadisticas"):
         return estadisticas(sv, (d or {}).get("dias"))
     if (metodo, ruta) == ("POST", "preguntar"):

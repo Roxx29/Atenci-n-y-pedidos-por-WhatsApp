@@ -1,2 +1,2 @@
 FROM alpine:3.20
-RUN apk add --no-cache sqlite rsync openssh-client coreutils
+RUN apk add --no-cache sqlite rsync openssh-client coreutils age tar

@@ -162,6 +162,17 @@ pre.ej{margin:0;padding:8px;background:var(--bg);border:1px solid var(--line);bo
   <div class="tabs" role="tablist" id="tabs"></div>
   <div class="dc" id="dc" role="tabpanel"></div>
 </aside>
+<dialog id="rei" aria-labelledby="reit">
+  <form id="frei" novalidate>
+    <h2 id="reit">Reiniciar historial de pedidos</h2>
+    <p>Borra los pedidos, avisos y comprobantes de este restaurante. Carta, equipo y ajustes se conservan. Se hace una copia antes.</p>
+    <label class="f"><span id="reil"></span><input id="reic" autocomplete="off" autocapitalize="none" required></label>
+    <label class="f"><span>Clave del operador</span><input id="reik" type="password" autocomplete="off" required></label>
+    <label class="f"><span><input type="checkbox" id="reit2"> Borrar también toda su información (consentimientos, citas, auditoría): el contador vuelve a 1</span></label>
+    <p class="err" id="reierr" role="alert"></p>
+    <div class="acc"><button class="p bad" id="reiok" disabled>Reiniciar</button><button type="button" id="reino">Cancelar</button></div>
+  </form>
+</dialog>
 <dialog id="del" aria-labelledby="delt">
   <form id="fdel" novalidate>
     <h2 id="delt">Eliminar definitivamente</h2>
@@ -281,6 +292,8 @@ function tResumen(c){
   if(c.error)x.push(el("p","warn","Error en "+c.error));
   const lp=botonAcc("Cancelar pedidos de prueba","",()=>api("POST",R(c.slug)+"limpiar-pruebas"),j=>j.canceladas+" pedido(s) de prueba cancelado(s)");
   x.push(sec("Pedidos de prueba",el("p","dom","Cancela los «PRUEBA-CARGA» que dejó la prueba de carga. Los pedidos reales no se tocan."),lp));
+  const rb=el("button","bad","Reiniciar historial…");rb.type="button";rb.onclick=()=>abrirReiniciar(c.slug);
+  x.push(sec("Reiniciar historial",el("p","dom","Borra los pedidos de este cliente para empezar de cero sin recrear el restaurante. Se guarda una copia antes."),rb));
   if(c.notas)x.push(sec("Notas",el("p","dom",c.notas)));
   return x;
 }
@@ -370,6 +383,17 @@ function tPeligro(c){
   }
   return [z];
 }
+function abrirReiniciar(slug){
+  $("reil").textContent="Escribe «"+slug+"» para confirmar";$("reic").value="";$("reik").value="";$("reit2").checked=false;$("reierr").textContent="";$("reiok").disabled=true;
+  $("rei").dataset.slug=slug;$("rei").showModal();$("reic").focus();
+}
+const reiListo=()=>{$("reiok").disabled=$("reic").value!==$("rei").dataset.slug||!$("reik").value};
+$("reic").oninput=reiListo;$("reik").oninput=reiListo;
+$("reino").onclick=()=>$("rei").close();
+$("frei").onsubmit=async e=>{e.preventDefault();const s=$("rei").dataset.slug;if($("reic").value!==s)return;
+  $("reiok").disabled=true;
+  try{const j=await api("POST",R(s)+"reiniciar",{confirmar:s,clave:$("reik").value,todo:$("reit2").checked});$("rei").close();aviso(j.borrados+" registro(s) borrado(s); el próximo pedido será el #"+j.siguiente_pedido);await cargar()}
+  catch(x){$("reierr").textContent=x.message;$("reiok").disabled=false}};
 function abrirEliminar(slug){
   $("dell").textContent="Escribe «"+slug+"» para confirmar";$("delc").value="";$("delerr").textContent="";$("delok").disabled=true;
   $("del").dataset.slug=slug;$("del").showModal();$("delc").focus();

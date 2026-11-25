@@ -531,6 +531,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
       <button type="submit" class="btn" style="min-height:64px;font-size:1.125rem">Entrar</button>
     </div>
     <p class="error" id="e-pin" role="alert"></p>
+    <div id="g-boton" hidden style="margin-top:12px"></div>
   </form>
 </main>
 
@@ -687,6 +688,13 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
             <label>DV<input name="dv" maxlength="3" inputmode="numeric" pattern="\d*"></label>
             <label>Sucursal<input name="sucursal" maxlength="20" placeholder="Ej.: 0001"></label>
           </section>
+          <section class="caja-aj" id="sec-exportar">
+            <h3 class="grupo">Exportar al cierre del período</h3>
+            <p class="t-espera" style="margin:0">Descarga en CSV todos los pedidos o el resumen de todas las facturas del rango. Los resúmenes no son facturas fiscales.</p>
+            <label>Desde<input type="date" id="exp-desde"></label>
+            <label>Hasta<input type="date" id="exp-hasta"></label>
+            <div class="dh-acc"><button type="button" class="btn suave" id="exp-pedidos">Descargar pedidos (CSV)</button><button type="button" class="btn suave" id="exp-facturas">Descargar facturas (CSV)</button></div>
+          </section>
           <section class="caja-aj">
             <h3 class="grupo">Datos de pago</h3>
             <label>Yappy<input name="yappy" maxlength="160" placeholder="@turestaurante o número"></label>
@@ -745,6 +753,7 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
       <ul class="t-items" id="dlg-items"></ul>
       <p class="t-espera" id="dlg-pista">Compara el monto y la referencia con tu app de Yappy o del banco.</p>
       <button type="button" class="btn suave" id="dlg-factura-btn" hidden>Resumen para factura</button>
+      <button type="button" class="btn suave" id="dlg-editar-btn" hidden>Editar pedido</button>
       <div class="acciones" id="dlg-acciones"></div>
       <div class="confirmar" id="dlg-confirmar" hidden>
         <p>¿Seguro? El pedido vuelve a "Nuevos" y se avisa al cliente para que pague de nuevo.</p>
@@ -753,6 +762,19 @@ select.campo-aj{border-color:var(--outline-variant);background:var(--sc-lowest)}
     </div>
   </div>
   <button class="icono-btn dlg-cerrar" id="dlg-cerrar" aria-label="Cerrar"><svg class="i"><use href="#i-cerrar"/></svg></button>
+</dialog>
+
+<dialog id="dlg-editar" class="chico" aria-labelledby="ed-tit">
+  <form class="caja-aj" style="margin:0;box-shadow:none" id="ed-form" novalidate>
+    <h2 id="ed-tit" style="margin:0;font-size:1.125rem">Editar pedido</h2>
+    <p class="t-espera" style="margin:0">Pon 0 para quitar un plato. Los precios y el total los calcula el servidor con la carta; queda anotado quién lo cambió.</p>
+    <div id="ed-items"></div>
+    <label>Agregar plato<select id="ed-nuevo"></select></label>
+    <label>Notas<textarea id="ed-notas" maxlength="200" rows="2"></textarea></label>
+    <label>Estado<select id="ed-estado"></select></label>
+    <p class="error" id="ed-error" role="alert"></p>
+    <div class="dh-acc"><button type="submit" class="btn" id="ed-ok">Guardar</button><button type="button" class="btn suave" id="ed-x">Cancelar</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-factura" class="chico" aria-labelledby="fac-tit">
@@ -860,12 +882,36 @@ $("#form-pin").addEventListener("submit", async ev => {
       st.rol = j.rol;
     } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema. Revise que esté encendido."; return; } // nunca datos de ejemplo en un panel real
   }
+  entrarPanel();
+});
+function entrarPanel() {
   pin.value = ""; $("#login").hidden = true; $("#panel").hidden = false; actividad(); mantenerPantalla(true);
   $("#nav-equipo").hidden = $("#nav-config").hidden = st.rol !== "dueno"; irA(st.vista); // quien entra ahora puede tener otro rol
   if (st.bloqueado) { st.bloqueado = false; $("#panel").inert = false; $("#login").classList.remove("bloqueo"); return; }
   if (st.demo) { cargarDemo(); pintarModulos(["estadisticas"]); }
   sondear(); clearInterval(st.sondeo); st.sondeo = setInterval(sondear, 3000);
-});
+}
+/* Entrar con Google: solo si el servidor tiene GOOGLE_CLIENT_ID; el correo debe estar autorizado por el dueño (Equipo). */
+(async () => {
+  if (st.demo) return;
+  try {
+    const j = await (await fetch("/panel/google")).json(); if (!j.client_id) return;
+    st.google = true;
+    const s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+    s.onload = () => {
+      google.accounts.id.initialize({client_id:j.client_id, callback: async g => {
+        try {
+          const r = await fetch("/panel/google", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({credential:g.credential})});
+          const k = await r.json().catch(() => ({}));
+          if (!r.ok) { $("#e-pin").textContent = k.error || "No se pudo entrar con Google."; return; }
+          desbloquearSonido(); st.rol = k.rol; entrarPanel();
+        } catch (e) { $("#e-pin").textContent = "No hay conexión con el sistema."; }
+      }});
+      google.accounts.id.renderButton($("#g-boton"), {theme:"outline", size:"large", text:"signin_with", locale:"es"}); $("#g-boton").hidden = false;
+    };
+    document.head.append(s);
+  } catch (e) {}
+})();
 $("#btn-salir").onclick = async () => {
   clearInterval(st.sondeo);
   if (!st.demo) await fetch("/panel/salir", {method:"POST"}).catch(() => {});
@@ -1137,6 +1183,8 @@ async function abrirDetalle(p, rechazar) {
   $("#dlg-pista").hidden = !conImg;
   $("#dlg-factura-btn").hidden = st.demo || ["por_confirmar", "cancelado", "caducado"].includes(p.estado);
   $("#dlg-factura-btn").onclick = () => abrirFactura(p);
+  $("#dlg-editar-btn").hidden = st.demo || st.rol !== "dueno" || !abierto || p.estado === "en_camino";
+  $("#dlg-editar-btn").onclick = () => abrirEditar(p);
   const acc = [];
   const hacer = e => () => { $("#dlg").close(); marcar(p, e); };
   if (p.estado === "pago_reportado") acc.push(
@@ -1157,6 +1205,42 @@ $("#dlg-cerrar").onclick = () => $("#dlg").close();
 $("#dlg").addEventListener("click", e => { if (e.target === $("#dlg")) $("#dlg").close(); });
 $("#dlg-no-volver").onclick = () => { mostrarConfirmar(false); ($("#dlg-acciones button") || $("#dlg-cerrar")).focus(); };
 $("#dlg-no-si").onclick = () => { const p = st.pedidos.get(st.abierto); $("#dlg").close(); marcar(p, "pago_rechazado"); };
+
+/* ---------- Editar un pedido abierto (solo dueño): el servidor recalcula con los precios de la carta ---------- */
+async function abrirEditar(p) {
+  let menu; try { menu = (await api("GET", "/panel/menu")).menu; } catch (e) { return aviso(e.message, true); }
+  const filas = (p.items || []).map(i => ({id:i.id || (menu.find(m => m.nombre === i.nombre) || {}).id, nombre:i.nombre, cantidad:i.cantidad, nota:i.nota}));
+  const pintarFilas = () => $("#ed-items").replaceChildren(...filas.map(f => h("label", {}, f.nombre, h("input", {type:"number", min:0, max:50, value:f.cantidad, on:{input:e => f.cantidad = Number(e.target.value)}}))));
+  pintarFilas();
+  $("#ed-nuevo").replaceChildren(h("option", {value:""}, "—"), ...menu.filter(m => m.disponible && !filas.some(f => f.id === m.id)).map(m => h("option", {value:m.id}, m.nombre + " · " + dinero(m.precio))));
+  $("#ed-nuevo").onchange = e => { const m = menu.find(x => x.id === e.target.value); if (m) { filas.push({id:m.id, nombre:m.nombre, cantidad:1}); pintarFilas(); e.target.querySelector(`[value="${m.id}"]`).remove(); e.target.value = ""; } };
+  $("#ed-notas").value = p.notas || "";
+  $("#ed-estado").replaceChildren(h("option", {value:""}, "Sin cambiar (" + (NOMBRE_ESTADO[p.estado] || p.estado) + ")"), ...(p.acciones || []).map(e => h("option", {value:e}, NOMBRE_ESTADO[e] || e)));
+  $("#ed-error").textContent = "";
+  $("#ed-form").onsubmit = async ev => {
+    ev.preventDefault();
+    const items = filas.filter(f => f.cantidad > 0).map(f => ({id:f.id, cantidad:f.cantidad, ...(f.nota ? {nota:f.nota} : {})}));
+    if (!items.length) { $("#ed-error").textContent = "El pedido necesita al menos un plato. Para anularlo usa «Cancelar pedido»."; return; }
+    try { await api("POST", "/panel/dueno/pedido_editar", {pedido_id:p.id, items, notas:$("#ed-notas").value, ...($("#ed-estado").value ? {estado:$("#ed-estado").value} : {})}); }
+    catch (e) { $("#ed-error").textContent = e.message; return; }
+    $("#dlg-editar").close(); aviso(`Pedido #${p.id} actualizado`); sondear();
+  };
+  $("#dlg").close(); $("#dlg-editar").showModal();
+}
+$("#ed-x").onclick = () => $("#dlg-editar").close();
+
+/* ---------- Exportar pedidos / facturas del período (CSV; el servidor valida el rango) ---------- */
+async function exportar(tipo) {
+  const desde = $("#exp-desde").value, hasta = $("#exp-hasta").value;
+  if (!desde || !hasta) return aviso("Elige las dos fechas", true);
+  try {
+    const r = await api("POST", "/panel/dueno/exportar", {tipo, desde, hasta});
+    const a = h("a", {href:URL.createObjectURL(new Blob(["﻿" + r.csv], {type:"text/csv"})), download:r.nombre}); document.body.append(a); a.click(); a.remove();
+    aviso(r.filas + " filas exportadas");
+  } catch (e) { aviso(e.message, true); }
+}
+$("#exp-pedidos").onclick = () => exportar("pedidos");
+$("#exp-facturas").onclick = () => exportar("facturas");
 
 /* ---------- Resumen para factura (no es una factura fiscal; el servidor arma el resumen) ---------- */
 const FAC = {id:0, texto:""};
@@ -1617,6 +1701,7 @@ function filaPersona(u) {
   pinIn.addEventListener("keydown", e => { if (e.key === "Enter") enviarPin(); });
   const pinCaja = h("div", {class:"pin-linea", hidden:true}, pinIn, h("button", {class:"btn ok", type:"button", on:{click:enviarPin}}, "Guardar PIN"), pinNota);
   const pedirPin = nota => { pinNota.textContent = nota; pinCaja.hidden = false; pinIn.focus(); };
+  const [gIn, gCaja] = st.google ? cajaGoogle(u, guardar) : [null, null];
   const rol = h("select", {class:"campo-aj rol", "aria-label":"Rol de " + u.nombre}, ROLES.map(([v]) => h("option", {value:v, selected:v === u.rol}, NOMBRE_ROL[v])));
   rol.onchange = async () => { try { await guardar({rol:rol.value}, u.nombre + " ahora es " + NOMBRE_ROL[rol.value].toLowerCase()); } catch (e) { aviso(e.message, true); rol.value = u.rol; } };
   return h("div", {class:"fila-aj fila-persona" + (u.activo ? "" : " apagada")},
@@ -1629,8 +1714,16 @@ function filaPersona(u) {
     }, u.nombre + ": puede entrar"),
     h("div", {class:"aj-acc"},
       h("button", {class:"mini", type:"button", on:{click:() => { reactivar = false; pedirPin(""); }}}, "Cambiar PIN"),
+      st.google && h("button", {class:"mini", type:"button", on:{click:() => { gCaja.hidden = false; gIn.focus(); }}}, u.email ? "Google ✓" : "Google"),
       botonSeguro("Borrar", "Borrar a " + u.nombre, async () => { await api("POST", "/panel/dueno/usuario_borrar", {nombre:u.nombre}); aviso(u.nombre + " borrado"); pintarEquipo(); })),
-    pinCaja);
+    pinCaja, gCaja);
+}
+function cajaGoogle(u, guardar) { // correo de Google autorizado para entrar sin PIN ("" lo quita)
+  const gIn = h("input", {type:"email", maxlength:254, autocomplete:"off", placeholder:"correo@gmail.com", value:u.email || "", "aria-label":"Correo de Google de " + u.nombre});
+  const nota = h("span", {class:"t-espera", role:"status"});
+  const enviar = async () => { const v = gIn.value.trim(); try { await guardar({email:v}, v ? u.nombre + " puede entrar con Google" : "Google quitado a " + u.nombre); } catch (e) { nota.textContent = e.message; gIn.focus(); } };
+  gIn.addEventListener("keydown", e => { if (e.key === "Enter") enviar(); });
+  return [gIn, h("div", {class:"pin-linea", hidden:true}, gIn, h("button", {class:"btn ok", type:"button", on:{click:enviar}}, "Guardar correo"), nota)];
 }
 const NOMBRE_ROL = {dueno:"Dueño", personal:"Personal", repartidor:"Repartidor"};
 $("#f-usuario").onsubmit = async ev => {

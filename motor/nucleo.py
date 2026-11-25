@@ -91,6 +91,7 @@ class Servicio:
             "CREATE TABLE IF NOT EXISTS vistos(id TEXT PRIMARY KEY);"
             "CREATE TABLE IF NOT EXISTS platos(orden INTEGER PRIMARY KEY, id TEXT UNIQUE, datos TEXT);"
             "CREATE TABLE IF NOT EXISTS usuarios(nombre TEXT PRIMARY KEY, rol TEXT NOT NULL, pin_hash TEXT NOT NULL, activo INTEGER NOT NULL DEFAULT 1);"
+            "CREATE TABLE IF NOT EXISTS google(email_h TEXT PRIMARY KEY, nombre TEXT UNIQUE NOT NULL, email TEXT NOT NULL);"  # correo de Google autorizado por persona (cifrado; email_h = índice)
             "CREATE TABLE IF NOT EXISTS aviso_repartidor(nombre TEXT PRIMARY KEY, version TEXT NOT NULL, at TEXT NOT NULL);"  # aviso de ubicación aceptado
             "CREATE TABLE IF NOT EXISTS comprobantes(nombre TEXT PRIMARY KEY, datos BLOB NOT NULL, creado REAL NOT NULL);"  # fotos de comprobantes de Yappy (antes archivos)
             "CREATE TABLE IF NOT EXISTS ajustes(clave TEXT PRIMARY KEY, valor TEXT NOT NULL);"  # lo que el dueño cambia desde el panel; pisa esa clave de servicio.yaml

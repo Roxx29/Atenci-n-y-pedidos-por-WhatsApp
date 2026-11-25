@@ -123,6 +123,13 @@ Módulo desactivable como `estadisticas`: `modulos: [mesas]` en `clientes.yaml`/
   - Páginas: `GET /panel/qr`, `GET /panel/qr/svg/<id>`, `GET /panel/qr/hoja?plantilla=mesa|flyer|pegatina&ids=1,2`.
 - **Seguimiento vivo («Mi pedido»):** línea de tiempo Recibido → Cocinando → Listo → En camino/Para recoger → Entregado, barra que se llena, etapa activa latiendo, texto por estado, vibración suave, mapa del repartidor arriba (misma regla de parada) y, al entregar, «Gracias» + «Repetir este pedido». Tokens `var(--…)`, `prefers-reduced-motion` respetado, solo transform/opacity.
 
+## Seguridad transversal (`motor/seguridad.py`, 2026-11-25)
+- **Cifrado en reposo:** `contacto` (teléfono web) de consentimientos y pedidos y los correos de Google van como `enc1:<Fernet>` con `DATOS_CLAVE` (varias separadas por comas: la primera cifra, todas descifran). Lectura solo por `herramientas.contacto_de`/`tel_de` y `seguridad.emails`; lo viejo en claro se lee igual y `crear_manejador` lo cifra al arrancar (`migrar_contactos`, UPDATE condicionado). Sin `DATOS_CLAVE`, en claro (desarrollo). Perder la clave = esos datos ilegibles. No cubre: el cid de WhatsApp (es el teléfono), nombre ni dirección.
+- **Google:** `GET /panel/google` y `/repartidor/google` → `{client_id|null}`; `POST … {credential}` → como `/entrar` (cookie y respuesta iguales). `seguridad.google_email` verifica en `oauth2.googleapis.com/tokeninfo`: `aud` = `GOOGLE_CLIENT_ID[_<SLUG>]`, `iss` de Google, `email_verified`, `exp`. Tabla `google(email_h, nombre, email cifrado)`; el dueño lo pone con `POST /panel/dueno/usuario {nombre, email}` ("" lo quita; único por persona; 409 si es de otra). Entra solo si la persona está activa y es del rol de esa entrada. Cuenta en el mismo `Bloqueo` que el PIN. CSP con `accounts.google.com/gsi/` solo con client id y solo en las páginas estándar.
+- **Registro:** `seguridad.evento(tipo, alerta=False, **campos)` → JSON por línea (sin PIN, tokens, teléfonos ni correos). `SEGURIDAD_LOG` = archivo con rotación diaria y `SEGURIDAD_DIAS` (≥ 90, 180 por defecto); sin ella, stderr. Alertas (`login_saturado`, IP bloqueada, `webhook_firma_invalida`, consola bloqueada) también por POST a `ALERTA_URL`.
+- **Imágenes:** comprobantes (`herramientas.recodificar_imagen`) y logos PNG/WebP del QR se decodifican con Pillow y se guarda una imagen nueva sin `info`/metadatos; tipo real = el declarado.
+- **Prompt:** el nombre del comensal entra como `web.nombre_seguro` (sin corchetes ni saltos).
+
 ## Decisiones
 
 - **Modelo `claude-opus-5-5` con esfuerzo `low`**: el chat necesita poco razonamiento. Cada servicio puede cambiarlo en `servicio.yaml`. Los *fallbacks* del servidor están activados: si el modelo rechaza una petición, la API reintenta con otro modelo.

@@ -4,6 +4,7 @@ El QR lleva solo `/m/<codigo>`: un código corto aleatorio guardado en la BD del
 import base64
 import datetime as dt
 import html
+import io
 import json
 import re
 import secrets
@@ -44,7 +45,7 @@ def de_cid(cid):
 
 # ---------- códigos ----------
 def _texto(v, nombre, maximo_largo, obligatorio=False):
-    if v is None or v == "":
+    if v is None or (isinstance(v, str) and not v.strip()):  # solo espacios = vacío
         if obligatorio:
             raise ValueError(f"Falta {nombre}")
         return ""
@@ -219,6 +220,21 @@ def guardar_logo(sv, datos):
     tipo = _tipo_logo(datos)
     if not tipo:
         raise ValueError("El logo debe ser PNG, WebP o SVG sin scripts")
+    if tipo != "image/svg+xml":  # PNG/WebP: se decodifica y se guarda una imagen nueva (solo píxeles; nada pegado al archivo sobrevive)
+        from PIL import Image
+        try:
+            with Image.open(io.BytesIO(datos)) as img:
+                if img.width * img.height > 4_000_000:
+                    raise ValueError
+                img.load()
+                out, limpia = io.BytesIO(), img.convert("RGBA")
+                limpia.info = {}  # sin comentarios ni texto del original
+                limpia.save(out, "PNG" if tipo == "image/png" else "WEBP", **({"optimize": True} if tipo == "image/png" else {"lossless": True}))
+        except (OSError, ValueError, Image.DecompressionBombError):
+            raise ValueError("El logo no es una imagen válida") from None
+        datos = out.getvalue()
+        if len(datos) > MAX_LOGO:
+            raise ValueError("El logo debe pesar como máximo 200 KB")
     sv._q("INSERT OR REPLACE INTO qr_config(clave, valor) VALUES ('logo', ?)", (base64.b64encode(datos).decode(),))
     sv._q("INSERT OR REPLACE INTO qr_config(clave, valor) VALUES ('logo_tipo', ?)", (tipo,))
 

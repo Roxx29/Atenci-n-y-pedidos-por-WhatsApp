@@ -5,6 +5,7 @@ mensajes programados, escalados... Así un servicio nuevo casi nunca necesita c�
 """
 import collections
 import datetime as dt
+import io
 import json
 import re
 import secrets
@@ -16,7 +17,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import yaml
 
 from . import mesa as mesas
-from . import ubicacion
+from . import seguridad, ubicacion
 
 DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]
 FMT = "%Y-%m-%d %H:%M"
@@ -109,13 +110,13 @@ def contacto_de(sv, cid):
     if str(cid or "").isdigit():
         return str(cid)
     f = sv._q("SELECT json_extract(datos, '$.contacto') FROM registros WHERE tipo='consentimiento' AND json_extract(datos, '$.telefono') = ? ORDER BY id DESC LIMIT 1", (cid,))
-    return f[0][0] if f else None
+    return seguridad.descifrar(f[0][0]) if f else None  # en la BD va cifrado (DATOS_CLAVE); lo viejo en claro se lee igual
 
 
 def tel_de(r):
     """Teléfono para mostrar al personal: el contacto guardado o, en registros viejos y de WhatsApp, el teléfono que hacía de cid."""
     t = str(r.get("telefono") or "")
-    return r.get("contacto") or (t if t.isdigit() else None)
+    return seguridad.descifrar(r.get("contacto")) or (t if t.isdigit() else None)
 
 
 SIN_IDENTIDAD = ("telefono", "contacto")  # nunca van al modelo: las herramientas ya saben quién escribe
@@ -402,8 +403,8 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
     itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
-    return {"nombre": nombre, "telefono": telefono, **({"contacto": contacto} if contacto and contacto != telefono else {}), "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
-            **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
+    return {"nombre": nombre, "telefono": telefono, **({"contacto": seguridad.cifrar(contacto)} if contacto and contacto != telefono else {}), "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
+            **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "impuesto_pct": cfg.get("impuesto_pct") or 0, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
 
 
 def _resumen(d):
@@ -551,6 +552,28 @@ PNG_SIG, PNG_QUITAR = b"\x89PNG\r\n\x1a\n", {b"eXIf", b"tEXt", b"zTXt", b"iTXt",
 def tipo_imagen(datos):
     """'jpg' | 'png' según la cabecera mágica, o None."""
     return "jpg" if datos[:3] == b"\xff\xd8\xff" else "png" if datos[:8] == PNG_SIG else None
+
+
+def recodificar_imagen(datos, ext, max_px=40_000_000):
+    """Decodifica con Pillow (tipo real) y guarda una imagen NUEVA del mismo tipo, sin metadatos: no sobrevive nada que no sean píxeles
+    (políglotas, scripts pegados tras los datos). ValueError('Imagen no válida') si no se puede decodificar o es una bomba."""
+    from PIL import Image  # solo aquí: el .exe del panel no lo necesita
+    malo = ValueError("Imagen no válida")
+    try:
+        with Image.open(io.BytesIO(datos)) as img:
+            if img.format != {"jpg": "JPEG", "png": "PNG"}[ext] or img.width * img.height > max_px:
+                raise malo
+            img.load()
+            if ext == "jpg":
+                img = img.convert("RGB")
+            elif img.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
+                img = img.convert("RGBA")
+            img.info = {}  # Pillow reescribe el comentario/texto de `info` al guardar: fuera
+            out = io.BytesIO()
+            img.save(out, "JPEG" if ext == "jpg" else "PNG", **({"quality": 90} if ext == "jpg" else {"optimize": True}))
+    except (OSError, ValueError, Image.DecompressionBombError) as e:
+        raise malo from e
+    return out.getvalue()
 
 
 def limpiar_imagen(datos, ext):

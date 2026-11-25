@@ -59,8 +59,8 @@ class Estado:
         env = self.d["config"]["envio"].get(p["zona"], 0) if p["modalidad"] == "entrega" else 0
         return {"subtotal": dinero(sub), "impuesto": dinero(imp), "envio": dinero(env), "total": dinero(sub + imp + env)}
 
-    def items(self, p, precio=True):
-        return [{"nombre": i["nombre"], "cantidad": i["cantidad"], **({"precio": dinero(i["precio"])} if precio else {})} for i in p["items"]]
+    def items(self, p, precio=True, con_id=False):
+        return [{**({"id": next((m["id"] for m in self.menu if m["nombre"] == i["nombre"]), "")} if con_id else {}), "nombre": i["nombre"], "cantidad": i["cantidad"], **({"precio": dinero(i["precio"])} if precio else {})} for i in p["items"]]
 
     @staticmethod
     def acciones(p):
@@ -80,7 +80,7 @@ class Estado:
         abierto = detalle and p["estado"] not in TERMINADOS
         tel = p["telefono"]
         d = {"id": p["id"], "estado": p["estado"], "nombre": p["nombre"], "telefono": tel if abierto else tel[3] + "***-**" + tel[-2:],
-             "modalidad": p["modalidad"], "zona": p["zona"], "hora_deseada": p["hora_deseada"], "notas": p["notas"], "items": self.items(p), **self.totales(p),
+             "modalidad": p["modalidad"], "zona": p["zona"], "hora_deseada": p["hora_deseada"], "notas": p["notas"], "items": self.items(p, con_id=True), **self.totales(p),
              "metodo": p["metodo"], "referencia": p["referencia"], "comprobante": p["comprobante"], "creado_at": p["creado_at"], "estado_at": p["estado_at"],
              "acciones": self.acciones(p), "repartidor": p["repartidor"], "tiene_ubicacion": p["ubicacion"], "por_cobrar": p["por_cobrar"],
              "cobrado_por": p["cobrado_por"], "fuera_de_zona": p["fuera_de_zona"]}

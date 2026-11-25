@@ -111,7 +111,7 @@ Solo se abre desde la red del local (o con el panel público activado por el ope
 ### `GET /panel/estado?desde=<ultimo>` → todo el tablero (sondeo cada 3 s)
 ```json
 {"pedidos": [{"id": 2, "estado": "pagado", "nombre": "Ana", "telefono": "6***-**11", "modalidad": "entrega", "zona": "Centro", "hora_deseada": "", "notas": "",
-              "items": [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}], "subtotal": "B/. 11.75", "impuesto": "B/. 0.82", "envio": "B/. 2.50",
+              "items": [{"id": "sancocho", "nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}], "subtotal": "B/. 11.75", "impuesto": "B/. 0.82", "envio": "B/. 2.50",
               "total": "B/. 15.07", "metodo": "efectivo", "referencia": null, "comprobante": false, "creado_at": "2026-11-02T12:00:00-05:00",
               "estado_at": "2026-11-02T12:00:00-05:00", "acciones": ["en_preparacion"], "repartidor": null, "tiene_ubicacion": true,
               "por_cobrar": true, "cobrado_por": null, "fuera_de_zona": false}],

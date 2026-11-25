@@ -2,3 +2,4 @@ anthropic>=2.3
 pyyaml>=6
 tzdata; sys_platform == "win32"
 pillow>=12
+cryptography==46.0.3  # cifrado en reposo (motor/seguridad.py, DATOS_CLAVE)

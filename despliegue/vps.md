@@ -39,21 +39,37 @@ Todo desde la consola, sin tocar el servidor ni el `.env`:
 cd ~/bot && git pull && cd despliegue/vps && docker compose up -d --build
 ```
 Los datos viven en el volumen `datos` y no se tocan. Si falla: `git checkout <commit-anterior>` y repetir.
+- Endurecimiento (2026-11-25): `alojar` y `operador` corren sin root (uid 10001), sin capacidades, `no-new-privileges` y con el sistema de archivos de solo lectura (escriben solo en `/datos` y `/tmp`). El servicio `permisos` hace `chown -R 10001 /datos` en cada arranque, así que un VPS creado antes (archivos de root) sigue funcionando sin pasos a mano. Si algo no arranca: `docker compose logs permisos alojar`.
+- Antes del primer `up` con esta versión: poner `DATOS_CLAVE` y `AGE_DESTINATARIO` en `.env` (ver `.env.ejemplo`). Al arrancar con `DATOS_CLAVE`, los teléfonos de contacto que estaban en claro se cifran solos.
 
 ## 7. Copias de seguridad
-- A `HORA_RESPALDO` el servicio `respaldo` copia cada `.sqlite` en caliente a `/datos/backups/AAAA-MM-DD/` (guarda `DIAS_RESPALDO` días) y, si hay `RESPALDO_DESTINO`, lo sube por rsync/SSH.
-- `rsync --delete`: lo que se borra del VPS (a los `DIAS_RESPALDO` días) también desaparece del destino.
-- Las copias contienen datos personales de clientes finales: cifrar el destino (disco/Storage Box cifrado). Revisión de `legal-datos` pendiente.
+- A `HORA_RESPALDO` el servicio `respaldo` copia cada `.sqlite` en caliente, `clientes.yaml` y `/datos/logs` al volumen `respaldos` (`/respaldos/AAAA-MM-DD/`, guarda `DIAS_RESPALDO` días). Ese volumen solo lo monta `respaldo`: `alojar` y `operador` (lo expuesto a internet) no pueden cifrarlo ni borrarlo.
+- Cifrado con age: en TU equipo, `age-keygen -o respaldo-clave.txt` (guárdala fuera del VPS, p. ej. gestor de contraseñas + copia offline) y pon la línea `# public key: age1...` en `AGE_DESTINATARIO`. Cada archivo queda como `*.age`; sin la clave privada no se lee. Sin `AGE_DESTINATARIO` se copian sin cifrar y el registro avisa.
+- `RESPALDO_DESTINO`: rsync/SSH **sin `--delete` y con `--ignore-existing`**: lo ya subido no se borra ni se sobrescribe desde el VPS. En el destino, limpia lo viejo allí (o usa instantáneas de la Storage Box). Mejor aún: limita la clave SSH del VPS a solo escribir (`command="rrsync -wo /backups/bot"` en el `authorized_keys` del destino) para que un VPS comprometido no pueda borrar las copias remotas.
 - Destino: otro servidor o Hetzner Storage Box. Clave: `ssh-keygen -t ed25519 -f ~/.ssh/respaldo_ed25519 -N ""` y añadir la `.pub` al destino.
-- Ver: `docker compose logs respaldo` y `docker compose exec respaldo ls /datos/backups`.
+- Ver: `docker compose logs respaldo` y `docker compose exec respaldo ls /respaldos`. Las copias viejas de `/datos/backups/` (versiones anteriores) se pueden borrar a mano: `docker compose exec respaldo rm -rf /datos/backups/20*`.
 
 ## 8. Restaurar una copia
 1. `docker compose stop alojar`
-2. Listar copias: `docker compose exec respaldo ls /datos/backups` (si es de otro servidor, traerla con rsync a `/datos/backups`).
-3. Copiar sobre el original (el archivo se llama como su ruta con `_`):
-   `docker compose exec respaldo sh -c "cp /datos/backups/AAAA-MM-DD/<slug>_<archivo>.sqlite /datos/servicios/<slug>/<archivo>.sqlite && rm -f /datos/servicios/<slug>/*.sqlite-wal /datos/servicios/<slug>/*.sqlite-shm"`
-4. `docker compose start alojar` y comprobar el panel del cliente.
-5. Servidor perdido: repetir el apartado 1, traer `/datos/backups` desde el destino, restaurar y arrancar.
+2. Traer la copia a tu equipo (`docker compose cp respaldo:/respaldos/AAAA-MM-DD ./copia` o desde el destino remoto) y descifrarla allí: `age -d -i respaldo-clave.txt -o <slug>_<archivo>.sqlite <slug>_<archivo>.sqlite.age`.
+3. Subir el `.sqlite` descifrado al VPS y copiarlo sobre el original (el archivo se llama como su ruta con `_`):
+   `docker compose cp <slug>_<archivo>.sqlite respaldo:/tmp/r.sqlite && docker compose exec respaldo sh -c "cp /tmp/r.sqlite /datos/servicios/<slug>/<archivo>.sqlite && rm -f /tmp/r.sqlite /datos/servicios/<slug>/*.sqlite-wal /datos/servicios/<slug>/*.sqlite-shm"`. Borra la copia descifrada de tu equipo al terminar.
+4. `docker compose up -d` (el servicio `permisos` deja el archivo para el uid 10001) y comprobar el panel del cliente.
+5. Servidor perdido: repetir el apartado 1 (con la MISMA `DATOS_CLAVE`: sin ella los teléfonos y correos cifrados no se leen), traer las copias desde el destino, restaurar y arrancar.
+
+## 9b. Registro de seguridad
+- `alojar` escribe `/datos/logs/seguridad.log` y `operador` `/datos/logs/seguridad-operador.log`: una línea JSON por evento (entradas al panel/repartidor/consola correctas y fallidas, IP bloqueada, acceso saturado, firma de webhook falsa). Sin PIN, claves, tokens, teléfonos ni correos. Rota a medianoche y guarda `SEGURIDAD_DIAS` días (180 por defecto, nunca menos de 90). Va también en la copia diaria (`logs.tgz`).
+- Alertas: con `ALERTA_URL` (p. ej. `https://ntfy.sh/<tema-largo-y-secreto>`), cada evento de nivel `alerta` se manda por POST al momento. Revisar: `docker compose exec respaldo tail -n 50 /datos/logs/seguridad.log`.
+- Los `docker compose logs` rotan a 10 × 10 MB por contenedor.
+
+## 10. Entrar con Google (panel y repartidor)
+Opcional, además del PIN. Solo entra un correo que el dueño haya autorizado antes en su panel (Equipo → «Google» en la fila de la persona) y si esa persona está activa.
+1. https://console.cloud.google.com → crear (o elegir) un proyecto.
+2. *APIs y servicios → Pantalla de consentimiento de OAuth*: tipo **Externo**, nombre de la app, correo de soporte; ámbitos solo `openid` y `email`. Publicarla («En producción»; no pide verificación con esos ámbitos).
+3. *APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth* → tipo **Aplicación web**.
+4. *Orígenes de JavaScript autorizados*: `https://<dominio de cada cliente>` (uno por línea; sin ruta ni barra final). Sin URI de redirección (el botón no las usa). Cada cliente nuevo = añadir su dominio aquí (tarda unos minutos en valer).
+5. Copiar el ID (`….apps.googleusercontent.com`) en `.env` como `GOOGLE_CLIENT_ID=` (o `GOOGLE_CLIENT_ID_<SLUG>=` para un cliente con ID propio) y `docker compose up -d`. No hay secreto de cliente: el servidor solo verifica el token en `oauth2.googleapis.com/tokeninfo` (aud = este ID, `email_verified`, caducidad).
+6. Sin `GOOGLE_CLIENT_ID` el botón no aparece y `POST /panel/google` da 404.
 
 ## 9. Costes (aprox., 20 clientes)
 | Concepto | Coste |

@@ -183,10 +183,15 @@ class Acceso(Base):
 
     def test_logo_del_cliente(self):
         self.assertEqual(self.req("GET", "/logo")[0].status, 404)  # sin logo: la web no muestra sello
-        png = bytes.fromhex("89504e470d0a1a0a") + b"0" * 20
-        mesa.guardar_logo(self.sv, png)
+        import io
+        from PIL import Image
+        b = io.BytesIO()
+        Image.new("RGBA", (4, 4), (0, 0, 255, 255)).save(b, "PNG")
+        with self.assertRaises(ValueError):  # cabecera PNG sin imagen detrás: se decodifica con Pillow y no pasa
+            mesa.guardar_logo(self.sv, bytes.fromhex("89504e470d0a1a0a") + b"0" * 20)
+        mesa.guardar_logo(self.sv, b.getvalue())
         r, raw = self.req("GET", "/logo")
-        self.assertEqual((r.status, r.getheader("Content-Type"), raw), (200, "image/png", png))
+        self.assertEqual((r.status, r.getheader("Content-Type"), Image.open(io.BytesIO(raw)).size), (200, "image/png", (4, 4)))  # recodificado
         mesa.guardar_logo(self.sv, b"<svg xmlns='http://www.w3.org/2000/svg'/>")
         r, _ = self.req("GET", "/logo")
         self.assertEqual((r.getheader("Content-Type"), r.getheader("X-Content-Type-Options")), ("image/svg+xml", "nosniff"))

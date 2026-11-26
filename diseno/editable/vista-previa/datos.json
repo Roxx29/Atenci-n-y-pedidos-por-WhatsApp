@@ -1,7 +1,7 @@
 {
  "_nota": "DATOS FALSOS para la vista previa (diseno/editable/vista.py). Puedes cambiarlos para ver tu página con otros platos o pedidos. Nada de esto llega al servidor real.",
  "config": {"marca": "Mi Restaurante", "horario": {"dias": ["lun", "mar", "mie", "jue", "vie", "sab", "dom"], "desde": "11:00", "hasta": "22:00"},
-            "impuesto_pct": 7, "envio": {"Centro": 2.5, "Norte": 3.0}, "telefono": "+507 6000-0000", "anuncio": "Hoy: postre gratis en pedidos de más de B/. 20",
+            "envio": {"Centro": 2.5, "Norte": 3.0}, "telefono": "+507 6000-0000", "anuncio": "Hoy: postre gratis en pedidos de más de B/. 20",
             "cerrado": false, "efectivo": true},
  "pago": {"yappy": "@mirestaurante", "transferencia": "Banco Ejemplo · Cuenta 00-000-000 · A nombre de Mi Restaurante"},
  "aviso": {"version": "ejemplo", "texto": "Aviso de privacidad de EJEMPLO. En el servidor real aquí sale el aviso del restaurante (aviso.md)."},

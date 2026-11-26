@@ -26,10 +26,10 @@ class Resumen(Base):
         return next(p for p in self.sv.listar("pedido") if p["id"] == r["pedido_id"])
 
     def test_totales_en_centavos_y_coincide(self):
-        p = self.pedido_con([{"id": "sancocho", "cantidad": 2}, {"id": "chicha", "cantidad": 3}])  # 10.00 + 5.25 = 15.25; ITBMS 7 % = 1.0675 -> 1.07
+        p = self.pedido_con([{"id": "sancocho", "cantidad": 2}, {"id": "chicha", "cantidad": 3}])  # 10.00 + 5.25 = 15.25
         r = factura.resumen(self.sv, p)
-        self.assertEqual((r["totales"]["subtotal"], r["totales"]["itbms"], r["totales"]["total"]), ("15.25", "1.07", "16.32"))
-        self.assertEqual(sum(int(l["itbms"].replace(".", "")) for l in r["lineas"]), 107)  # las líneas suman el ITBMS del pedido, sin centavos perdidos
+        self.assertEqual((r["totales"]["subtotal"], r["totales"]["total"]), ("15.25", "15.25"))
+        self.assertNotIn("itbms", r["totales"])
         self.assertTrue(r["coincide"])
         self.assertEqual(r["documento"]["modalidad"], "recoger")
         self.assertEqual(r["receptor"]["tipo"], "consumidor_final")
@@ -38,9 +38,9 @@ class Resumen(Base):
     def test_envio_aparte(self):
         p = self.pedido_con([{"id": "sancocho", "cantidad": 2}], "entrega", direccion="Calle 1", zona="x")
         r = factura.resumen(self.sv, p)
-        self.assertEqual((r["envio"]["total"], r["envio"]["itbms"], r["envio"]["base"]), ("2.50", "0.16", "2.34"))  # 2.50 con ITBMS incluido
+        self.assertEqual(r["envio"]["total"], "2.50")
         self.assertTrue(r["coincide"])
-        self.assertEqual(r["totales"]["total"], "13.20")
+        self.assertEqual(r["totales"]["total"], "12.50")
 
     def test_no_coincide_no_inventa(self):
         p = self.pedido_con([{"id": "sancocho", "cantidad": 2}])

@@ -40,8 +40,8 @@ class Modificar(Pedidos):
         pid = self.en_estado(sv, "confirmado")
         turno = {"texto": "sí", "creados": set()}
         r = self.m(sv, pid, turno=turno, items=[{"id": "chicha", "cantidad": 5}])
-        self.assertEqual((r["estado"], r["reconfirmar"], r["total"]), ("por_confirmar", True, "B/. 11.86"))
-        self.assertEqual(self.pedido(sv, pid)["total_c"], 1186)  # 875 + ITBMS 61 + envío 250
+        self.assertEqual((r["estado"], r["reconfirmar"], r["total"]), ("por_confirmar", True, "B/. 11.25"))
+        self.assertEqual(self.pedido(sv, pid)["total_c"], 1125)  # 875 + envío 250
         with self.assertRaisesRegex(ValueError, "mensaje nuevo"):
             herramientas.ejecutar(sv, "confirmar_pedido", {"pedido_id": pid}, "A", turno)
         herramientas.ejecutar(sv, "confirmar_pedido", {"pedido_id": pid}, "A", {"texto": "sí", "creados": set()})  # en un turno posterior sí
@@ -144,6 +144,6 @@ class Modificar(Pedidos):
         n = p["lineas"][0]["cantidad"]
         self.assertIn(n, (3, 4))
         self.assertEqual(p["subtotal_c"], 500 * n)
-        self.assertEqual(p["total_c"], p["subtotal_c"] + p["itbms_c"] + p["envio_c"])
+        self.assertEqual(p["total_c"], p["subtotal_c"] + p["envio_c"])
         self.assertEqual(len(sv.listar("pedido")), 1)
         self.assertEqual(errores, [])

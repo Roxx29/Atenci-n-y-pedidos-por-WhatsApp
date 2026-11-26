@@ -500,7 +500,7 @@ def pedido_json(p, detalle=False):
          "telefono": None if mesa else herramientas.tel_de(p) if detalle and not cerrado else _mask(herramientas.tel_de(p)),
          "modalidad": p.get("modalidad"), "zona": p.get("zona"), "hora_deseada": p.get("hora_deseada"), "notas": p.get("notas"),
          "items": [{"id": l["id"], "nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"]), **({"nota": l["nota"]} if l.get("nota") else {})} for l in p["lineas"]],
-         "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
+         "subtotal": dinero(p["subtotal_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
          "metodo": p.get("metodo"), "referencia": p.get("referencia"), "comprobante": bool(p.get("comprobante")),
          "creado_at": p.get("creado_at"), "estado_at": p.get("estado_at") or p.get("creado_at"), "acciones": acciones_de(p),
          "repartidor": p.get("repartidor"), "tiene_ubicacion": bool(p.get("ubicacion")), "por_cobrar": bool(p.get("por_cobrar")), "cobrado_por": p.get("cobrado_por"),

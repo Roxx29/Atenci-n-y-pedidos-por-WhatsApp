@@ -36,7 +36,7 @@ Con este kit puedes cambiar **por completo** cómo se ven las páginas de un res
 restaurante y la app del repartidor. Otra distribución, otros textos, otras fotos, otra tipografía. Solo cambia para ese restaurante:
 los demás siguen igual.
 
-Lo que **no** cambia (lo pone el servidor, haga lo que haga la página): los precios, el impuesto y el envío, los pasos de un pedido,
+Lo que **no** cambia (lo pone el servidor, haga lo que haga la página): los precios y el envío, los pasos de un pedido,
 los pagos y quién puede hacer qué. La página solo muestra y pide; el servidor decide.
 
 ## Qué hay aquí
@@ -105,7 +105,7 @@ página propia de la-fonda».
 # API que usan las páginas (contrato)
 
 Lo que el servidor ofrece a la web de pedidos (`/`), al panel (`/panel`) y a la app del repartidor (`/repartidor/`). Una página propia
-puede pintarlo como quiera, pero **no puede cambiar las reglas**: precios, impuestos, envío, estados del pedido, pagos y permisos los decide
+puede pintarlo como quiera, pero **no puede cambiar las reglas**: precios, envío, estados del pedido, pagos y permisos los decide
 el servidor. Los ejemplos salen de una ejecución real del motor (`motor/web.py`, `motor/panel_web.py`); la prueba
 `tests/test_paginas.py` (Kit) recorre el mismo guion contra el motor y contra la vista previa y exige las mismas claves.
 
@@ -138,7 +138,7 @@ el servidor. Los ejemplos salen de una ejecución real del motor (`motor/web.py`
 Sin sesión: lo público. Con sesión (`sesion`): añade `pago` (solo los métodos configurados).
 ```json
 {"marca": "Fonda", "horario": {"dias": ["lun","mar","mie","jue","vie","sab","dom"], "desde": "11:00", "hasta": "21:00"},
- "impuesto_pct": 7, "envio": {"Centro": 2.5, "Norte": 3.0}, "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "efectivo": true,
+ "envio": {"Centro": 2.5, "Norte": 3.0}, "telefono": "+507 6000-0000", "anuncio": "", "cerrado": false, "efectivo": true,
  "pago": {"yappy": "@fonda"}}
 ```
 `envio`: zona → costo (`{"": 2.5}` = costo fijo sin zonas; `{}` = sin envío). `cerrado`: el restaurante cerró a mano. `efectivo`: acepta pago en efectivo al recibir (solo entregas).
@@ -165,7 +165,7 @@ Salida: `respuesta` (texto; puede traer `**negrita**` y `_cursiva_`) y `pedido` 
 {"respuesta": "Te resumo tu pedido... ¿Lo confirmas?",
  "pedido": {"id": 2, "estado": "por_confirmar", "modalidad": "entrega",
             "items": [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}, {"nombre": "Chicha", "cantidad": 1, "precio": "B/. 1.75"}],
-            "ubicacion": false, "subtotal": "B/. 11.75", "impuesto": "B/. 0.82", "envio": "B/. 2.50", "total": "B/. 15.07", "por_cobrar": false}}
+            "ubicacion": false, "subtotal": "B/. 11.75", "envio": "B/. 2.50", "total": "B/. 15.07", "por_cobrar": false}}
 ```
 Puede tardar (el asistente piensa): muestre «escribiendo…». Si falla por dentro, responde 200 con un texto genérico de disculpa.
 
@@ -212,7 +212,7 @@ Solo se abre desde la red del local (o con el panel público activado por el ope
 ### `GET /panel/estado?desde=<ultimo>` → todo el tablero (sondeo cada 3 s)
 ```json
 {"pedidos": [{"id": 2, "estado": "pagado", "nombre": "Ana", "telefono": "6***-**11", "modalidad": "entrega", "zona": "Centro", "hora_deseada": "", "notas": "",
-              "items": [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}], "subtotal": "B/. 11.75", "impuesto": "B/. 0.82", "envio": "B/. 2.50",
+              "items": [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}], "subtotal": "B/. 11.75", "envio": "B/. 2.50",
               "total": "B/. 15.07", "metodo": "efectivo", "referencia": null, "comprobante": false, "creado_at": "2026-11-02T12:00:00-05:00",
               "estado_at": "2026-11-02T12:00:00-05:00", "acciones": ["en_preparacion"], "repartidor": null, "tiene_ubicacion": true,
               "por_cobrar": true, "cobrado_por": null, "fuera_de_zona": false}],

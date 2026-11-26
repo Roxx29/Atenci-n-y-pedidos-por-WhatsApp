@@ -13,7 +13,7 @@ FECHA = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def editar(sv, quien, d):
-    """POST /panel/dueno/pedido_editar {pedido_id, items?, notas?, estado?}. Recalcula subtotal/ITBMS/envío/total con el menú del servidor
+    """POST /panel/dueno/pedido_editar {pedido_id, items?, notas?, estado?}. Recalcula subtotal/envío/total con el menú del servidor
     (las líneas que ya estaban conservan su precio); el estado pasa por panel_web.marcar (mismas reglas). ValueError legible si no procede."""
     from . import panel_web  # tardío: panel_web importa este módulo
     pid = d.get("pedido_id")
@@ -83,20 +83,20 @@ def exportar(sv, quien, d):
     ps = [p for p in sv.listar("pedido") if a <= (p.get("creado_at") or "")[:10] <= b]
     if tipo == "pedidos":
         cols = ["pedido_id", "creado", "estado", "estado_actualizado", "pagado", "entregado", "modalidad", "mesa", "zona", "nombre", "metodo_pago", "referencia", "por_cobrar", "cobrado_por",
-                "repartidor", "subtotal", "itbms", "envio", "total", "items", "notas"]
+                "repartidor", "subtotal", "envio", "total", "items", "notas"]
         f = lambda p: [p["id"], p.get("creado_at"), p["estado"], p.get("estado_at"), p.get("pagado_at"), p.get("entregado_at"), p.get("modalidad"), p.get("mesa"), p.get("zona"), p.get("nombre"),
-                       p.get("metodo"), p.get("referencia"), "si" if p.get("por_cobrar") else "no", p.get("cobrado_por"), p.get("repartidor"), factura._d(p["subtotal_c"]), factura._d(p["itbms_c"]),
+                       p.get("metodo"), p.get("referencia"), "si" if p.get("por_cobrar") else "no", p.get("cobrado_por"), p.get("repartidor"), factura._d(p["subtotal_c"]),
                        factura._d(p["envio_c"]), factura._d(p["total_c"]), "; ".join(f"{l['cantidad']} x {l['nombre']}" + (f" ({l['nota']})" if l.get("nota") else "") for l in p["lineas"]), p.get("notas")]
         filas = [f(p) for p in ps]
     else:
-        cols = ["pedido_id", "fecha", "modalidad", "receptor", "descripcion", "cantidad", "precio_unitario", "base", "tasa_itbms", "itbms", "total", "pagado", "forma_pago", "coincide_con_pedido"]
+        cols = ["pedido_id", "fecha", "modalidad", "receptor", "descripcion", "cantidad", "precio_unitario", "total", "pagado", "forma_pago", "coincide_con_pedido"]
         filas = []
         for p in ps:
             if p["estado"] in factura.NO_VENTA:
                 continue
             r = factura.resumen(sv, p)
             t, doc = r["totales"], r["documento"]
-            filas += [[p["id"], doc["fecha"], doc["modalidad"], "consumidor_final", l["descripcion"], l["cantidad"], l["precio_unitario"], l["base"], l["tasa_itbms"], l["itbms"], l["total"],
+            filas += [[p["id"], doc["fecha"], doc["modalidad"], "consumidor_final", l["descripcion"], l["cantidad"], l["precio_unitario"], l["total"],
                        "si" if t["pagado"] else "no", t["forma_pago"], "si" if r["coincide"] else "no"] for l in r["lineas"] + ([r["envio"]] if r["envio"] else [])]
     from . import panel_web
     panel_web.auditar(sv, quien, f"exportar_{tipo}:{a}..{b}")

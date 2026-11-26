@@ -26,7 +26,7 @@ WhatsApp ⇄ webhook ⇄ Claude (claude-opus-5-5) + herramientas ⇄ SQLite
 | `programar_mensaje` | Seguimientos, cobros y recordatorios futuros |
 | `registrar`, `actualizar_registro`, `buscar` | Cualquier dato: leads, cobros, pedidos, siniestros, encuestas… |
 | `escalar_a_humano` | Pasa la conversación al equipo |
-| `crear_pedido`, `modificar_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (ITBMS y envío), el modelo no puede marcar `pagado` |
+| `crear_pedido`, `modificar_pedido`, `confirmar_pedido`, `reportar_pago`, `cancelar_pedido` | Pedidos con menú (`menu: menu.yaml`); el código calcula el total en centavos (subtotal + envío; sin impuesto), el modelo no puede marcar `pagado` |
 
 Pedidos: un solo `por_confirmar` por cliente (otra llamada a `crear_pedido` lo actualiza, misma id). Caduca a `caducado` tras `pedidos.caduca_min` min (30 por defecto) sin confirmar; el modelo nunca ve centavos (`*_c`).
 Un cliente no puede tener dos pedidos activos (`por_confirmar`, `confirmado`, `pago_reportado`, `pagado`, `en_preparacion`): `crear_pedido` falla y pide `modificar_pedido`; solo `aparte=true` crea otro (tope 3, y no si hay uno por confirmar).
@@ -194,9 +194,9 @@ API: `POST /panel/entrar {pin}`, `POST /panel/salir`, `GET /panel/estado?desde=N
 **Semilla inicial:** los PIN y el menú se cambian desde Ajustes; `.env` y `menu.yaml` solo sirven de semilla inicial (tras el primer arranque cambiarlos no hace nada). Si el PIN del `.env` no coincide con el de la BD, el arranque imprime un aviso (sin mostrar PIN).
 
 ## Resumen para factura (`motor/factura.py`)
-Qué es: los datos de un pedido ordenados como los pide una factura (emisor, receptor, líneas con base e ITBMS, envío aparte, totales y forma de pago) para que el restaurante los teclee en su caja fiscal o su PAC. Qué no es: una factura fiscal; la app no emite nada a nombre de nadie y todo sale rotulado «no es una factura fiscal».
+Qué es: los datos de un pedido ordenados como los pide una factura (emisor, receptor, líneas, envío aparte, totales y forma de pago) para que el restaurante los teclee en su caja fiscal o su PAC. Qué no es: una factura fiscal; la app no emite nada a nombre de nadie y todo sale rotulado «no es una factura fiscal».
 - Rutas (solo con sesión del panel): `GET /panel/factura?pedido=<id>&formato=json|csv|html` (opcional `tipo=contribuyente&ruc=&dv=&nombre=`) y `POST /panel/factura {pedido_id, receptor: {tipo, ruc, dv, nombre}}` (JSON). 404 si no existe, 409 si está sin confirmar/cancelado/caducado, 400 si el receptor no vale (RUC/cédula: letras, números y guiones, máx. 20; nombre máx. 80). Se audita como `factura`, sin datos del cliente.
-- Importes en centavos enteros; el ITBMS del pedido se reparte entre líneas por mayor resto (suman justo `itbms_c`). `coincide: false` si el total no cuadra con `total_c`: no se corrige ni se inventa. El envío se toma con ITBMS incluido a la tasa `factura.envio_itbms_pct` (por defecto `pedidos.impuesto_pct`; por confirmar con un contador).
+- Importes en centavos enteros; `coincide: false` si el total no cuadra con `total_c`: no se corrige ni se inventa.
 - Config (la edita el dueño en Configuración → «Datos para facturar», o en `servicio.yaml`): `ruc`, `dv`, `razon_social`, `sucursal`; si faltan, el resumen trae `faltan: [...]`.
 
 ## Ubicación del cliente y repartidor

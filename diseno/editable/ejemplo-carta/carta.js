@@ -64,7 +64,7 @@ function pintarComanda() {
   if (!lis.length) { const li = document.createElement("li"); li.className = "vacia"; li.textContent = "Toca «+» en un plato."; lis.push(li); }
   $("#lineas").replaceChildren(...lis);
   const sub = [...st.comanda].reduce((s, [id, q]) => s + q * st.menu.find(x => x.id === id).precio, 0);
-  $("#aprox").hidden = !sub; $("#aprox").textContent = `Aprox. ${dinero(sub)} + impuesto${$("#pedir").modo.value === "entrega" ? " + envío" : ""}. El total exacto lo da el restaurante.`;
+  $("#aprox").hidden = !sub; $("#aprox").textContent = `Aprox. ${dinero(sub)}${$("#pedir").modo.value === "entrega" ? " + envío" : ""}. El total exacto lo da el restaurante.`;
   $("#n-comanda").textContent = [...st.comanda.values()].reduce((a, b) => a + b, 0);
 }
 $("#pedir").addEventListener("change", e => { if (e.target.name === "modo") { $("#entrega").hidden = e.target.value !== "entrega"; pintarComanda(); } });
@@ -121,7 +121,6 @@ function ponerPedido(p) {
   const tabla = $("#t-items"), fila = (a, b, cl) => { const tr = tabla.insertRow(); if (cl) tr.className = cl; tr.insertCell().textContent = a; tr.insertCell().textContent = b; };
   tabla.replaceChildren();
   p.items.forEach(i => fila(`${i.cantidad} × ${i.nombre}`, dinero(num(i.precio) * i.cantidad)));
-  if (num(p.impuesto)) fila("ITBMS", p.impuesto);
   if (num(p.envio)) fila("Envío", p.envio);
   fila("Total", p.total, "total");
   const espera = p.estado === "confirmado";

@@ -209,7 +209,7 @@ class Ajustes(Base):
         st, _ = self.post("/api/clientes/napa/ajustes", {"dominio": " Nueva.Example.com ", "nombre": "La Ñapa: 2", "color": "#1A73E8"})
         self.assertEqual(st, 200)
         cfg = yaml.safe_load((self.carpeta / "servicio.yaml").read_text(encoding="utf-8"))
-        self.assertEqual((cfg["nombre"], cfg["marca"], cfg["modulos"], cfg["pedidos"]["impuesto_pct"]), ("La Ñapa: 2", "La Ñapa: 2", [], 7))  # conserva el resto
+        self.assertEqual((cfg["nombre"], cfg["marca"], cfg["modulos"]), ("La Ñapa: 2", "La Ñapa: 2", []))  # conserva el resto
         self.assertIn("--primary:#1a73e8", (self.carpeta / "tema.css").read_text(encoding="utf-8"))
         c, = clientes.cargar(self.ruta)
         self.assertEqual(c.dominio, "nueva.example.com")

@@ -541,7 +541,7 @@ const st = {nombre:"", telefono:"", pedido:null, demo:location.protocol === "fil
 const guardar = () => { try { localStorage.setItem("cliente", JSON.stringify({nombre:st.nombre, telefono:st.telefono.replace(/^507/, "")})); } catch (e) {} }; // sin prefijo: el campo ya muestra +507
 
 /* ---------- Datos del restaurante: GET /config (salen de servicio.yaml). Lo fijo de aquí es solo para la demostración sin servidor. ---------- */
-const DEMO_CFG = {efectivo:true, horario:{dias:["mar", "mie", "jue", "vie", "sab", "dom"], turnos:[["11:00", "15:00"], ["18:00", "22:00"]]}, impuesto_pct:7,
+const DEMO_CFG = {efectivo:true, horario:{dias:["mar", "mie", "jue", "vie", "sab", "dom"], turnos:[["11:00", "15:00"], ["18:00", "22:00"]]},
   envio:{"Chitré":2, "La Villa de Los Santos":3}, pago:{yappy:"@delifood (ejemplo)", transferencia:"Banco General · Ahorros 03-00-00-000000-0 (ejemplo)"}};
 let CFG = st.demo ? DEMO_CFG : {};
 const ORDEN_DIAS = ["lun", "mar", "mie", "jue", "vie", "sab", "dom"];
@@ -562,7 +562,7 @@ function textoHorario(h) { // "Martes a viernes · 11:00–15:00 y 18:00–22:00
 }
 function pintarConfig() {
   const envio = Object.entries(CFG.envio || {}).map(([z, p]) => `${z} ${dinero(p)}`.trim()).join(" · "); // zona "" = costo fijo
-  const info = [envio && "Entrega: " + envio, num(CFG.impuesto_pct) ? `Precios sin ITBMS (${CFG.impuesto_pct} %)` : ""].filter(Boolean).join(" · ");
+  const info = [envio && "Entrega: " + envio].filter(Boolean).join(" · ");
   $("#info-txt").textContent = info; $("#info").hidden = !info;
   $("#horario-txt").textContent = [textoHorario(CFG.horario || {}), envio && "Entrega: " + envio].filter(Boolean).join("\n");
   const tel = String(CFG.telefono || ""), dig = tel.replace(/\D/g, ""), ll = $("#llamar"); // teléfono del restaurante: lo pone el dueño en el panel
@@ -838,7 +838,6 @@ function tablaItems(caja, p) { // solo textContent: los nombres vienen del servi
   const fila = (a, b, cl) => { const tr = tabla.insertRow(); if (cl) tr.className = cl; tr.insertCell().textContent = a; const c = tr.insertCell(); c.className = "num"; c.textContent = b; };
   p.items.forEach(i => fila(`${i.cantidad} × ${i.nombre}`, dinero(num(i.precio) * i.cantidad)));
   fila("Subtotal", dinero(p.subtotal), "sum");
-  if (num(p.impuesto)) fila(`ITBMS${num(CFG.impuesto_pct) ? " " + CFG.impuesto_pct + " %" : ""}`, dinero(p.impuesto));
   if (num(p.envio)) fila("Envío", dinero(p.envio));
   fila("Total", dinero(p.total), "tot");
   caja.replaceChildren(tabla);
@@ -1097,10 +1096,10 @@ function demoBot(texto) {
     if (!items.length) return {respuesta:"Dime qué quieres pedir y si es para recoger o entrega. Por ejemplo: \"1 tasajo y 2 chichas para recoger\"."};
     const entrega = /entrega|domicilio|casa|villa/.test(t);
     const sub = items.reduce((s, i) => s + i.precio * i.cantidad, 0);
-    const imp = Math.round(sub * 7) / 100, env = entrega ? (t.includes("villa") ? 3 : 2) : 0;
-    const ped = {id:(p && p.id) || 27, estado:"por_confirmar", modalidad:entrega ? "entrega" : "recogida", items, subtotal:sub, impuesto:imp, envio:env, total:sub + imp + env};
+    const env = entrega ? (t.includes("villa") ? 3 : 2) : 0;
+    const ped = {id:(p && p.id) || 27, estado:"por_confirmar", modalidad:entrega ? "entrega" : "recogida", items, subtotal:sub, envio:env, total:sub + env};
     const lista = items.map(i => `• ${i.cantidad} × ${i.nombre}`).join("\n");
-    return {pedido:ped, respuesta:`Tu pedido para ${entrega ? "entrega" : "recoger"}:\n${lista}\nTotal con ITBMS${env ? " y envío" : ""}: ${dinero(ped.total)}.\n¿Lo confirmo? Responde "sí".`};
+    return {pedido:ped, respuesta:`Tu pedido para ${entrega ? "entrega" : "recoger"}:\n${lista}\nTotal${env ? " con envío" : ""}: ${dinero(ped.total)}.\n¿Lo confirmo? Responde "sí".`};
   }
   if (p.estado === "por_confirmar") {
     return {pedido:{...p, estado:"confirmado"}, respuesta:`¡Listo, pedido #${p.id} confirmado! Total ${dinero(p.total)}.\nPaga por Yappy a ${(CFG.pago || {}).yappy || "nuestro Yappy"} o por transferencia. Luego toca "Enviar comprobante de pago" y sube la captura, o escríbeme el número de referencia.`};

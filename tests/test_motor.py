@@ -269,14 +269,14 @@ class Pedidos(unittest.TestCase):
         r["total_c"] = next(p["total_c"] for p in sv.listar("pedido") if p["id"] == r["pedido_id"])  # la respuesta al modelo ya no lleva centavos; las pruebas los leen de la base
         return r
 
-    def test_total_con_impuesto_y_envio(self):
+    def test_total_subtotal_mas_envio(self):
         sv = self.sv()
         r = self.crear(sv)
-        self.assertEqual(r["total_c"], 1695)  # 1350 + ITBMS 95 (94.5 redondea hacia arriba) + envío 250
-        self.assertEqual(r["total"], "B/. 16.95")
+        self.assertEqual(r["total_c"], 1600)  # 1350 + envío 250; yaml con impuesto_pct viejo se ignora
+        self.assertEqual(r["total"], "B/. 16.00")
         [p] = sv.listar("pedido")
-        self.assertEqual((p["subtotal_c"], p["itbms_c"], p["envio_c"], p["estado"], p["telefono"]), (1350, 95, 250, "por_confirmar", "A"))
-        self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1445)  # sin envío
+        self.assertEqual((p["subtotal_c"], p["envio_c"], p["estado"], p["telefono"]), (1350, 250, "por_confirmar", "A"))
+        self.assertEqual(self.crear(sv, modalidad="recogida")["total_c"], 1350)  # sin envío
 
     def test_rechazos_al_crear(self):
         sv = self.sv()
@@ -356,7 +356,7 @@ class Pedidos(unittest.TestCase):
         sv = self.sv()
         sv.cfg["pedidos"] = {"envio": {"zonas": {"Chitré": 1.50, "Los Santos": 3.00}}}  # sin impuesto ni mínimo
         r = self.crear(sv, zona="chitre")  # sin mayúsculas ni tildes
-        self.assertEqual((r["total_c"], sv.listar("pedido")[0]["itbms_c"]), (1350 + 150, 0))
+        self.assertEqual(r["total_c"], 1350 + 150)
         self.assertNotIn("ITBMS", r["resumen"])
         self.assertEqual(self.crear(sv, zona="LOS SANTOS")["total_c"], 1650)
         with self.assertRaisesRegex(ValueError, "Falta la zona"):

@@ -4,7 +4,7 @@ Con este kit puedes cambiar **por completo** cómo se ven las páginas de un res
 restaurante y la app del repartidor. Otra distribución, otros textos, otras fotos, otra tipografía. Solo cambia para ese restaurante:
 los demás siguen igual.
 
-Lo que **no** cambia (lo pone el servidor, haga lo que haga la página): los precios, el impuesto y el envío, los pasos de un pedido,
+Lo que **no** cambia (lo pone el servidor, haga lo que haga la página): los precios y el envío, los pasos de un pedido,
 los pagos y quién puede hacer qué. La página solo muestra y pide; el servidor decide.
 
 ## Qué hay aquí

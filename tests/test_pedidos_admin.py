@@ -38,7 +38,7 @@ class Admin(Base):
         self.assertEqual(st, 200)
         p = self.ped(pid)
         self.assertEqual((p["subtotal_c"], p["notas"], p["editado_por"]), (3 * 500 + 175, "sin sal", "Dueno"))  # sancocho 5.00, chicha 1.75: del menú
-        self.assertEqual(p["total_c"], p["subtotal_c"] + p["itbms_c"] + p["envio_c"])
+        self.assertEqual(p["total_c"], p["subtotal_c"] + p["envio_c"])
         self.assertTrue(any(a["accion"].startswith("pedido_editar:items+notas") and a["pedido_id"] == pid for a in self.sv.listar("auditoria")))
         self.assertEqual(self.js("POST", "/panel/dueno/pedido_editar", {"pedido_id": pid, "items": [{"id": "no-existe", "cantidad": 1}]}, cookie=ck)[0], 409)
 
@@ -72,9 +72,9 @@ class Admin(Base):
         self.assertEqual(r("x")[0], 409)
         self.assertTrue(any(a["accion"].startswith("exportar_pedidos") for a in self.sv.listar("auditoria")))
 
-    def test_factura_usa_la_tasa_del_pedido(self):
+    def test_pedido_viejo_con_itbms_no_rompe(self):
         pid = self.pedido()
-        p = self.ped(pid)
-        self.assertEqual(p["impuesto_pct"], 7)
-        self.sv.cfg["pedidos"]["impuesto_pct"] = 10  # el restaurante cambia la tasa después: el pedido viejo conserva la suya
-        self.assertEqual(factura.resumen(self.sv, p)["lineas"][0]["tasa_itbms"], "7")
+        p = dict(self.ped(pid), impuesto_pct=7, itbms_c=70, total_c=self.ped(pid)["total_c"] + 70)  # como los guardados antes de quitar el ITBMS
+        r = factura.resumen(self.sv, p)
+        self.assertTrue(r["coincide"])
+        self.assertNotIn("itbms", r["totales"])

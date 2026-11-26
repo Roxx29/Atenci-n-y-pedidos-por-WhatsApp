@@ -143,7 +143,7 @@ def config_publica(sv, con_pago=False):
     zonas, costo = e.get("zonas"), e.get("costo") or 0  # mismas tres formas que herramientas._envio: por zona, lista de zonas a costo fijo, o costo fijo ("")
     envio = dict(zonas) if isinstance(zonas, dict) else {z: costo for z in zonas} if zonas else {"": costo} if costo else {}
     c = sv.cfg
-    d = {"marca": marca_de(sv), "horario": c.get("horario") or {}, "impuesto_pct": p.get("impuesto_pct") or 0, "envio": envio,
+    d = {"marca": marca_de(sv), "horario": c.get("horario") or {}, "envio": envio,
          "telefono": c.get("telefono") or "", "anuncio": c.get("anuncio") or "", "cerrado": herramientas.cerrado_ahora(sv), "efectivo": herramientas.efectivo_ok(sv)}
     if con_pago:
         d["pago"] = {k: v for k, v in (sv.cfg.get("pago") or {}).items() if k in ("yappy", "transferencia") and v}
@@ -203,7 +203,7 @@ def aviso_de(sv):
 def formato_pedido(p):
     return {"id": p["id"], "estado": p["estado"], "modalidad": p["modalidad"],
             "items": [{"nombre": l["nombre"], "cantidad": l["cantidad"], "precio": dinero(l["precio_c"])} for l in p["lineas"]], "ubicacion": bool(p.get("ubicacion")),
-            "subtotal": dinero(p["subtotal_c"]), "impuesto": dinero(p["itbms_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
+            "subtotal": dinero(p["subtotal_c"]), "envio": dinero(p["envio_c"]), "total": dinero(p["total_c"]),
             "por_cobrar": bool(p.get("por_cobrar")),
             **({"mesa": p["mesa"], "espera_personal": bool(p.get("espera_personal"))} if p.get("mesa") else {})}  # solo en pedidos de mesa: la API de los demás no cambia
 

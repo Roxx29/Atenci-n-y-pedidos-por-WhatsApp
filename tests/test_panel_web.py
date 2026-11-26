@@ -296,7 +296,8 @@ class PanelWeb(Base):
 
     def test_config_publica_y_pago_solo_con_sesion(self):
         st, d, _ = self.js("GET", "/config")
-        self.assertEqual((st, d["marca"], d["impuesto_pct"]), (200, "DeliFood", self.sv.cfg["pedidos"]["impuesto_pct"]))
+        self.assertEqual((st, d["marca"]), (200, "DeliFood"))
+        self.assertNotIn("impuesto_pct", d)
         self.assertEqual(d["envio"], {"": 2.5})  # costo fijo de la configuración de prueba
         self.assertEqual(web.config_publica(Servicio("servicios/restaurante-pedidos", db=":memory:"))["envio"], {"Chitré": 2.0, "La Villa de Los Santos": 3.0})
         self.assertNotIn("pago", d)

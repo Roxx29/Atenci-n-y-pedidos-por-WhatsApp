@@ -49,7 +49,7 @@ class Cantidades(Base):
         sv = self.sv()
         self.falla(sv, "ítems", items=[])
         r = self.crear(sv, items=[SANC, SANC])
-        self.assertEqual(r["total_c"], 2000 + 140 + 250)
+        self.assertEqual(r["total_c"], 2000 + 250)
         self.assertEqual(len(sv.listar("pedido")[0]["lineas"]), 2)
 
     def test_id_no_disponible_aunque_otra_linea_sea_valida(self):
@@ -96,7 +96,7 @@ class Topes(Base):
         r2 = self.crear(sv, items=[{"id": "chicha", "cantidad": 5}], modalidad="recogida")
         self.assertEqual((r2["pedido_id"], r2["actualizado"]), (r1["pedido_id"], True))
         [p] = sv.listar("pedido")
-        self.assertEqual(([l["id"] for l in p["lineas"]], p["total_c"], p["modalidad"]), (["chicha"], 875 + 61, "recogida"))  # recalculado en código
+        self.assertEqual(([l["id"] for l in p["lineas"]], p["total_c"], p["modalidad"]), (["chicha"], 875, "recogida"))  # recalculado en código
         rb = self.crear(sv, "B")  # otro cliente no interfiere
         self.assertNotEqual(rb["pedido_id"], r1["pedido_id"])
         self.assertEqual(len(sv.listar("pedido")), 2)
@@ -144,9 +144,9 @@ class Topes(Base):
             return [k for k, v in x.items()] + [c for v in x.values() for c in claves(v)] if isinstance(x, dict) else [c for v in x for c in claves(v)] if isinstance(x, list) else []
         for r in resps:
             self.assertEqual([k for k in claves(r) if k.endswith("_c")], [], r)
-            self.assertNotIn("1695", json.dumps(r))
+            self.assertNotIn("1600", json.dumps(r))
         p = resps[1][0]
-        self.assertEqual((p["total"], p["subtotal"], p["impuesto"], p["envio"]), ("B/. 16.95", "B/. 13.50", "B/. 0.95", "B/. 2.50"))
+        self.assertEqual((p["total"], p["subtotal"], p["envio"]), ("B/. 16.00", "B/. 13.50", "B/. 2.50"))
         self.assertEqual((p["lineas"][0]["precio"], p["lineas"][0]["importe"]), ("B/. 5.00", "B/. 10.00"))
 
     def test_datos_incompletos_no_crean_pedido(self):
@@ -178,13 +178,6 @@ class Dinero(Base):
     def menu(self, precio):
         return f"- {{id: x, nombre: X, precio: {precio}}}\n"
 
-    def test_redondeo_itbms_mitad_hacia_arriba(self):
-        for precio, cant, pct, esperado in ((1.10, 1, 7, 8), (0.50, 1, 7, 4), (0.10, 3, 7, 2), (0.07, 1, 50, 4), (10, 1, 7.5, 75), (1.99, 1, 7, 14)):
-            with self.subTest(precio=precio, pct=pct):
-                sv = self.sv(self.menu(precio), cfg={"impuesto_pct": pct})
-                self.crear(sv, items=[{"id": "x", "cantidad": cant}], modalidad="recogida")
-                self.assertEqual(sv.listar("pedido")[-1]["itbms_c"], esperado)
-
     def test_precios_sin_flotantes(self):
         sv = self.sv(self.menu("1.10"), cfg={})
         self.assertEqual(self.crear(sv, items=[{"id": "x", "cantidad": 3}], modalidad="recogida")["total_c"], 330)
@@ -193,12 +186,13 @@ class Dinero(Base):
         with self.assertRaises(ValueError):  # 0.1+0.2 escrito como flotante largo en el yaml
             self.sv(self.menu(0.1 + 0.2))
 
-    def test_impuesto_ausente_none_o_cero(self):
-        for cfg in ({}, {"impuesto_pct": None}, {"impuesto_pct": 0}):
+    def test_impuesto_pct_viejo_se_ignora(self):
+        for cfg in ({}, {"impuesto_pct": None}, {"impuesto_pct": 7}):
             sv = self.sv(cfg=cfg)
             r = self.crear(sv, modalidad="recogida")
             self.assertEqual(r["total_c"], 1350)
             self.assertNotIn("ITBMS", r["resumen"])
+            self.assertNotIn("itbms_c", sv.listar("pedido")[-1])
 
     def test_pedido_minimo_exacto_pasa(self):
         sv = self.sv(cfg={"pedido_minimo": 13.50})
@@ -613,7 +607,7 @@ class ComandoPedidos(unittest.TestCase):
         return out.getvalue()
 
     def test_listar_y_marcar(self):
-        self.assertIn(f"#{self.pid} confirmado · Luis · recogida · B/. 10.70", self.main())
+        self.assertIn(f"#{self.pid} confirmado · Luis · recogida · B/. 10.00", self.main())
         self.assertIn("pagado", self.main("marcar", self.pid, "pagado"))
         self.main("marcar", self.pid, "en_preparacion")
         self.assertIn("listo", self.main("marcar", self.pid, "listo"))

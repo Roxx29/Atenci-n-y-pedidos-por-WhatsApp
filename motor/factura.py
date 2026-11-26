@@ -5,7 +5,6 @@ import datetime as dt
 import html
 import io
 import re
-from decimal import Decimal
 
 ROTULO = "Resumen para factura — no es una factura fiscal"
 AVISO = "Resumen para facturar: no es una factura fiscal. Emítala en su caja fiscal o con su proveedor (PAC)."
@@ -16,30 +15,6 @@ DV = re.compile(r"\d{1,3}")
 
 def _d(c):
     return f"{c // 100}.{c % 100:02d}"
-
-
-def _pct(x):
-    try:
-        v = Decimal(str(x if x is not None else 0))
-    except Exception:
-        return Decimal(0)
-    return v if 0 <= v <= 100 else Decimal(0)
-
-
-def _num(v):
-    return str(v.normalize()) if v else "0"
-
-
-def _reparto(total, pesos):
-    """Reparte `total` centavos en proporción a `pesos` (enteros) sin perder ni inventar centavos (mayor resto)."""
-    s = sum(pesos)
-    if not s:
-        return [0] * len(pesos)
-    base = [total * w // s for w in pesos]
-    falta = total - sum(base)
-    for i in sorted(range(len(pesos)), key=lambda i: -(total * pesos[i] % s))[:falta]:
-        base[i] += 1
-    return base
 
 
 def receptor(d=None):
@@ -64,19 +39,11 @@ def receptor(d=None):
 
 def resumen(sv, pedido, rec=None):
     cfg = sv.cfg
-    ped = cfg.get("pedidos") or {}
-    tasa = _pct(pedido.get("impuesto_pct", ped.get("impuesto_pct")))  # la tasa con la que se cobró el pedido, no la de hoy
-    tasa_envio = _pct((cfg.get("factura") or {}).get("envio_itbms_pct", ped.get("impuesto_pct")))
     lineas = pedido["lineas"]
-    itbms_l = _reparto(pedido["itbms_c"], [l["importe_c"] for l in lineas])  # el motor calcula el ITBMS sobre el subtotal: se reparte por línea
-    filas = [{"descripcion": l["nombre"] + (f" ({l['nota']})" if l.get("nota") else ""), "cantidad": l["cantidad"], "precio_unitario": _d(l["precio_c"]),
-              "base": _d(l["importe_c"]), "tasa_itbms": _num(tasa if i else 0), "itbms": _d(i), "total": _d(l["importe_c"] + i)} for l, i in zip(lineas, itbms_l)]
+    filas = [{"descripcion": l["nombre"] + (f" ({l['nota']})" if l.get("nota") else ""), "cantidad": l["cantidad"], "precio_unitario": _d(l["precio_c"]), "total": _d(l["importe_c"])} for l in lineas]
     envio = pedido.get("envio_c") or 0
-    # ponytail: el envío se toma con el ITBMS incluido en lo cobrado (el motor no se lo suma); por confirmar con su contador
-    i_env = int(Decimal(envio) * tasa_envio / (100 + tasa_envio) + Decimal("0.5")) if envio else 0
-    env = {"descripcion": "Envío a domicilio", "cantidad": 1, "precio_unitario": _d(envio), "base": _d(envio - i_env), "tasa_itbms": _num(tasa_envio),
-           "itbms": _d(i_env), "total": _d(envio), "nota": "ITBMS del envío por confirmar con su contador"} if envio else None
-    suma = sum(l["importe_c"] for l in lineas) + sum(itbms_l) + envio
+    env = {"descripcion": "Envío a domicilio", "cantidad": 1, "precio_unitario": _d(envio), "total": _d(envio)} if envio else None
+    suma = sum(l["importe_c"] for l in lineas) + envio
     creado = dt.datetime.fromisoformat(pedido["creado_at"]).astimezone(sv.tz) if pedido.get("creado_at") else None
     emisor = {"razon_social": cfg.get("razon_social") or "", "ruc": cfg.get("ruc") or "", "dv": cfg.get("dv") or "", "sucursal": cfg.get("sucursal") or "",
               "direccion": cfg.get("direccion") or "", "telefono": cfg.get("telefono") or ""}
@@ -84,9 +51,9 @@ def resumen(sv, pedido, rec=None):
             "documento": {"pedido_id": pedido["id"], "fecha": f"{creado:%Y-%m-%d %H:%M}" if creado else "",
                           "modalidad": {"recogida": "recoger"}.get(pedido["modalidad"], pedido["modalidad"])},
             "receptor": receptor(rec), "lineas": filas, "envio": env,
-            "totales": {"subtotal": _d(pedido["subtotal_c"]), "itbms": _d(sum(itbms_l) + i_env), "envio": _d(envio), "total": _d(suma),
+            "totales": {"subtotal": _d(pedido["subtotal_c"]), "envio": _d(envio), "total": _d(suma),
                         "pagado": bool(pedido.get("pagado_at") or pedido.get("cobrado_at")), "forma_pago": pedido.get("metodo") or ""},
-            "coincide": suma == pedido["total_c"] and pedido["subtotal_c"] == sum(l["importe_c"] for l in lineas)}
+            "coincide": suma == pedido["total_c"] - (pedido.get("itbms_c") or 0) and pedido["subtotal_c"] == sum(l["importe_c"] for l in lineas)}
 
 
 def _t(x):
@@ -103,7 +70,7 @@ def to_csv(r):
         for k, v in r[sec].items():
             w.writerow([f"{sec}_{k}", _t(v)])
     w.writerow([])
-    cols = ["descripcion", "cantidad", "precio_unitario", "base", "tasa_itbms", "itbms", "total"]
+    cols = ["descripcion", "cantidad", "precio_unitario", "total"]
     w.writerow(cols)
     for l in r["lineas"] + ([r["envio"]] if r["envio"] else []):
         w.writerow([_t(l[c]) if c == "descripcion" else l[c] for c in cols])
@@ -116,11 +83,10 @@ def to_csv(r):
 
 def to_html(r):
     e = lambda x: html.escape(str(x))
-    fila = lambda l: "<tr>" + "".join(f"<td{'' if c == 'descripcion' else ' class=n'}>{e(l[c])}</td>" for c in ("descripcion", "cantidad", "precio_unitario", "base", "tasa_itbms", "itbms", "total")) + "</tr>"
+    fila = lambda l: "<tr>" + "".join(f"<td{'' if c == 'descripcion' else ' class=n'}>{e(l[c])}</td>" for c in ("descripcion", "cantidad", "precio_unitario", "total")) + "</tr>"
     em, rc, d, t = r["emisor"], r["receptor"], r["documento"], r["totales"]
     rec = "Consumidor final" if rc["tipo"] == "consumidor_final" else f"{rc['nombre']} · RUC/cédula {rc['ruc']}" + (f"-{rc['dv']}" if rc["dv"] else "")
     falta = f"<p class=al>Faltan datos del emisor: {e(', '.join(r['faltan']))}.</p>" if r["faltan"] else ""
-    nota = f"<p><small>{e(r['envio']['nota'])}</small></p>" if r["envio"] else ""
     ok = "" if r["coincide"] else "<p class=al>El total del resumen no coincide con el del pedido: no lo use.</p>"
     return (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{e(ROTULO)} #{e(d["pedido_id"])}</title>'
             "<style>body{font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:760px}h1{font-size:1.1rem;border:2px solid #000;padding:8px}table{border-collapse:collapse;width:100%}"
@@ -128,9 +94,9 @@ def to_html(r):
             f"<h1>{e(ROTULO)}</h1><p>{e(r['aviso'])}</p>{falta}{ok}"
             f"<p><b>Emisor:</b> {e(em['razon_social'] or '—')} · RUC {e(em['ruc'] or '—')}-{e(em['dv'] or '—')} · Sucursal {e(em['sucursal'] or '—')}<br>{e(em['direccion'])} {e(em['telefono'])}</p>"
             f"<p><b>Pedido #{e(d['pedido_id'])}</b> · {e(d['fecha'])} · {e(d['modalidad'])}<br><b>Cliente:</b> {e(rec)}</p>"
-            "<table><thead><tr><th>Descripción</th><th class=n>Cant.</th><th class=n>Precio</th><th class=n>Base</th><th class=n>ITBMS %</th><th class=n>ITBMS</th><th class=n>Total</th></tr></thead><tbody>"
-            + "".join(fila(l) for l in r["lineas"] + ([r["envio"]] if r["envio"] else [])) + f"</tbody></table>{nota}"
-            f"<p>Subtotal B/. {e(t['subtotal'])} · ITBMS B/. {e(t['itbms'])} · Envío B/. {e(t['envio'])}<br><b>Total B/. {e(t['total'])}</b> · {'Pagado' if t['pagado'] else 'No pagado aún'}"
+            "<table><thead><tr><th>Descripción</th><th class=n>Cant.</th><th class=n>Precio</th><th class=n>Total</th></tr></thead><tbody>"
+            + "".join(fila(l) for l in r["lineas"] + ([r["envio"]] if r["envio"] else [])) + f"</tbody></table>"
+            f"<p>Subtotal B/. {e(t['subtotal'])} · Envío B/. {e(t['envio'])}<br><b>Total B/. {e(t['total'])}</b> · {'Pagado' if t['pagado'] else 'No pagado aún'}"
             f"{' (' + e(t['forma_pago']) + ')' if t['forma_pago'] else ''}</p></body></html>").encode("utf-8")
 
 

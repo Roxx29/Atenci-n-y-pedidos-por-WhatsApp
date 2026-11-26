@@ -3,6 +3,8 @@
 Apuntar al momento. Formato: `- [ ] AAAA-MM-DD — texto (autor)`. Marcar `[x]` al terminar.
 
 ## Ideas
+- [ ] 2026-11-25 — AVISO: se quitó el ITBMS del código, pero la factura fiscal en Panamá EXIGE ITBMS (7 %, 10 % alcohol, etc.); el resumen para factura ya no lo desglosa. Validar con un contador antes de facturar de verdad o de reponerlo (programador)
+
 - [ ] 2026-11-23 — Factura fase 2: integrar por API con un PAC (probar sandbox de Alanube y Digifact; confirmar si permiten multi-emisor con la firma de cada restaurante). Fase 1 ya está en `motor/factura.py` (programador)
 - [ ] 2026-11-23 — Dudas para un contador: ITBMS de la propina y del envío (hoy el envío se toma con ITBMS incluido a la tasa general, `factura.envio_itbms_pct` para cambiarla), 10 % del alcohol, plazo de anulación, conservación de documentos (programador)
 - [ ] 2026-11-23 — Factura: el menú no admite `itbms_pct` por plato (el motor calcula una sola tasa sobre el subtotal, `pedidos.impuesto_pct`); para alcohol al 10 % hay que añadirlo en `_lineas`/`_armar` y guardarlo por línea. Y portar el botón de factura a los paneles propios (`diseno/editable/*/panel.html`) (programador)

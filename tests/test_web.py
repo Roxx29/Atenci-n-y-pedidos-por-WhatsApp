@@ -302,8 +302,9 @@ class MenuYPedidos(Base):
         _, d, _ = self.js("POST", "/chat", {"texto": "quiero 2 sancochos"}, cookie=a)
         self.assertEqual(d["respuesta"], "Listo")
         p = d["pedido"]
-        self.assertEqual((p["estado"], p["modalidad"], p["subtotal"], p["total"]), ("por_confirmar", "recogida", "B/. 10.00", "B/. 10.70"))
-        self.assertEqual((p["impuesto"], p["envio"]), ("B/. 0.70", "B/. 0.00"))
+        self.assertEqual((p["estado"], p["modalidad"], p["subtotal"], p["total"]), ("por_confirmar", "recogida", "B/. 10.00", "B/. 10.00"))
+        self.assertNotIn("impuesto", p)
+        self.assertEqual(p["envio"], "B/. 0.00")
         self.assertEqual(p["items"], [{"nombre": "Sancocho", "cantidad": 2, "precio": "B/. 5.00"}])
         self.assertEqual(self.js("GET", "/pedidos", cookie=a)[1]["pedidos"], [p])
         self.assertEqual(self.js("GET", "/pedidos", cookie=b)[1], {"pedidos": []})

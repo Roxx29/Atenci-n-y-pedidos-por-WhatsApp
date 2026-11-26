@@ -1249,12 +1249,12 @@ async function verFactura() {
   const ruc = $("#fac-ruc").value.trim();
   try {
     const r = (await api("POST", "/panel/factura", {pedido_id:FAC.id, receptor:ruc ? {tipo:"contribuyente", ruc, nombre:$("#fac-nombre").value.trim()} : {tipo:"consumidor_final"}})).resumen;
-    const l = r.lineas.concat(r.envio ? [r.envio] : []).map(x => `${x.cantidad} × ${x.descripcion}: base B/. ${x.base} + ITBMS ${x.tasa_itbms} % B/. ${x.itbms} = B/. ${x.total}`);
+    const l = r.lineas.concat(r.envio ? [r.envio] : []).map(x => `${x.cantidad} × ${x.descripcion}: B/. ${x.total}`);
     const t = r.totales, e = r.emisor, rc = r.receptor;
     FAC.texto = [`Resumen para factura — no es una factura fiscal`, `Emisor: ${e.razon_social || "—"} · RUC ${e.ruc || "—"}-${e.dv || "—"} · Sucursal ${e.sucursal || "—"}`,
       `Pedido #${r.documento.pedido_id} · ${r.documento.fecha} · ${r.documento.modalidad}`, `Cliente: ${rc.tipo === "consumidor_final" ? "Consumidor final" : `${rc.nombre} · ${rc.ruc}`}`, "", ...l, "",
-      `Subtotal B/. ${t.subtotal} · ITBMS B/. ${t.itbms} · Envío B/. ${t.envio}`, `Total B/. ${t.total} · ${t.pagado ? "Pagado" : "No pagado aún"}${t.forma_pago ? " (" + t.forma_pago + ")" : ""}`,
-      r.coincide ? "" : "OJO: el total no coincide con el del pedido; no lo use.", r.envio ? "ITBMS del envío: por confirmar con su contador." : ""].filter((x, i, a) => x || (a[i - 1] && a[i + 1])).join("\n");
+      `Subtotal B/. ${t.subtotal} · Envío B/. ${t.envio}`, `Total B/. ${t.total} · ${t.pagado ? "Pagado" : "No pagado aún"}${t.forma_pago ? " (" + t.forma_pago + ")" : ""}`,
+      r.coincide ? "" : "OJO: el total no coincide con el del pedido; no lo use."].filter((x, i, a) => x || (a[i - 1] && a[i + 1])).join("\n");
     $("#fac-texto").textContent = FAC.texto; $("#fac-faltan").hidden = !r.faltan.length;
   } catch (e) { $("#fac-texto").textContent = e.message; FAC.texto = ""; }
 }

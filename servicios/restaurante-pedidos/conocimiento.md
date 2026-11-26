@@ -5,7 +5,7 @@
 - Zonas de entrega: Chitré incluye Chitré cabecera, La Arena, Monagrillo, Llano Bonito y San Juan Bautista (los cinco corregimientos del distrito de Chitré); La Villa de Los Santos es la cabecera de ese corregimiento. Si dudas de dónde queda un lugar, pregunta al cliente.
 - Entrega: solo en Chitré (B/. 2.00, tarda de 25 a 40 min) y La Villa de Los Santos (B/. 3.00, tarda de 45 a 60 min). Otras zonas: no hacemos entregas; se puede recoger en el local.
 - Recogida: lista en unos 20 min.
-- Impuestos: al total se le suma ITBMS (7%).
+- Los precios son finales: no se suma impuesto aparte.
 - Pagos: Yappy o transferencia, antes de preparar el pedido. Efectivo solo al recoger.
 - Sin opciones sin gluten garantizadas. Ante alergias, pasar con una persona.
 - Cancelaciones: gratis antes de que el pedido entre en preparación.

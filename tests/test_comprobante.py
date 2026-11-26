@@ -104,7 +104,7 @@ class Comprobante(Base):
         p = self.pedido()
         self.assertEqual((p["metodo"], p["referencia"]), ("yappy", "YP123"))
         av = self.sv.listar("aviso")[-1]["texto"]
-        self.assertEqual(av, f"Comprobante de Yappy recibido: verificar y marcar pagado: pedido #{self.pid}, total B/. 10.70.")
+        self.assertEqual(av, f"Comprobante de Yappy recibido: verificar y marcar pagado: pedido #{self.pid}, total B/. 10.00.")
 
     def test_reenvio_reemplaza_y_referencia_por_defecto(self):
         self.subir(jpeg())

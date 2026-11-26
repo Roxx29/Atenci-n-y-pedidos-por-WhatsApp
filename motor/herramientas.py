@@ -12,7 +12,7 @@ import secrets
 import struct
 import time
 import unicodedata
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 
 import yaml
 
@@ -125,7 +125,7 @@ SIN_IDENTIDAD = ("telefono", "contacto")  # nunca van al modelo: las herramienta
 def _pedido_para_modelo(p):
     """El modelo no ve centavos (los repite al cliente): importes como texto 'B/. 9.36', sin campos *_c. Tampoco teléfono ni cid."""
     out = {k: v for k, v in p.items() if not k.endswith("_c") and k not in SIN_IDENTIDAD and k not in ("lineas", "comprobante", "comprobante_at", "comprobante_borrado_at", "pago_rechazado_at", "ubicacion")}
-    out.update(ubicacion_recibida=bool(p.get("ubicacion")), total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), impuesto=dinero(p["itbms_c"]), envio=dinero(p["envio_c"]),
+    out.update(ubicacion_recibida=bool(p.get("ubicacion")), total=dinero(p["total_c"]), subtotal=dinero(p["subtotal_c"]), envio=dinero(p["envio_c"]),
                lineas=[{**{k: v for k, v in l.items() if not k.endswith("_c")}, "precio": dinero(l["precio_c"]), "importe": dinero(l["importe_c"])} for l in p["lineas"]])
     return out
 
@@ -401,15 +401,14 @@ def _armar(sv, lineas, subtotal, modalidad, nombre, telefono, direccion, hora_de
     minimo = _c(cfg.get("pedido_minimo") or 0)
     if subtotal < minimo:
         raise ValueError(f"El pedido mínimo es {dinero(minimo)} y el subtotal es {dinero(subtotal)}.")
-    itbms = int((Decimal(subtotal) * Decimal(str(cfg.get("impuesto_pct") or 0)) / 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     envio = _envio(cfg, zona) if modalidad == "entrega" else 0
     return {"nombre": nombre, "telefono": telefono, **({"contacto": seguridad.cifrar(contacto)} if contacto and contacto != telefono else {}), "modalidad": modalidad, "direccion": direccion, "hora_deseada": hora_deseada, "zona": zona, "notas": notas,
-            **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "impuesto_pct": cfg.get("impuesto_pct") or 0, "itbms_c": itbms, "envio_c": envio, "total_c": subtotal + itbms + envio}
+            **({"mesa": mesa} if mesa else {}), "lineas": lineas, "subtotal_c": subtotal, "envio_c": envio, "total_c": subtotal + envio}
 
 
 def _resumen(d):
     return "\n".join([f"{l['cantidad']} - {l['nombre']}" + (f" ({l['nota']})" if l["nota"] else "") + f"\n{dinero(l['importe_c'])}\n" for l in d["lineas"]]
-                     + [f"Subtotal: {dinero(d['subtotal_c'])}"] + ([f"ITBMS: {dinero(d['itbms_c'])}"] if d["itbms_c"] else [])
+                     + [f"Subtotal: {dinero(d['subtotal_c'])}"]
                      + ([f"Envío: {dinero(d['envio_c'])}"] if d["modalidad"] == "entrega" else []) + [f"Total: {dinero(d['total_c'])}"]
                      + ([f"Notas: {d['notas']}"] if d.get("notas") else []))
 

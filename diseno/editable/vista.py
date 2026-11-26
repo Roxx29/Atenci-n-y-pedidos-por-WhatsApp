@@ -55,9 +55,8 @@ class Estado:
 
     def totales(self, p):
         sub = sum(i["precio"] * i["cantidad"] for i in p["items"])
-        imp = round(sub * self.d["config"]["impuesto_pct"] / 100, 2)
         env = self.d["config"]["envio"].get(p["zona"], 0) if p["modalidad"] == "entrega" else 0
-        return {"subtotal": dinero(sub), "impuesto": dinero(imp), "envio": dinero(env), "total": dinero(sub + imp + env)}
+        return {"subtotal": dinero(sub), "envio": dinero(env), "total": dinero(sub + env)}
 
     def items(self, p, precio=True, con_id=False):
         return [{**({"id": next((m["id"] for m in self.menu if m["nombre"] == i["nombre"]), "")} if con_id else {}), "nombre": i["nombre"], "cantidad": i["cantidad"], **({"precio": dinero(i["precio"])} if precio else {})} for i in p["items"]]
